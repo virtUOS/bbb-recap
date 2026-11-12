@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC fixture F-01 (docs/reference/fixtures.md). Not a real meeting; all names are fictional. -->
+<recording meeting_id="536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000" bbb_version="4.0.0">
+  <meeting id="536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000" externalId="fixture-meeting-01" name="Fixture Widget Meeting" breakout="false"/>
+  <metadata bbb-origin="PILOS" isBreakout="false" meetingId="fixture-meeting-01" meetingName="Fixture Widget Meeting" recap-enabled="true" recap-sink="docs-main" recap-type="meeting-summary" recap-v="1"/>
+  <event timestamp="5000000" module="PARTICIPANT" eventname="ParticipantJoinEvent">
+    <timestampUTC>1761732000000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <externalUserId>u1</externalUserId>
+    <name>Ada Testperson</name>
+    <role>MODERATOR</role>
+    <date>2025-10-29T10:00:00.000Z</date>
+  </event>
+  <event timestamp="5000200" module="PAD" eventname="PadCreatedEvent">
+    <timestampUTC>1761732000200</timestampUTC>
+    <padId>fixturepad0001</padId>
+    <date>2025-10-29T10:00:00.200Z</date>
+  </event>
+  <event timestamp="5001000" module="PARTICIPANT" eventname="ParticipantJoinEvent">
+    <timestampUTC>1761732001000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <externalUserId>u2</externalUserId>
+    <name>Ben Testperson</name>
+    <role>VIEWER</role>
+    <date>2025-10-29T10:00:01.000Z</date>
+  </event>
+  <event timestamp="5002000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732002000</timestampUTC>
+    <presentationName>d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000</presentationName>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <share>true</share>
+    <date>2025-10-29T10:00:02.000Z</date>
+  </event>
+  <event timestamp="5002001" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732002001</timestampUTC>
+    <presentationName>d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000</presentationName>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <id>d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000/1</id>
+    <slide>0</slide>
+    <date>2025-10-29T10:00:02.001Z</date>
+  </event>
+  <event timestamp="5005000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732005000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>true</status>
+    <date>2025-10-29T10:00:05.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5005200" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732005200</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/microphone-w_fixada0001-TR_fixA1-1761732005200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5005300" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732005300</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/microphone-w_fixben0002-TR_fixB1-1761732005300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <event timestamp="5012000" module="CHAT" eventname="PublicChatEvent">
+    <timestampUTC>1761732012000</timestampUTC>
+    <senderId>w_fixben0002</senderId>
+    <senderRole>VIEWER</senderRole>
+    <messageId>fixmsg-0001</messageId>
+    <message>Link to the widget spec will follow.</message>
+    <chatEmphasizedText>false</chatEmphasizedText>
+    <date>2025-10-29T10:00:12.000Z</date>
+  </event>
+  <event timestamp="5014000" module="CHAT" eventname="PublicChatEvent">
+    <timestampUTC>1761732014000</timestampUTC>
+    <senderId>w_fixada0001</senderId>
+    <senderRole>MODERATOR</senderRole>
+    <messageId>fixmsg-0002</messageId>
+    <message>Thanks.</message>
+    <chatEmphasizedText>false</chatEmphasizedText>
+    <date>2025-10-29T10:00:14.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (poll values; answers JSON omitted, fixtures.md §3.1) -->
+  <event timestamp="5020000" module="POLL" eventname="PollStartedRecordEvent">
+    <timestampUTC>1761732020000</timestampUTC>
+    <pollId>fixpoll-0001</pollId>
+    <userId>w_fixada0001</userId>
+    <question>Blue or green?</question>
+    <secretPoll>false</secretPoll>
+    <date>2025-10-29T10:00:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (poll values; answers JSON omitted, fixtures.md §3.1) -->
+  <event timestamp="5025000" module="POLL" eventname="UserRespondedToPollRecordEvent">
+    <timestampUTC>1761732025000</timestampUTC>
+    <pollId>fixpoll-0001</pollId>
+    <userId>w_fixada0001</userId>
+    <answerId>0</answerId>
+    <answer>Blue</answer>
+    <date>2025-10-29T10:00:25.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (poll values; answers JSON omitted, fixtures.md §3.1) -->
+  <event timestamp="5026000" module="POLL" eventname="UserRespondedToPollRecordEvent">
+    <timestampUTC>1761732026000</timestampUTC>
+    <pollId>fixpoll-0001</pollId>
+    <userId>w_fixben0002</userId>
+    <answerId>0</answerId>
+    <answer>Blue</answer>
+    <date>2025-10-29T10:00:26.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (poll values; answers JSON omitted, fixtures.md §3.1) -->
+  <event timestamp="5030000" module="POLL" eventname="PollStoppedRecordEvent">
+    <timestampUTC>1761732030000</timestampUTC>
+    <pollId>fixpoll-0001</pollId>
+    <date>2025-10-29T10:00:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (poll values; answers JSON omitted, fixtures.md §3.1) -->
+  <event timestamp="5031000" module="POLL" eventname="PollPublishedRecordEvent">
+    <timestampUTC>1761732031000</timestampUTC>
+    <pollId>fixpoll-0001</pollId>
+    <question>Blue or green?</question>
+    <numRespondents>2</numRespondents>
+    <numResponders>2</numResponders>
+    <isQuiz>false</isQuiz>
+    <showCorrectAnswer>false</showCorrectAnswer>
+    <date>2025-10-29T10:00:31.000Z</date>
+  </event>
+  <event timestamp="5040000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732040000</timestampUTC>
+    <presentationName>d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000</presentationName>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <id>d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000/2</id>
+    <slide>1</slide>
+    <date>2025-10-29T10:00:40.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5045000" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732045000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/screen_share_audio-w_fixben0002-TR_fixS1-1761732045000.webm</filename>
+    <source>screen_share_audio</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5045000" module="bbb-webrtc-sfu" eventname="StartWebRTCDesktopShareEvent">
+    <timestampUTC>1761732045000</timestampUTC>
+    <filename>/var/lib/bbb-webrtc-recorder/screenshare/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/screen_share-w_fixben0002-TR_fixD1-1761732045000.webm</filename>
+    <userId>w_fixben0002</userId>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5047000" module="bbb-webrtc-sfu" eventname="StopWebRTCDesktopShareEvent">
+    <timestampUTC>1761732047000</timestampUTC>
+    <filename>/var/lib/bbb-webrtc-recorder/screenshare/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/screen_share-w_fixben0002-TR_fixD1-1761732045000.webm</filename>
+    <userId>w_fixben0002</userId>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5050000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732050000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/screen_share_audio-w_fixben0002-TR_fixS1-1761732045000.webm</filename>
+    <source>screen_share_audio</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5050000" module="bbb-webrtc-sfu" eventname="StartWebRTCShareEvent">
+    <timestampUTC>1761732050000</timestampUTC>
+    <filename>/var/lib/bbb-webrtc-recorder/recordings/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/camera-w_fixada0001-TR_fixV1-1761732050000.webm</filename>
+    <userId>w_fixada0001</userId>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5052000" module="bbb-webrtc-sfu" eventname="StopWebRTCShareEvent">
+    <timestampUTC>1761732052000</timestampUTC>
+    <filename>/var/lib/bbb-webrtc-recorder/recordings/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/camera-w_fixada0001-TR_fixV1-1761732050000.webm</filename>
+    <userId>w_fixada0001</userId>
+  </event>
+  <event timestamp="5060000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732060000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>false</status>
+    <date>2025-10-29T10:01:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5060000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732060000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/microphone-w_fixada0001-TR_fixA1-1761732005200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <event timestamp="5090000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732090000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>true</status>
+    <date>2025-10-29T10:01:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5090200" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732090200</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/microphone-w_fixada0001-TR_fixA2-1761732090200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5090250" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732090250</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/microphone-w_fixben0002-TR_fixB1-1761732005300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5090300" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732090300</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/microphone-w_fixben0002-TR_fixB2-1761732090300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5150000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732150000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/microphone-w_fixada0001-TR_fixA2-1761732090200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5150000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732150000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/microphone-w_fixben0002-TR_fixB2-1761732090300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <event timestamp="5155000" module="PARTICIPANT" eventname="ParticipantLeftEvent">
+    <timestampUTC>1761732155000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <date>2025-10-29T10:02:35.000Z</date>
+  </event>
+  <event timestamp="5155000" module="PARTICIPANT" eventname="ParticipantLeftEvent">
+    <timestampUTC>1761732155000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <date>2025-10-29T10:02:35.000Z</date>
+  </event>
+</recording>

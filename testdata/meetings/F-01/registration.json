@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0.0",
+  "meeting_id": "fixture-meeting-01",
+  "record_id": "536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000",
+  "owner": {
+    "sub": "fixture-sub-ada-0001",
+    "email": "ada.testperson@example.org"
+  }
+}

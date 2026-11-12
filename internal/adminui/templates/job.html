@@ -1,0 +1,40 @@
+{{define "content"}}
+{{- with .Data}}
+<dl>
+<dt>Job</dt><dd><code>{{.JobID}}</code></dd>
+<dt>State</dt><dd>{{.State}}</dd>
+{{- with .HeldReason}}<dt>Held reason</dt><dd>{{.}}</dd>{{end}}
+{{- with .FailureReason}}<dt>Failure reason</dt><dd>{{.}}</dd>{{end}}
+{{- with .Outcome}}<dt>Outcome</dt><dd>{{.}}</dd>{{end}}
+{{- with .Detail}}<dt>Detail</dt><dd><code>{{.}}</code></dd>{{end}}
+{{- with .CurrentStep}}<dt>Current step</dt><dd>{{.}}</dd>{{end}}
+<dt>Delivery</dt><dd>{{with .Delivery}}{{.State}}{{else}}none{{end}}</dd>
+{{- with .Delivery}}{{with .DocumentID}}<dt>Docs document ID</dt><dd><code>{{.}}</code></dd>{{end}}{{end}}
+<dt>Rerun of</dt><dd>{{with .RerunOf}}<a href="/admin/jobs/{{.}}"><code>{{.}}</code></a>{{else}}none{{end}}</dd>
+<dt>Record ID</dt><dd><code>{{.RecordID}}</code></dd>
+<dt>Meeting ID</dt><dd><code>{{.MeetingID}}</code></dd>
+<dt>BBB server</dt><dd>{{.BBBServerID}}</dd>
+<dt>Created (UTC)</dt><dd>{{.CreatedAt}}</dd>
+<dt>Updated (UTC)</dt><dd>{{.UpdatedAt}}</dd>
+</dl>
+<h2>Steps</h2>
+<div class="scroll">
+<table>
+<thead><tr><th>Step</th><th>State</th><th>Attempts</th><th>Run after (UTC)</th><th>Last error</th></tr></thead>
+<tbody>
+{{- range .Steps}}
+<tr><td>{{.Name}}</td><td>{{.State}}</td><td>{{.Attempt}}</td><td>{{.RunAfter}}</td>
+<td>{{with .LastErrorClass}}<code>{{.}}</code>{{end}} {{with .LastErrorCode}}<code>{{.}}</code>{{end}}</td></tr>
+{{- end}}
+</tbody>
+</table>
+</div>
+<h2>Actions</h2>
+{{- if .Actions}}
+<p class="actions">{{range .Actions}}<a class="button" href="/admin/jobs/{{$.Data.JobID}}/{{.}}">{{.}}</a> {{end}}</p>
+{{- else}}
+<p>No action applies in this state.</p>
+{{- end}}
+<p><a href="/admin/audit?job_id={{.JobID}}">Audit entries of this job</a></p>
+{{- end}}
+{{end}}

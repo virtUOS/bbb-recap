@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:recap:schema:registration:1",
+  "title": "Meeting registration (request)",
+  "description": "Body of PUT /api/v1/registrations/{record_id}. Spec: docs/reference/metadata-interface.md section 2. Contains personal data (owner.sub, owner.email).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "meeting_id", "record_id", "owner"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Major must be 1.",
+      "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "meeting_id": { "$ref": "#/$defs/meeting_id" },
+    "record_id": { "$ref": "#/$defs/record_id" },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sub", "email"],
+      "properties": {
+        "sub": {
+          "type": "string",
+          "description": "OIDC sub of the owner as known to the sink's IdP. See docs/reference/identity-mapping.md.",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254
+        }
+      }
+    }
+  },
+  "$defs": {
+    "meeting_id": {
+      "type": "string",
+      "description": "External meetingID sent on BBB create.",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+    },
+    "record_id": {
+      "type": "string",
+      "description": "BBB internal meeting ID (internalMeetingID of the create response; names raw/<record_id>).",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
+    "registration_response": {
+      "type": "object",
+      "description": "Response of PUT (200/201) and GET (schema_version 1.1.0 adds the result fields of job). Never contains owner data.",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "record_id",
+        "meeting_id",
+        "frontend_id",
+        "status",
+        "created_at",
+        "updated_at",
+        "expires_at",
+        "job"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "pattern": "^1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "record_id": { "$ref": "#/$defs/record_id" },
+        "meeting_id": { "$ref": "#/$defs/meeting_id" },
+        "frontend_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$" },
+        "status": { "enum": ["registered", "matched", "cancelled"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": ["string", "null"], "format": "date-time" },
+        "job": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "job_id",
+                "state",
+                "held_reason",
+                "outcome",
+                "delivered_at",
+                "document_url",
+                "summary_available"
+              ],
+              "properties": {
+                "job_id": { "type": "string", "format": "uuid" },
+                "state": { "enum": ["received", "running", "held", "failed", "delivered", "cleaned"] },
+                "held_reason": {
+                  "enum": [
+                    null,
+                    "invalid_metadata",
+                    "unknown_type",
+                    "unknown_sink",
+                    "no_registration",
+                    "owner_unresolved",
+                    "delivery_uncertain"
+                  ]
+                },
+                "outcome": {
+                  "description": "README outcome; null until delivery (metadata-interface.md section 2.7).",
+                  "enum": [null, "delivered", "cancelled", "purged"]
+                },
+                "delivered_at": {
+                  "description": "Time of delivery; null until delivery.",
+                  "type": ["string", "null"],
+                  "format": "date-time"
+                },
+                "document_url": {
+                  "description": "Link to the delivered document from the sink profile's document_url_template; null without a template, without a document ID and for the frontend sink.",
+                  "type": ["string", "null"],
+                  "format": "uri"
+                },
+                "summary_available": {
+                  "description": "True only for the frontend sink while the summary waits for pickup (GET .../summary).",
+                  "type": "boolean"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

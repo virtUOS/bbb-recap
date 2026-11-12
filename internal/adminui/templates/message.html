@@ -1,0 +1,5 @@
+{{define "content"}}
+{{- if .Message}}<p>{{.Message}}</p>{{end}}
+{{- if .Back}}<p><a href="{{.Back}}">Back</a></p>{{end}}
+{{- if .LoggedOut}}<p><a href="/admin/">Log in</a></p>{{else if not .Session}}<p><a href="/admin/">Admin page</a></p>{{end}}
+{{end}}

@@ -1,0 +1,21 @@
+# Sink profiles fixture (docs/reference/sinks.md §3.1).
+schema_version: "1.0.0"
+sinks:
+  - name: Docs_Main
+    type: docs
+    docs_base_url: https://docs.recap.test
+    api_key_file: docs-s2s.key
+    document_url_template: "https://docs.recap.test/docs/{id}/"
+    request_timeout: 60s
+    max_inflight: 2
+    max_document_bytes: 2097152
+    declaration:
+      data_categories: [summary, email]
+      operator: "operator's Docs instance"
+      location: on_prem
+      retention: "Document owned by the user in Docs; Docs retention policy"
+      deletion: manual
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-10-29"

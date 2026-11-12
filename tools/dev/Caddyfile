@@ -1,0 +1,15 @@
+# Dev TLS front (service tls in tools/dev/compose.yaml): https://127.0.0.1:8443
+# with a certificate from Caddy's local CA, proxied to api:8080.
+# default_sni: clients connecting to an IP send no SNI, and the container sees
+# its own address, not 127.0.0.1; this makes Caddy pick the 127.0.0.1 cert.
+{
+	admin off
+	default_sni 127.0.0.1
+	skip_install_trust
+	auto_https disable_redirects
+}
+
+https://127.0.0.1:8443 {
+	tls internal
+	reverse_proxy api:8080
+}

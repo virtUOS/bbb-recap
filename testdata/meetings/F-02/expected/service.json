@@ -1,0 +1,7 @@
+{
+  "input": "direct",
+  "job": {
+    "state": "failed",
+    "reason": "unsupported_audio_bridge"
+  }
+}

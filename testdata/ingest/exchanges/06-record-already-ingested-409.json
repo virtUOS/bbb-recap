@@ -1,0 +1,82 @@
+{
+  "case": "record-already-ingested-409",
+  "pins": [
+    "bbb-exporter.md §6.2 row 1 (409), §5.1 (conflict)",
+    "architecture.md §4.1 (idempotency: other package_id)",
+    "meeting-package.md §7 V-I06",
+    "fixtures.md §6 M-08"
+  ],
+  "fixture": "F-01",
+  "record_id": "536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000",
+  "exporter": {
+    "state": "failed",
+    "reason": "conflict"
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+        "credential": "bbb_server.bbb-fixture-a",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "meetings/F-01/expected/manifest.json",
+          "sha256": "fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+          "size": 2147
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "package_id": "fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+          "state": "receiving",
+          "missing": [
+            "90bcb623d1a30d21a06d4557f508b0a16c1cc5e6389d35d5af57abc925dcb2b8",
+            "5f9896375a24242e9fac5b4d0bcd7f9ce529328fc78fc4a554be91354c9a5164",
+            "a97dcb416122736a71d59a3176b269a1d5949b20c473ec0f5f86a17db8c72c8b",
+            "932917876a460b87d798e3b790dcfba9f15498cd842f325b80f39516aa42fe70",
+            "6a7b886b0e4f1753c9217739270819ab44283b9c01b4b10bcce6834c7eb1f23e",
+            "aed5f557326b97149f13a9529a97852d83d6918e108dacb724070b21060c5820",
+            "95eb91a281832d8a975dcdb14d27b2f15b9fbdcaee568b0570e2636b27603229",
+            "32e80c82b6817743cb4bac409b73f8b5bb69ecfba2b1f3d1e139b4cc4da27e01",
+            "ae5a6cb6cf092ef6039cfd001f0aa972d8eca566b7bf6d3d79d5e09bb26df66b"
+          ],
+          "received_size": 0,
+          "expected_size": 393967
+        }
+      },
+      "sides": [
+        "service"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/043b22283cc587bfe55e43099d3deea95ac45188dfa1624e35227fed0b733df9",
+        "credential": "bbb_server.bbb-fixture-a",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "ingest/exchanges/bodies/M-08.rebuilt.manifest.json",
+          "sha256": "043b22283cc587bfe55e43099d3deea95ac45188dfa1624e35227fed0b733df9",
+          "size": 2147
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": {
+          "type": "urn:recap:problem:record-already-ingested"
+        }
+      }
+    }
+  ]
+}

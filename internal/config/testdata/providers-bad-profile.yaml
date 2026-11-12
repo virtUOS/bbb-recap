@@ -1,0 +1,24 @@
+# A providers file with one bad profile: the ASR declaration lacks retention
+# and the LLM profile has an unknown key.
+schema_version: "1.0.0"
+defaults: { asr: whisperx-lab, llm: vllm-lab }
+profiles:
+  - name: whisperx-lab
+    kind: asr
+    dialect: whisperx-family
+    base_url: https://asr.recap.test
+    model: large-v3
+    declaration: { data_categories: [voice], operator: "operator's computing centre", location: on_prem,
+                   deletion: manual, used_for_training: "no", contract_ref: none, reviewed_by: fixture-reviewer,
+                   reviewed_at: "2026-10-29" }
+  - name: vllm-lab
+    kind: llm
+    dialect: openai-chat
+    base_url: https://llm.recap.test/v1
+    model: example-model
+    context_tokens: 32768
+    max_output_tokens: 4096
+    temperature: 0.7
+    declaration: { data_categories: [transcript], operator: "operator's computing centre",
+                   location: on_prem, retention: "none", deletion: none,
+                   used_for_training: "no", contract_ref: none, reviewed_by: fixture-reviewer, reviewed_at: "2026-10-29" }

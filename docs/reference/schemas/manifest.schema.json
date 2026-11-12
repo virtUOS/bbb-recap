@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:recap:schema:manifest:1",
+  "title": "Meeting package manifest (recap)",
+  "description": "manifest.json for schema_version 1.0.x. Spec: docs/reference/meeting-package.md. Rules that JSON Schema cannot express (unique paths, sort order, totals arithmetic, JCS canonical bytes) are validation rules V-I01 and V-I04 in the spec.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "created_at",
+    "exporter",
+    "bbb_server_id",
+    "record_id",
+    "meeting_id",
+    "breakout",
+    "meta_prefix",
+    "metadata",
+    "files",
+    "totals"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.0\\.(0|[1-9][0-9]*)$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
+    },
+    "exporter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[\\x21-\\x7e]+$" }
+      }
+    },
+    "bbb_server_id": {
+      "$ref": "#/$defs/configName"
+    },
+    "record_id": {
+      "description": "BBB internal meeting ID; names raw/<record_id>. Observed form <40 hex>-<13 digits> (BBB raw recording directory names), but only a filesystem-safe pattern is enforced.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$"
+    },
+    "meeting_id": {
+      "description": "External meeting ID from the front end's create call, as recorded in events.xml.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "bbb_version": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+    },
+    "breakout": {
+      "description": "Breakout flag from events.xml. Breakout recordings are not exported (docs/reference/README.md), so recap-exporter always writes false; the ingest API rejects true (meeting-package.md V-I08).",
+      "type": "boolean"
+    },
+    "meta_prefix": {
+      "description": "Configured meta prefix (default recap). Grammar from docs/reference/README.md: lowercase letter, then 1-15 lowercase letters or digits, no hyphen.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,15}$"
+    },
+    "metadata": {
+      "description": "Selected meta values from events.xml /recording/metadata: keys starting with <meta_prefix>- plus bbb-origin and bbb-origin-server-name. Keys without the meta_ prefix, lowercase.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$",
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 4096,
+        "pattern": "^[^\\u0000-\\u001f]*$"
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/fileEntry" },
+      "allOf": [
+        {
+          "contains": { "type": "object", "properties": { "role": { "const": "events" } }, "required": ["role"] },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": { "role": { "const": "audio-microphone" } },
+            "required": ["role"]
+          },
+          "minContains": 1
+        }
+      ]
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_count", "size"],
+      "properties": {
+        "file_count": { "type": "integer", "minimum": 2, "maximum": 10000 },
+        "size": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      }
+    }
+  },
+  "$defs": {
+    "configName": {
+      "description": "bbb_server_id / frontend_id grammar from docs/reference/README.md (Identifiers).",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "sha256Hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "relPath": {
+      "description": "Relative /-separated path, no empty, '.' or '..' segments, no backslash, no control characters.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+(/[^/\\\\\\u0000-\\u001f\\u007f]+)*$",
+      "not": { "pattern": "(^|/)\\.{1,2}(/|$)" }
+    },
+    "fileEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "size", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relPath" },
+        "role": { "enum": ["events", "audio-microphone", "notes", "presentation"] },
+        "size": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sha256": { "$ref": "#/$defs/sha256Hex" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "events" } } },
+          "then": { "properties": { "path": { "const": "events.xml" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "audio-microphone" } } },
+          "then": { "properties": { "path": { "pattern": "^audio/microphone-[^/]+\\.webm$" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "notes" } } },
+          "then": { "properties": { "path": { "pattern": "^notes/(notes\\.[a-z0-9]+|export_failed)$" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "presentation" } } },
+          "then": { "properties": { "path": { "pattern": "^presentation/.+$" } } }
+        }
+      ]
+    }
+  }
+}

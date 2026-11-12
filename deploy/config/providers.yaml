@@ -1,0 +1,51 @@
+# Speech recognition (ASR) and language model (LLM) endpoints.
+# Reference: docs/reference/providers.md §4.1. Replace every REPLACE value.
+# Key files live in the secrets dir, mounted at /run/secrets/recap.
+# The declaration block is optional (without it the profile loads with a
+# warning); if present it must be complete (docs/reference/privacy.md §7).
+schema_version: "1.0.0"
+defaults:
+  asr: asr-main
+  llm: llm-main
+profiles:
+  # whisperx-api-server; run it with RESULT_STORE__ENABLED=false.
+  # For transkribierBAR: dialect transkribierbar, base_url the instance root,
+  # the key a transkribierBAR API token (providers.md §2a).
+  - name: asr-main
+    kind: asr
+    dialect: whisperx-family
+    base_url: https://asr.example.org # REPLACE: server root, no path
+    model: large-v3 # REPLACE: a model the server serves
+    credentials_file: /run/secrets/recap/providers/asr.key
+    max_inflight: 1
+    declaration:
+      data_categories: [voice]
+      operator: "REPLACE: who runs the ASR server"
+      location: on_prem # on_prem, eu, eea or third_country:<code>
+      retention: "No persistence (RESULT_STORE__ENABLED=false)"
+      deletion: none # adapter_cleanup, ttl:<duration>, none or manual
+      used_for_training: "no"
+      contract_ref: none # REPLACE: DPA reference or none
+      reviewed_by: "REPLACE: role of the person who checked this"
+      reviewed_at: "2026-11-12" # REPLACE: date of the check
+  # Any OpenAI-compatible chat completions endpoint, e.g. vLLM.
+  - name: llm-main
+    kind: llm
+    dialect: openai-chat
+    base_url: https://llm.example.org/v1 # REPLACE: including /v1
+    model: example-model # REPLACE: the served model name
+    credentials_file: /run/secrets/recap/providers/llm.key
+    context_tokens: 32768 # REPLACE: the model's context length
+    max_output_tokens: 4096
+    structured_output: json_object # json_schema, json_object or prompt
+    max_inflight: 4
+    declaration:
+      data_categories: [transcript, chat, summary]
+      operator: "REPLACE: who runs the LLM endpoint"
+      location: on_prem
+      retention: "No persistence"
+      deletion: none
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: "REPLACE: role of the person who checked this"
+      reviewed_at: "2026-11-12"

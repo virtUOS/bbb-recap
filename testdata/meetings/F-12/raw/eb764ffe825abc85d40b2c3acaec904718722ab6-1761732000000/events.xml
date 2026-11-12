@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC fixture F-12 (docs/reference/fixtures.md). Not a real meeting; all names are fictional. -->
+<recording meeting_id="eb764ffe825abc85d40b2c3acaec904718722ab6-1761732000000" bbb_version="4.0.0">
+  <meeting id="eb764ffe825abc85d40b2c3acaec904718722ab6-1761732000000" externalId="fixture-meeting-12" name="Fixture Widget Meeting" breakout="false"/>
+  <metadata bbb-origin="PILOS" isBreakout="false" meetingId="fixture-meeting-12" meetingName="Fixture Widget Meeting" recap-enabled="true" recap-sink="docs-main" recap-type="meeting-summary" recap-v="1"/>
+  <event timestamp="5000000" module="PARTICIPANT" eventname="ParticipantJoinEvent">
+    <timestampUTC>1761732000000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <externalUserId>u1</externalUserId>
+    <name>Ada Testperson</name>
+    <role>MODERATOR</role>
+    <date>2025-10-29T10:00:00.000Z</date>
+  </event>
+  <event timestamp="5001000" module="PARTICIPANT" eventname="ParticipantJoinEvent">
+    <timestampUTC>1761732001000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <externalUserId>u2</externalUserId>
+    <name>Ben Testperson</name>
+    <role>VIEWER</role>
+    <date>2025-10-29T10:00:01.000Z</date>
+  </event>
+  <event timestamp="5065000" module="PARTICIPANT" eventname="ParticipantLeftEvent">
+    <timestampUTC>1761732065000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <date>2025-10-29T10:01:05.000Z</date>
+  </event>
+  <event timestamp="5065000" module="PARTICIPANT" eventname="ParticipantLeftEvent">
+    <timestampUTC>1761732065000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <date>2025-10-29T10:01:05.000Z</date>
+  </event>
+</recording>

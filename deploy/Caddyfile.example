@@ -1,0 +1,8 @@
+# Example reverse proxy for recap with Caddy on the host (not part of
+# compose.yaml). Caddy gets a certificate from Let's Encrypt for the name
+# below; ports 80 and 443 must be reachable from the internet.
+# Any other proxy works the same way: TLS in front, plain HTTP to
+# 127.0.0.1:8080 (RECAP_HTTP_PORT). BBB servers and front ends use this URL.
+recap.example.org {
+	reverse_proxy 127.0.0.1:8080
+}

@@ -1,0 +1,51 @@
+{
+  "overview": "ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo",
+  "topics": [
+    {
+      "title": "Colour of the test widget",
+      "summary": "Ben proposed blue because blue widgets passed every test last week. Ada agreed.",
+      "start": "00:00:01"
+    },
+    {
+      "title": "Specification update and review",
+      "summary": "Ben will update the widget specification by Friday. Ada will review it on Monday.",
+      "start": "00:00:56"
+    },
+    {
+      "title": "Chat follow-up",
+      "summary": "Ben wrote in the chat that a link to the widget spec will follow."
+    }
+  ],
+  "decisions": [
+    {
+      "text": "The test widget is blue.",
+      "at": "00:00:56"
+    },
+    {
+      "text": "Ada reviews the specification after Ben's update."
+    }
+  ],
+  "action_items": [
+    {
+      "task": "Update the widget specification",
+      "owner": "Ben Testperson",
+      "due": "Friday",
+      "at": "00:00:56"
+    },
+    {
+      "task": "Review the widget specification",
+      "owner": "Ada Testperson",
+      "due": "Monday",
+      "at": "00:01:07"
+    },
+    {
+      "task": "Post the link to the widget spec in the chat",
+      "owner": "Ben Testperson"
+    }
+  ],
+  "open_questions": [
+    {
+      "text": "Where will the link to the widget spec be posted?"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{{define "content"}}
+{{- with .Data}}
+<p>The job's remaining rows are erased.</p>
+{{- if .DocumentID}}
+<p>Docs document ID: <code class="docid">{{.DocumentID}}</code>{{with .SinkProfile}} (sink profile <code>{{.}}</code>){{end}}.</p>
+<p>The service has no rights on this document. Send the ID to the Docs operator, who deletes it.</p>
+{{- else}}
+<p>The job had no delivery record, so there is no Docs document to report.</p>
+{{- end}}
+{{- else}}
+<p>Nothing to show. The result of an erase is shown once, right after the action.</p>
+{{- end}}
+<p><a href="/admin/">Jobs</a></p>
+{{end}}

@@ -1,0 +1,31 @@
+WEBVTT
+
+NOTE Automatic transcript (speech recognition). Times are recorded time; pauses are removed.
+
+seg-000001
+00:00:01.000 --> 00:00:03.000
+<v Speaker 1>Plain text from an unnamed speaker.</v>
+
+NOTE Gap 00:00:05.000 to 00:00:20.000, Gus <b>Gap</b> & Co -> -> X: no transcript (asr_failed).
+
+seg-000002
+00:00:05.000 --> 00:00:05.001
+<v Eve &lt;b&gt;Admin&lt;/b&gt; &amp; Co --&gt; X Y>a &amp; b &lt;i&gt;c&lt;/i&gt; --&gt; d e f</v>
+
+seg-000003
+00:00:25.000 --> 00:00:30.000
+<v Speaker 1>This segment crosses the end of the first period.</v>
+
+NOTE Recording paused here.
+
+NOTE Gap 00:00:27.000 to 00:00:29.000, Gus <b>Gap</b> & Co -> -> X: no transcript (asr_invalid_response).
+
+seg-000004
+00:00:30.000 --> 00:00:34.000
+<v Eve &lt;b&gt;Admin&lt;/b&gt; &amp; Co --&gt; X Y>This segment starts in the pause.</v>
+
+seg-000005
+00:00:40.000 --> 00:00:42.000
+<v Eve &lt;b&gt;Admin&lt;/b&gt; &amp; Co --&gt; X Y>Last words.</v>
+
+NOTE Gap 00:00:50.000 to 00:01:00.000, Gus <b>Gap</b> & Co -> -> X: no transcript (asr_rejected_input).

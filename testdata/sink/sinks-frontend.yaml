@@ -1,0 +1,39 @@
+# Sink profiles fixture for the frontend sink (docs/reference/sinks.md §4a): the
+# Docs profile docs-main of sinks.yaml (tests point docs_base_url at a local
+# mock Docs, which must see no request) and the frontend profile
+# frontend-main, which has no URL, key or timeout. One key per line.
+schema_version: "1.0.0"
+sinks:
+  -
+    name: docs-main
+    type: docs
+    docs_base_url: https://docs.recap.test
+    api_key_file: /run/secrets/recap/sinks/docs-s2s.key
+    document_url_template: "https://docs.recap.test/docs/{id}/"
+    request_timeout: 60s
+    max_inflight: 2
+    max_document_bytes: 2097152
+    declaration:
+      data_categories: [summary, email]
+      operator: "operator's Docs instance"
+      location: on_prem
+      retention: "Document owned by the user in Docs; Docs retention policy"
+      deletion: manual
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-10-29"
+  -
+    name: frontend-main
+    type: frontend
+    max_document_bytes: 2097152
+    declaration:
+      data_categories: [summary]
+      operator: "registering front end"
+      location: on_prem
+      retention: "Until the front end fetches it, at most RECAP_RESULT_TTL after delivery"
+      deletion: "ttl:7d"
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-11-10"

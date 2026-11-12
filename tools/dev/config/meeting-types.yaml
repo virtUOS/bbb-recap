@@ -1,0 +1,5 @@
+# Dev: meeting type → format (docs/reference/templates.md §1); the format ships in the image.
+schema_version: "1.0.0"
+meeting_types:
+  - name: meeting-summary
+    format: meeting-summary

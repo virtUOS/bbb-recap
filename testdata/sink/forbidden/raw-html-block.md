@@ -1,0 +1,1 @@
+<div>Injected block</div>

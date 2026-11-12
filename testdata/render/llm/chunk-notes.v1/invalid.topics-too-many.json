@@ -1,0 +1,47 @@
+{
+  "chunk_summary": "Chunk notes fixture: Ben proposed blue for the test widget and Ada agreed.",
+  "topics": [
+    {
+      "title": "Topic 0",
+      "summary": "Summary 0."
+    },
+    {
+      "title": "Topic 1",
+      "summary": "Summary 1."
+    },
+    {
+      "title": "Topic 2",
+      "summary": "Summary 2."
+    },
+    {
+      "title": "Topic 3",
+      "summary": "Summary 3."
+    },
+    {
+      "title": "Topic 4",
+      "summary": "Summary 4."
+    },
+    {
+      "title": "Topic 5",
+      "summary": "Summary 5."
+    },
+    {
+      "title": "Topic 6",
+      "summary": "Summary 6."
+    }
+  ],
+  "decisions": [
+    {
+      "text": "The test widget is blue.",
+      "at": "00:00:56"
+    }
+  ],
+  "action_items": [
+    {
+      "task": "Update the widget specification",
+      "owner": "Ben Testperson",
+      "due": "Friday"
+    }
+  ],
+  "open_questions": []
+}

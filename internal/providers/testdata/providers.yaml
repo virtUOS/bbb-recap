@@ -1,0 +1,45 @@
+# Unit-test fixture: the profiles of docs/reference/providers.md §4.1. Paths are
+# relative to internal/providers (where go test runs).
+schema_version: "1.0.0"
+defaults:
+  asr: whisperx-lab
+  llm: vllm-lab
+profiles:
+  - name: whisperx-lab
+    kind: asr
+    dialect: whisperx-family
+    base_url: https://asr.recap.test
+    model: large-v3
+    credentials_file: testdata/asr.key
+    max_inflight: 2
+    max_file_bytes: null
+    declaration:
+      data_categories: [voice]
+      operator: "operator's computing centre"
+      location: on_prem
+      retention: "No persistence; RESULT_STORE__ENABLED=false"
+      deletion: manual
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-10-29"
+  - name: vllm-lab
+    kind: llm
+    dialect: openai-chat
+    base_url: http://llm.recap.test/v1
+    model: example-model
+    context_tokens: 32768
+    max_output_tokens: 4096
+    extra_body:
+      chat_template_kwargs:
+        enable_thinking: false
+    declaration:
+      data_categories: [transcript, chat, summary]
+      operator: "operator's computing centre"
+      location: third_country:us
+      retention: "No request logging (operator to confirm)"
+      deletion: none
+      used_for_training: "yes"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-10-29"

@@ -1,0 +1,7 @@
+{
+  "users": [
+    { "sub": "fixture-sub-ada-0001", "email": "ada.testperson@example.org" },
+    { "sub": "fixture-sub-dup-0007", "email": "dup.testperson@example.org" },
+    { "sub": "fixture-sub-dup-0008", "email": "dup.testperson@example.org" }
+  ]
+}

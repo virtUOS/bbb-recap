@@ -1,0 +1,101 @@
+# Publishes the recap and recap-exporter images to ghcr.io for v* tags and for
+# main (docs/operations/release.md, docs/operations/install-exporter.md).
+# recap-mock is dev only and never published.
+#   tag vX.Y.Z      -> vX.Y.Z, X.Y, sha-<short>
+#   tag vX.Y.Z-pre  -> vX.Y.Z-pre, sha-<short>
+#   branch main     -> edge, sha-<short>
+# workflow_dispatch rebuilds a tag or main on demand: the monthly rebuild for
+# current CA certificates (docs/reference/deployment.md §1).
+name: image
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [recap, recap-exporter]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history and tags: go build derives the module version
+          # (label and recap_build_info) from the tag or the last tag.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # Latest 1.26 patch, not the minimum in go.mod (go 1.26.0).
+          go-version: "1.26.x"
+          check-latest: true
+      # A fresh base pull on every build brings current CA certificates.
+      - name: Pull base image
+        run: podman pull "$(awk '/^FROM .* AS certs/ { print $2; exit }' "deploy/images/$IMAGE.Containerfile")"
+      - run: make images
+      - name: Record Go version
+        run: echo "Built with $(go version)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Check labels
+        run: |
+          version=$(podman image inspect --format '{{ index .Labels "org.opencontainers.image.version" }}' "localhost/$IMAGE:dev")
+          revision=$(podman image inspect --format '{{ index .Labels "org.opencontainers.image.revision" }}' "localhost/$IMAGE:dev")
+          echo "version=$version revision=$revision"
+          if [ "$revision" != "$GITHUB_SHA" ]; then
+            echo "::error::revision label $revision is not $GITHUB_SHA"; exit 1
+          fi
+          case "$version" in
+            *+dirty|unknown|"(devel)") echo "::error::unusable version label $version"; exit 1 ;;
+          esac
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::version label $version is not the tag $GITHUB_REF_NAME"; exit 1
+          fi
+
+      - name: Choose tags
+        run: |
+          tags="sha-${GITHUB_SHA::7}"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if ! printf '%s\n' "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+              echo "::error::tag $GITHUB_REF_NAME is not vX.Y.Z or vX.Y.Z-pre"; exit 1
+            fi
+            tags="$tags $GITHUB_REF_NAME"
+            case "$GITHUB_REF_NAME" in
+              *-*) ;; # pre-release: no X.Y tag
+              *) minor=${GITHUB_REF_NAME#v}; tags="$tags ${minor%.*}" ;;
+            esac
+          elif [ "$GITHUB_REF" = refs/heads/main ]; then
+            tags="$tags edge"
+          else
+            echo "::error::only main and v* tags are published, not $GITHUB_REF"; exit 1
+          fi
+          # ghcr.io paths are lower case: virtUOS/bbb-recap -> virtuos/bbb-recap.
+          echo "REPO=ghcr.io/${GITHUB_REPOSITORY,,}/$IMAGE" >> "$GITHUB_ENV"
+          echo "TAGS=$tags" >> "$GITHUB_ENV"
+          echo "tags: $tags"
+
+      - name: Push
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          for t in $TAGS; do
+            podman tag "localhost/$IMAGE:dev" "$REPO:$t"
+            podman push "$REPO:$t"
+          done
+          podman logout ghcr.io

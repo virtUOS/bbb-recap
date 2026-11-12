@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.1.0",
+  "record_id": "536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000",
+  "meeting_id": "fixture-meeting-01",
+  "frontend_id": "pilos-fixture",
+  "status": "matched",
+  "created_at": "2025-10-29T10:00:00Z",
+  "updated_at": "2025-10-29T10:20:00Z",
+  "expires_at": null,
+  "job": {
+    "job_id": "019a2f8c-3b40-7000-8000-000000000009",
+    "state": "delivered",
+    "held_reason": null,
+    "outcome": "delivered",
+    "delivered_at": 1761732000,
+    "document_url": "https://docs.recap.test/docs/0b8f2a3e-5c41-4d7a-9e26-3f1c7a9d2b10/",
+    "summary_available": false
+  }
+}

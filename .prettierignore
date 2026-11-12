@@ -1,0 +1,5 @@
+# Generated fixtures and goldens, and files that tests or the service read byte for byte.
+testdata/
+**/testdata/
+# Prompt texts go to the LLM as written.
+formats/**/prompts/

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC unit fixture: chat edits, deletions, a clear, HTML, and polls. No real data. -->
+<recording meeting_id="m-unit">
+  <meeting id="m-unit" externalId="unit" name="Unit fixture"/>
+  <event timestamp="1000" module="PARTICIPANT" eventname="RecordStatusEvent"><timestampUTC>1761732001000</timestampUTC><status>true</status></event>
+  <event timestamp="1100" module="PARTICIPANT" eventname="ParticipantJoinEvent"><userId>w_unita</userId><name>Una Unitperson</name><role>MODERATOR</role></event>
+  <event timestamp="1200" module="PARTICIPANT" eventname="ParticipantJoinEvent"><userId>w_unitb</userId><name>Bo Unitperson</name><role>VIEWER</role></event>
+  <!-- cleared later -->
+  <event timestamp="1300" module="CHAT" eventname="PublicChatEvent"><senderId>w_unita</senderId><messageId>c1</messageId><message>before the clear</message></event>
+  <event timestamp="1400" module="CHAT" eventname="ClearPublicChatEvent"></event>
+  <event timestamp="1500" module="CHAT" eventname="PublicChatEvent"><senderId>w_unita</senderId><messageId>c2</messageId><message>&lt;p&gt;Fish &amp;amp; &lt;b&gt;chips&lt;/b&gt;&lt;br/&gt;second line&lt;/p&gt;</message></event>
+  <event timestamp="1600" module="CHAT" eventname="PublicChatEvent"><senderId>w_unitb</senderId><messageId>c3</messageId><message>typo here</message></event>
+  <event timestamp="1700" module="CHAT" eventname="PublicChatEvent"><senderId>w_unitb</senderId><messageId>c4</messageId><message>to be deleted</message></event>
+  <event timestamp="1800" module="CHAT" eventname="PublicChatEvent"><senderId>w_unita_1</senderId><messageId>c5</messageId><replyToMessageId>c4</replyToMessageId><message>reply to the deleted one</message></event>
+  <event timestamp="1900" module="CHAT" eventname="EditPublicChatMessageRecordEvent"><messageId>c3</messageId><message>fixed &amp;lt;3</message></event>
+  <event timestamp="2000" module="CHAT" eventname="DeletePublicChatMessageRecordEvent"><messageId>c4</messageId><deletedBy>w_unitb</deletedBy></event>
+  <event timestamp="2050" module="CHAT" eventname="PublicChatEvent"><senderId>w_unitb</senderId><messageId>c6</messageId><message>&lt;br/&gt;</message></event>
+  <!-- poll 1: changed answer, multi-response, published inside the period -->
+  <event timestamp="2100" module="POLL" eventname="PollStartedRecordEvent"><pollId>p1</pollId><userId>w_unita</userId><question>Pick colours</question><answers>[{"id":0,"key":"Red"},{"id":1,"key":"Green"},{"id":2,"key":"Blue"}]</answers><type>custom</type><secretPoll>false</secretPoll></event>
+  <event timestamp="2200" module="POLL" eventname="UserRespondedToPollRecordEvent"><pollId>p1</pollId><userId>w_unita</userId><answerId>0</answerId><answer>Red</answer></event>
+  <event timestamp="2300" module="POLL" eventname="UserRespondedToPollRecordEvent"><pollId>p1</pollId><userId>w_unita</userId><answerId>2</answerId><answer>Blue</answer></event>
+  <event timestamp="2400" module="POLL" eventname="UserRespondedToPollRecordEvent"><pollId>p1</pollId><userId>w_unitb</userId><answerId>1</answerId><answer>Green</answer></event>
+  <event timestamp="2400" module="POLL" eventname="UserRespondedToPollRecordEvent"><pollId>p1</pollId><userId>w_unitb</userId><answerId>2</answerId><answer>Blue</answer></event>
+  <event timestamp="2500" module="POLL" eventname="PollStoppedRecordEvent"><pollId>p1</pollId></event>
+  <event timestamp="2600" module="POLL" eventname="PollPublishedRecordEvent"><pollId>p1</pollId><question>Pick colours</question><answers>[{"id":0,"key":"Red","numVotes":0,"isCorrectAnswer":false}]</answers></event>
+  <!-- poll 2: secret, options only from responses -->
+  <event timestamp="2700" module="POLL" eventname="PollStartedRecordEvent"><pollId>p2</pollId><question>Secret?</question><secretPoll>true</secretPoll></event>
+  <event timestamp="2710" module="POLL" eventname="UserRespondedToPollRecordEvent"><pollId>p2</pollId><userId></userId><answerId>1</answerId><answer>No</answer></event>
+  <event timestamp="2720" module="POLL" eventname="UserRespondedToPollRecordEvent"><pollId>p2</pollId><userId></userId><answerId>1</answerId><answer>No</answer></event>
+  <event timestamp="2730" module="POLL" eventname="UserRespondedToPollRecordEvent"><pollId>p2</pollId><userId></userId><answerId>0</answerId><answer>Yes</answer></event>
+  <event timestamp="2800" module="POLL" eventname="PollPublishedRecordEvent"><pollId>p2</pollId><question></question></event>
+  <!-- poll 3: never published -->
+  <event timestamp="2900" module="POLL" eventname="PollStartedRecordEvent"><pollId>p3</pollId><question>Unpublished?</question></event>
+  <event timestamp="2950" module="POLL" eventname="UserRespondedToPollRecordEvent"><pollId>p3</pollId><userId>w_unitb</userId><answerId>0</answerId><answer>Yes</answer></event>
+  <event timestamp="3000" module="PARTICIPANT" eventname="RecordStatusEvent"><timestampUTC>1761732003000</timestampUTC><status>false</status></event>
+  <!-- in the pause: a message (dropped) and a published poll (dropped) -->
+  <event timestamp="3100" module="CHAT" eventname="PublicChatEvent"><senderId>w_unitb</senderId><messageId>c7</messageId><message>during the pause</message></event>
+  <event timestamp="3200" module="POLL" eventname="PollStartedRecordEvent"><pollId>p4</pollId><question>In the pause?</question></event>
+  <event timestamp="3300" module="POLL" eventname="PollPublishedRecordEvent"><pollId>p4</pollId><question>In the pause?</question></event>
+  <event timestamp="3400" module="PARTICIPANT" eventname="RecordStatusEvent"><timestampUTC>1761732003400</timestampUTC><status>true</status></event>
+  <event timestamp="3500" module="CHAT" eventname="PublicChatEvent"><senderId>w_unitc</senderId><messageId>c8</messageId><message>  last &amp;nbsp; word  </message></event>
+  <event timestamp="4000" module="PARTICIPANT" eventname="RecordStatusEvent"><timestampUTC>1761732004000</timestampUTC><status>false</status></event>
+</recording>

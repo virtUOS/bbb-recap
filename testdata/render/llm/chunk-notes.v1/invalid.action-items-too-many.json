@@ -1,0 +1,97 @@
+{
+  "chunk_summary": "Chunk notes fixture: Ben proposed blue for the test widget and Ada agreed.",
+  "topics": [
+    {
+      "title": "Colour of the test widget",
+      "summary": "Ben proposed blue. Ada agreed.",
+      "start": "00:00:06"
+    }
+  ],
+  "decisions": [
+    {
+      "text": "The test widget is blue.",
+      "at": "00:00:56"
+    }
+  ],
+  "action_items": [
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    },
+    {
+      "task": "a"
+    }
+  ],
+  "open_questions": []
+}

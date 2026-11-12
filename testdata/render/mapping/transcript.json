@@ -1,0 +1,162 @@
+{
+  "schema_version": "1.0.0",
+  "job_id": "019a2f00-0000-7000-8000-000000000003",
+  "created_at": "2025-10-29T10:12:00Z",
+  "source": "asr",
+  "language": "en",
+  "time_base": {
+    "clock": "bbb-event-timestamp",
+    "origin": "first-recording-start",
+    "origin_event_ts": 5005000,
+    "origin_utc": "2025-10-29T10:00:05Z"
+  },
+  "recording_periods": [
+    {
+      "start_ms": 0,
+      "end_ms": 30000,
+      "recorded_offset_ms": 0
+    },
+    {
+      "start_ms": 40000,
+      "end_ms": 70000,
+      "recorded_offset_ms": 30000
+    }
+  ],
+  "speakers": [
+    {
+      "ref": "spk-1"
+    },
+    {
+      "ref": "spk-2",
+      "display_name": "Eve <b>Admin</b> & Co -->\nX\tY"
+    },
+    {
+      "ref": "spk-3",
+      "display_name": "  Gus <b>Gap</b> & Co\t--->\r\n---->  X  "
+    }
+  ],
+  "tracks": [
+    {
+      "ref": "trk-1",
+      "speaker_ref": "spk-1",
+      "kind": "microphone",
+      "blob_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "start_ms": 0,
+      "end_ms": 35000,
+      "status": "transcribed",
+      "language": "en",
+      "provider": {
+        "profile": "whisperx-lab",
+        "dialect": "whisperx-family",
+        "model": "large-v3"
+      }
+    },
+    {
+      "ref": "trk-2",
+      "speaker_ref": "spk-2",
+      "kind": "microphone",
+      "blob_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "start_ms": 0,
+      "end_ms": 70000,
+      "status": "transcribed",
+      "language": "en",
+      "provider": {
+        "profile": "whisperx-lab",
+        "dialect": "whisperx-family",
+        "model": "large-v3"
+      }
+    },
+    {
+      "ref": "trk-3",
+      "speaker_ref": "spk-3",
+      "kind": "microphone",
+      "blob_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "start_ms": 5000,
+      "end_ms": 20000,
+      "status": "failed"
+    },
+    {
+      "ref": "trk-4",
+      "speaker_ref": "spk-3",
+      "kind": "microphone",
+      "blob_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "start_ms": 27000,
+      "end_ms": 29000,
+      "status": "failed"
+    },
+    {
+      "ref": "trk-5",
+      "speaker_ref": "spk-3",
+      "kind": "microphone",
+      "blob_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "start_ms": 60000,
+      "end_ms": 70000,
+      "status": "failed"
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg-000001",
+      "track_ref": "trk-1",
+      "speaker_ref": "spk-1",
+      "start_ms": 1000,
+      "end_ms": 3000,
+      "text": "Plain text from an unnamed speaker."
+    },
+    {
+      "id": "seg-000002",
+      "track_ref": "trk-2",
+      "speaker_ref": "spk-2",
+      "start_ms": 5000,
+      "end_ms": 5000,
+      "text": "a & b <i>c</i> --> d\r\ne\t\tf  "
+    },
+    {
+      "id": "seg-000003",
+      "track_ref": "trk-1",
+      "speaker_ref": "spk-1",
+      "start_ms": 25000,
+      "end_ms": 33000,
+      "text": "This segment crosses the end of the first period."
+    },
+    {
+      "id": "seg-000004",
+      "track_ref": "trk-2",
+      "speaker_ref": "spk-2",
+      "start_ms": 38000,
+      "end_ms": 44000,
+      "text": "This segment starts in the pause."
+    },
+    {
+      "id": "seg-000005",
+      "track_ref": "trk-2",
+      "speaker_ref": "spk-2",
+      "start_ms": 50000,
+      "end_ms": 52000,
+      "text": "Last words."
+    }
+  ],
+  "gaps": [
+    {
+      "track_ref": "trk-3",
+      "speaker_ref": "spk-3",
+      "start_ms": 5000,
+      "end_ms": 20000,
+      "reason": "asr_failed"
+    },
+    {
+      "track_ref": "trk-4",
+      "speaker_ref": "spk-3",
+      "start_ms": 27000,
+      "end_ms": 29000,
+      "reason": "asr_invalid_response"
+    },
+    {
+      "track_ref": "trk-5",
+      "speaker_ref": "spk-3",
+      "start_ms": 60000,
+      "end_ms": 70000,
+      "reason": "asr_rejected_input"
+    }
+  ]
+}

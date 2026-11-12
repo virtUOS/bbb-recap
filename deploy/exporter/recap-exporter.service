@@ -1,0 +1,29 @@
+# recap-exporter as a systemd service, for installs without containers
+# (docs/reference/bbb-exporter.md §8.5). The daemon reads
+# /etc/recap-exporter/exporter.env itself.
+[Unit]
+Description=recap-exporter (BBB recording export to recap)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=recap-exporter
+ExecStart=/usr/bin/recap-exporter run
+Restart=on-failure
+# Exit 2 is a config error (also a missing token file): restarting does not help.
+RestartPreventExitStatus=2
+TimeoutStopSec=30s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/var/lib/recap-exporter
+# To delete raw data (after_ack or failure expiry), add in a drop-in:
+# ReadWritePaths=/var/lib/recap-exporter /var/bigbluebutton/recording/raw
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:recap:schema:chunk-notes:1",
+  "title": "Chunk notes (recap)",
+  "description": "LLM reply of the extract and merge calls, schema v1.0.0. Normative text: docs/reference/templates.md section 4 (summary.v1 with overview renamed chunk_summary, arrays capped at half).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["chunk_summary", "topics", "decisions", "action_items", "open_questions"],
+  "properties": {
+    "chunk_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1500
+    },
+    "topics": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "summary"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^[0-9]{2}:[0-5][0-9]:[0-5][0-9]$"
+          }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 25,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^[0-9]{2}:[0-5][0-9]:[0-5][0-9]$"
+          }
+        }
+      }
+    },
+    "action_items": {
+      "type": "array",
+      "maxItems": 25,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 120
+          },
+          "due": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 60
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^[0-9]{2}:[0-5][0-9]:[0-5][0-9]$"
+          }
+        }
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "maxItems": 15,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    }
+  }
+}

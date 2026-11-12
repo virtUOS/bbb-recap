@@ -1,0 +1,23 @@
+{
+  "language_name": "English",
+  "speaker": "Speaker {n}",
+  "header": "*{meeting_name} · {date} · {first_start}–{last_end} {tz} · recorded: {recorded_duration}*",
+  "notice": "*Automatically generated from the recorded parts of this meeting. It may contain errors.*",
+  "gap": "> **Incomplete transcript:** no text for {speaker} from [{start}] to [{end}] (transcription failed).",
+  "overview": "Overview",
+  "topics": "Topics",
+  "decisions": "Decisions",
+  "action_items": "Action items",
+  "open_questions": "Open questions",
+  "polls": "Polls",
+  "none": "None recorded.",
+  "due": "due",
+  "option": "Option",
+  "votes": "Votes",
+  "no_speech": "No speech was recognized in the recorded parts of this meeting.",
+  "no_llm": "none",
+  "footer": "*{format_id} {format_version} · ASR: {asr_model} · LLM: {llm_model} · {generated_at}*",
+  "vtt_header": "NOTE Automatic transcript (speech recognition). Times are recorded time; pauses are removed.",
+  "vtt_pause": "NOTE Recording paused here.",
+  "vtt_gap": "NOTE Gap {start} to {end}, {name}: no transcript ({reason})."
+}

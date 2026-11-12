@@ -1,0 +1,17 @@
+# Provider profiles fixture without declarations (privacy.md §7: optional;
+# each profile without one logs a WARN).
+schema_version: "1.0.0"
+defaults: { asr: whisperx-lab, llm: vllm-lab }
+profiles:
+  - name: whisperx-lab
+    kind: asr
+    dialect: whisperx-family
+    base_url: https://asr.recap.test
+    model: large-v3
+  - name: vllm-lab
+    kind: llm
+    dialect: openai-chat
+    base_url: https://llm.recap.test/v1
+    model: example-model
+    context_tokens: 32768
+    max_output_tokens: 4096

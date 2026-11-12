@@ -1,0 +1,40 @@
+{{define "content"}}
+{{- with .Data}}
+<form method="get" action="/admin/" class="filter">
+<label>State
+<select name="state">
+<option value="">any</option>
+{{- range .States}}<option{{if eq . $.Data.State}} selected{{end}}>{{.}}</option>{{end}}
+</select></label>
+<label>Held reason
+<select name="held_reason">
+<option value="">any</option>
+{{- range .HeldReasons}}<option{{if eq . $.Data.HeldReason}} selected{{end}}>{{.}}</option>{{end}}
+</select></label>
+<button type="submit">Filter</button>
+</form>
+{{- if .Jobs}}
+<div class="scroll">
+<table>
+<thead><tr><th>Created (UTC)</th><th>Job</th><th>State</th><th>Reason / outcome</th><th>Detail</th><th>BBB server</th><th>Delivery</th></tr></thead>
+<tbody>
+{{- range .Jobs}}
+<tr>
+<td>{{.CreatedAt}}</td>
+<td><a href="/admin/jobs/{{.JobID}}"><code>{{.JobID}}</code></a></td>
+<td>{{.State}}</td>
+<td>{{with .HeldReason}}{{.}}{{end}}{{with .FailureReason}}{{.}}{{end}}{{with .Outcome}}{{.}}{{end}}</td>
+<td>{{with .Detail}}<code>{{.}}</code>{{end}}</td>
+<td>{{.BBBServerID}}</td>
+<td>{{with .Delivery}}{{.State}}{{end}}</td>
+</tr>
+{{- end}}
+</tbody>
+</table>
+</div>
+{{- else}}
+<p>No jobs.</p>
+{{- end}}
+<p>{{if .First}}<a href="{{.First}}">First page</a>{{end}} {{if .Next}}<a href="{{.Next}}">Next page</a>{{end}}</p>
+{{- end}}
+{{end}}

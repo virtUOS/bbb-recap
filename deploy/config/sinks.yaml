@@ -1,0 +1,41 @@
+# Where summaries go. A front end picks one profile per meeting.
+# Reference: docs/reference/sinks.md. Keep the profiles you use; replace every
+# REPLACE value. The declaration blocks are optional; if present they must be
+# complete (docs/reference/privacy.md §7).
+schema_version: "1.0.0"
+sinks:
+  # La Suite Docs: creates the document for the meeting owner. The key is one
+  # of Docs' DJANGO_SERVER_TO_SERVER_API_TOKENS.
+  - name: docs-main
+    type: docs
+    docs_base_url: https://docs.example.org # REPLACE
+    api_key_file: /run/secrets/recap/sinks/docs.key
+    document_url_template: "https://docs.example.org/docs/{id}/" # REPLACE
+    request_timeout: 60s
+    max_inflight: 2
+    max_document_bytes: 2097152
+    declaration:
+      data_categories: [summary, email]
+      operator: "REPLACE: who runs the Docs instance"
+      location: on_prem
+      retention: "Document owned by the user in Docs; Docs retention policy"
+      deletion: manual
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: "REPLACE: role of the person who checked this"
+      reviewed_at: "2026-11-12"
+  # The front end that registered the meeting fetches the summary itself.
+  # No URL and no key; needs RECAP_RESULT_TTL above 0.
+  - name: frontend-main
+    type: frontend
+    max_document_bytes: 2097152
+    declaration:
+      data_categories: [summary]
+      operator: "registering front end"
+      location: on_prem
+      retention: "Until the front end fetches it, at most RECAP_RESULT_TTL after delivery"
+      deletion: "ttl:7d" # keep equal to RECAP_RESULT_TTL
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: "REPLACE: role of the person who checked this"
+      reviewed_at: "2026-11-12"

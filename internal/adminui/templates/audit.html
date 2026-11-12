@@ -1,0 +1,26 @@
+{{define "content"}}
+{{- with .Data}}
+{{- if .JobID}}<p>Entries of job <a href="/admin/jobs/{{.JobID}}"><code>{{.JobID}}</code></a>. <a href="/admin/audit">All entries</a></p>{{end}}
+{{- if .Entries}}
+<div class="scroll">
+<table>
+<thead><tr><th>At (UTC)</th><th>Actor</th><th>Action</th><th>Job</th><th>Detail</th></tr></thead>
+<tbody>
+{{- range .Entries}}
+<tr>
+<td>{{.At}}</td>
+<td>{{.ActorKind}}{{with .ActorID}} <code>{{.}}</code>{{end}}</td>
+<td>{{.Action}}</td>
+<td>{{with .JobID}}<a href="/admin/jobs/{{.}}"><code>{{.}}</code></a>{{end}}</td>
+<td>{{with .Detail}}<code>{{.}}</code>{{end}}</td>
+</tr>
+{{- end}}
+</tbody>
+</table>
+</div>
+{{- else}}
+<p>No entries.</p>
+{{- end}}
+<p>{{if .First}}<a href="{{.First}}">First page</a>{{end}} {{if .Next}}<a href="{{.Next}}">Next page</a>{{end}}</p>
+{{- end}}
+{{end}}

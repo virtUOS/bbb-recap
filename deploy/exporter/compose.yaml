@@ -1,0 +1,45 @@
+# recap-exporter on a BBB server. Guide: docs/operations/install-exporter.md.
+#
+# Settings come from .env next to this file (copy .env.example). The daemon
+# reads /etc/recap-exporter/exporter.env, the same file as the post_archive
+# hook; the environment below only sets the paths inside the container
+# (it wins over the file).
+#
+# Host network: the daemon only makes outbound HTTPS requests; its metrics
+# and health listener stays on the host's 127.0.0.1:9466.
+name: recap-exporter
+
+services:
+  exporter:
+    image: ${EXPORTER_IMAGE:?set EXPORTER_IMAGE in .env}
+    command: [run]
+    # The host user recap-exporter, plus the group of the hook's user.
+    user: "${EXPORTER_UID:?set EXPORTER_UID in .env}:${EXPORTER_GID:?set EXPORTER_GID in .env}"
+    group_add:
+      - "${HOOK_GID:?set HOOK_GID in .env}"
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      RECAP_EXPORTER_RAW_DIR: /var/bigbluebutton/recording/raw
+      RECAP_EXPORTER_RECORDING_STATUS_DIR: /var/bigbluebutton/recording/status
+      RECAP_EXPORTER_SPOOL_DIR: /var/lib/recap-exporter/spool
+      RECAP_EXPORTER_STATE_DIR: /var/lib/recap-exporter/state
+      RECAP_EXPORTER_TOKEN_FILE: /etc/recap-exporter/secrets/ingest-token
+    volumes:
+      - /etc/recap-exporter/exporter.env:/etc/recap-exporter/exporter.env:ro,z
+      - /etc/recap-exporter/secrets:/etc/recap-exporter/secrets:ro,z
+      # spool/ and state/ in one mount: the daemon moves entries between them.
+      - /var/lib/recap-exporter:/var/lib/recap-exporter:z
+      # rw only to delete raw data after upload (RAW_MOUNT in .env).
+      - ${BBB_RECORDING_DIR:-/var/bigbluebutton/recording}/raw:/var/bigbluebutton/recording/raw:${RAW_MOUNT:-ro},z
+      - ${BBB_RECORDING_DIR:-/var/bigbluebutton/recording}/status:/var/bigbluebutton/recording/status:ro,z
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: [CMD, /usr/local/bin/recap-exporter, healthcheck]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

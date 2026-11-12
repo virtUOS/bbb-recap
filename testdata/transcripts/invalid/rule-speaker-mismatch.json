@@ -1,0 +1,142 @@
+{
+  "schema_version": "1.0.0",
+  "job_id": "019a2f8c-3b40-7000-8000-000000000006",
+  "created_at": "2025-10-29T10:10:00Z",
+  "source": "asr",
+  "language": "en",
+  "time_base": {
+    "clock": "bbb-event-timestamp",
+    "origin": "first-recording-start",
+    "origin_event_ts": 5005000,
+    "origin_utc": "2025-10-29T10:00:05.000Z"
+  },
+  "recording_periods": [
+    {
+      "start_ms": 0,
+      "end_ms": 55000,
+      "recorded_offset_ms": 0
+    },
+    {
+      "start_ms": 85000,
+      "end_ms": 145000,
+      "recorded_offset_ms": 55000
+    }
+  ],
+  "speakers": [
+    {
+      "ref": "spk-1",
+      "display_name": "Ada Testperson",
+      "role": "moderator"
+    },
+    {
+      "ref": "spk-2",
+      "display_name": "Ben Testperson",
+      "role": "viewer"
+    }
+  ],
+  "tracks": [
+    {
+      "ref": "trk-1",
+      "speaker_ref": "spk-1",
+      "kind": "microphone",
+      "blob_sha256": "90bcb623d1a30d21a06d4557f508b0a16c1cc5e6389d35d5af57abc925dcb2b8",
+      "start_ms": 200,
+      "end_ms": 55000,
+      "status": "transcribed",
+      "language": "en",
+      "provider": {
+        "profile": "whisperx-lab",
+        "dialect": "whisperx-family",
+        "model": "large-v3"
+      }
+    },
+    {
+      "ref": "trk-2",
+      "speaker_ref": "spk-2",
+      "kind": "microphone",
+      "blob_sha256": "a97dcb416122736a71d59a3176b269a1d5949b20c473ec0f5f86a17db8c72c8b",
+      "start_ms": 300,
+      "end_ms": 55000,
+      "status": "transcribed",
+      "language": "en",
+      "provider": {
+        "profile": "whisperx-lab",
+        "dialect": "whisperx-family",
+        "model": "large-v3"
+      }
+    },
+    {
+      "ref": "trk-3",
+      "speaker_ref": "spk-1",
+      "kind": "microphone",
+      "blob_sha256": "5f9896375a24242e9fac5b4d0bcd7f9ce529328fc78fc4a554be91354c9a5164",
+      "start_ms": 85200,
+      "end_ms": 145000,
+      "status": "transcribed",
+      "language": "en",
+      "provider": {
+        "profile": "whisperx-lab",
+        "dialect": "whisperx-family",
+        "model": "large-v3"
+      }
+    },
+    {
+      "ref": "trk-4",
+      "speaker_ref": "spk-2",
+      "kind": "microphone",
+      "blob_sha256": "932917876a460b87d798e3b790dcfba9f15498cd842f325b80f39516aa42fe70",
+      "start_ms": 85300,
+      "end_ms": 145000,
+      "status": "transcribed",
+      "language": "en",
+      "provider": {
+        "profile": "whisperx-lab",
+        "dialect": "whisperx-family",
+        "model": "large-v3"
+      }
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg-000001",
+      "track_ref": "trk-1",
+      "speaker_ref": "spk-2",
+      "start_ms": 1000,
+      "end_ms": 5500,
+      "text": "Welcome to the fixture meeting. Today we decide the colour of the test widget."
+    },
+    {
+      "id": "seg-000002",
+      "track_ref": "trk-2",
+      "speaker_ref": "spk-2",
+      "start_ms": 6000,
+      "end_ms": 10000,
+      "text": "I propose blue. Blue widgets passed every test last week."
+    },
+    {
+      "id": "seg-000003",
+      "track_ref": "trk-3",
+      "speaker_ref": "spk-1",
+      "start_ms": 86000,
+      "end_ms": 91000,
+      "text": "Agreed, blue it is. Ben, please update the widget specification by Friday."
+    },
+    {
+      "id": "seg-000004",
+      "track_ref": "trk-4",
+      "speaker_ref": "spk-2",
+      "start_ms": 92000,
+      "end_ms": 96500,
+      "text": "I will update the specification by Friday. Do we need a review?"
+    },
+    {
+      "id": "seg-000005",
+      "track_ref": "trk-3",
+      "speaker_ref": "spk-1",
+      "start_ms": 97000,
+      "end_ms": 99000,
+      "text": "Yes, I will review it on Monday."
+    }
+  ],
+  "gaps": []
+}

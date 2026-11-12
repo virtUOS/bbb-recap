@@ -1,0 +1,98 @@
+{
+  "case": "hash-mismatch",
+  "pins": [
+    "bbb-exporter.md §6.2 row 2 (422), §5.1 (rejected)",
+    "meeting-package.md §7 V-I05",
+    "fixtures.md §6 M-01"
+  ],
+  "fixture": "F-04",
+  "record_id": "8ed4b6bb7ea47288ab49e0028ea827b5c6240486-1761732000000",
+  "exporter": {
+    "state": "failed",
+    "reason": "rejected"
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/f97bd0a1ba64f188ef671e8f2ab66319655aecbf948d287ca332c31448859ab4",
+        "credential": "bbb_server.bbb-fixture-a",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "meetings/F-04/expected/manifest.json",
+          "sha256": "f97bd0a1ba64f188ef671e8f2ab66319655aecbf948d287ca332c31448859ab4",
+          "size": 989
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "package_id": "f97bd0a1ba64f188ef671e8f2ab66319655aecbf948d287ca332c31448859ab4",
+          "state": "receiving",
+          "missing": [
+            "90bcb623d1a30d21a06d4557f508b0a16c1cc5e6389d35d5af57abc925dcb2b8",
+            "a97dcb416122736a71d59a3176b269a1d5949b20c473ec0f5f86a17db8c72c8b",
+            "a2c9d3fc895ebf12c9a182a9fb8be8e326c443eec1a48ec899706d30c7d1cc42"
+          ],
+          "received_size": 0,
+          "expected_size": 182951
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/f97bd0a1ba64f188ef671e8f2ab66319655aecbf948d287ca332c31448859ab4/files/90bcb623d1a30d21a06d4557f508b0a16c1cc5e6389d35d5af57abc925dcb2b8",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-04/raw/8ed4b6bb7ea47288ab49e0028ea827b5c6240486-1761732000000/audio/microphone-w_fixada0001-TR_fixA1-1761732005200.webm",
+          "flip_byte": 0,
+          "sha256": "f306093c42d404451f840f78e92335960df83e5282749de1a3153402fea06066",
+          "size": 93076
+        }
+      },
+      "response": {
+        "status": 422,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": {
+          "type": "urn:recap:problem:file-hash-mismatch"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/ingest/packages/f97bd0a1ba64f188ef671e8f2ab66319655aecbf948d287ca332c31448859ab4",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "package_id": "f97bd0a1ba64f188ef671e8f2ab66319655aecbf948d287ca332c31448859ab4",
+          "state": "receiving",
+          "missing": [
+            "90bcb623d1a30d21a06d4557f508b0a16c1cc5e6389d35d5af57abc925dcb2b8",
+            "a97dcb416122736a71d59a3176b269a1d5949b20c473ec0f5f86a17db8c72c8b",
+            "a2c9d3fc895ebf12c9a182a9fb8be8e326c443eec1a48ec899706d30c7d1cc42"
+          ],
+          "received_size": 0,
+          "expected_size": 182951
+        }
+      },
+      "sides": [
+        "service"
+      ]
+    }
+  ]
+}

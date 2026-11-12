@@ -1,0 +1,21 @@
+/* bbb-recap admin UI: one small stylesheet, readable on a laptop and a phone. */
+body { margin: 0; font: 15px/1.45 system-ui, sans-serif; color: #1a1a1a; background: #fff; }
+header { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; align-items: center; padding: .6rem 1rem; background: #eef1f4; border-bottom: 1px solid #ccd3da; }
+header nav a { margin-right: 1rem; }
+.logout { margin-left: auto; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+main { padding: 0 1rem 2rem; max-width: 72rem; }
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.15rem; margin-top: 1.5rem; }
+code { font-size: .9em; word-break: break-all; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid #dde2e7; vertical-align: top; }
+th { background: #f6f8fa; white-space: nowrap; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; }
+dt { font-weight: 600; }
+dd { margin: 0; }
+.filter { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: end; margin-bottom: 1rem; }
+.flash { padding: .5rem .75rem; background: #e7f4e4; border: 1px solid #9cc79a; }
+.actions .button, button { display: inline-block; padding: .3rem .8rem; border: 1px solid #6b7785; border-radius: 3px; background: #f6f8fa; color: inherit; text-decoration: none; font: inherit; cursor: pointer; }
+.docid { font-size: 1.1em; }
+input[type=text] { width: 100%; max-width: 30rem; padding: .3rem; font: inherit; }

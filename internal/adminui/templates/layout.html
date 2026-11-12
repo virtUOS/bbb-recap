@@ -1,0 +1,30 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · bbb-recap admin</title>
+<link rel="stylesheet" href="/admin/static/style.css">
+</head>
+<body>
+<header>
+<strong>bbb-recap admin</strong>
+{{- if .Session}}
+<nav>{{if .Views}}<a href="/admin/">Jobs</a> <a href="/admin/audit">Audit</a>{{end}}</nav>
+<form method="post" action="/admin/logout" class="logout">
+<span>Logged in as <code>{{.Session.Subject}}</code>.</span>
+<input type="hidden" name="csrf_token" value="{{.Session.CSRF}}">
+<button type="submit">Log out</button>
+</form>
+{{- end}}
+</header>
+<main>
+<h1>{{.Title}}</h1>
+{{- if .Flash}}
+<p class="flash" role="status">{{.Flash}}</p>
+{{- end}}
+{{template "content" .}}
+</main>
+</body>
+</html>
+{{end}}

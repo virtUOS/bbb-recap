@@ -1,0 +1,6 @@
+# Meeting type → output format (docs/reference/templates.md §1). The format
+# meeting-summary is built into the image; nothing to change.
+schema_version: "1.0.0"
+meeting_types:
+  - name: meeting-summary
+    format: meeting-summary

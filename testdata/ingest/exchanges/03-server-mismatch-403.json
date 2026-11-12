@@ -1,0 +1,40 @@
+{
+  "case": "server-mismatch-403",
+  "pins": [
+    "bbb-exporter.md §6.2 row 1 (403), §5.1 (unauthorized)",
+    "meeting-package.md §7 V-I03",
+    "fixtures.md §6 M-07"
+  ],
+  "fixture": "F-04",
+  "record_id": "8ed4b6bb7ea47288ab49e0028ea827b5c6240486-1761732000000",
+  "exporter": {
+    "state": "failed",
+    "reason": "unauthorized"
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/f97bd0a1ba64f188ef671e8f2ab66319655aecbf948d287ca332c31448859ab4",
+        "credential": "bbb_server.bbb-fixture-b",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "meetings/F-04/expected/manifest.json",
+          "sha256": "f97bd0a1ba64f188ef671e8f2ab66319655aecbf948d287ca332c31448859ab4",
+          "size": 989
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": {
+          "type": "urn:recap:problem:server-mismatch"
+        }
+      }
+    }
+  ]
+}

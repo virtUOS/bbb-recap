@@ -1,0 +1,17 @@
+{{define "content"}}
+{{- with .Data}}
+<p>Job <a href="/admin/jobs/{{.Job.JobID}}"><code>{{.Job.JobID}}</code></a>, state {{.Job.State}}{{with .Job.HeldReason}} ({{.}}){{end}}.</p>
+<p>{{.Effect}}</p>
+{{- if and (eq .Action "rerun") (eq .Job.State "delivered")}}
+<p><strong>Note:</strong> this job is already delivered. The front end may already have fetched its result and may not pick up a new result.</p>
+{{- end}}
+<form method="post" action="/admin/jobs/{{.Job.JobID}}/{{.Action}}">
+<input type="hidden" name="csrf_token" value="{{$.Session.CSRF}}">
+{{- if .DocumentIDField}}
+<p><label>Docs document ID (optional)<br>
+<input type="text" name="document_id" maxlength="255" autocomplete="off"></label></p>
+{{- end}}
+<p><button type="submit">Confirm {{.Action}}</button> <a href="/admin/jobs/{{.Job.JobID}}">Cancel</a></p>
+</form>
+{{- end}}
+{{end}}

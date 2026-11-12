@@ -1,0 +1,10 @@
+{
+  "language": "en",
+  "model": "large-v3",
+  "segments": [
+    { "start_ms": 1000, "end_ms": 5500, "text": "Welcome to the fixture meeting. Today we decide the colour of the test widget." },
+    { "start_ms": 6063, "end_ms": 7563, "text": "I propose blue." },
+    { "start_ms": 9500, "end_ms": 9500, "text": "Agreed." },
+    { "start_ms": 10008, "end_ms": 12492, "text": "Yes, I will review it on Monday." }
+  ]
+}

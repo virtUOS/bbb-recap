@@ -1,0 +1,44 @@
+# Contract environment: the provider profiles of docs/reference/providers.md §4.1,
+# both on recap-mock (network alias mock).
+schema_version: "1.0.0"
+defaults:
+  asr: whisperx-lab
+  llm: vllm-lab
+profiles:
+  - name: whisperx-lab
+    kind: asr
+    dialect: whisperx-family
+    base_url: http://mock:8080
+    model: large-v3
+    credentials_file: /run/secrets/recap/providers/asr-fixture.key
+    max_inflight: 1
+    declaration:
+      data_categories: [voice]
+      operator: "recap-mock (contract environment)"
+      location: on_prem
+      retention: "No persistence"
+      deletion: none
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-10-29"
+  - name: vllm-lab
+    kind: llm
+    dialect: openai-chat
+    base_url: http://mock:8080/v1
+    model: example-model
+    credentials_file: /run/secrets/recap/providers/llm-fixture.key
+    context_tokens: 32768
+    max_output_tokens: 4096
+    structured_output: json_object
+    max_inflight: 4
+    declaration:
+      data_categories: [transcript, chat, summary]
+      operator: "recap-mock (contract environment)"
+      location: on_prem
+      retention: "No persistence"
+      deletion: none
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-10-29"

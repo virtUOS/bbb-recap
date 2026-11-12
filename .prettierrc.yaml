@@ -1,0 +1,3 @@
+# Prettier for Markdown, YAML and JSON (`make fmt`, `make fmt-check`).
+printWidth: 120
+proseWrap: preserve

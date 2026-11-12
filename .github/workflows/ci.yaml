@@ -1,0 +1,112 @@
+# CI: lint, prettier check, unit tests against Postgres, build and the post_archive hook tests
+# for every push and pull request. Publishes nothing (image.yaml does).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # Latest 1.26 patch, not the minimum in go.mod (go 1.26.0).
+          go-version: "1.26.x"
+          check-latest: true
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          # Latest release (2026-10-16,
+          # https://github.com/golangci/golangci-lint/releases/tag/v2.15.0).
+          version: v2.15.0
+          install-only: true
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@2026.2.2
+      - run: make lint
+
+  fmt:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Current LTS line; npx fetches the prettier release pinned in the Makefile.
+          node-version: "26"
+      - run: make fmt-check
+
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        # Same image as deploy/compose.yaml.
+        image: docker.io/library/postgres:18-alpine
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # internal/db/dbtest creates and drops one database per test here.
+      TEST_DATABASE_URL: postgres://postgres:ci-only@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # Latest 1.26 patch, not the minimum in go.mod (go 1.26.0).
+          go-version: "1.26.x"
+          check-latest: true
+      - run: make test
+
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # Latest 1.26 patch, not the minimum in go.mod (go 1.26.0).
+          go-version: "1.26.x"
+          check-latest: true
+      # make images never pulls; fetch the base stage the Containerfiles name.
+      - name: Pull base image
+        run: podman pull "$(awk '/^FROM .* AS certs/ { print $2; exit }' deploy/images/recap.Containerfile)"
+      - run: make images
+
+  hook-test:
+    # The hook runs on BBB servers: Ruby 3.2 (BBB) and the current Ruby line,
+    # the same images as `make hook-test`. Runs ruby directly in the container
+    # (the slim images have no make).
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - docker.io/library/ruby:3.2-slim-bookworm
+          - docker.io/library/ruby:4.0-slim
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: ruby -e 'ARGV.each { |f| load f }' hook/post_archive/test/*_test.rb

@@ -1,0 +1,10 @@
+# Build context of deploy/images/*.Containerfile is the repo root. Send only
+# what the images copy; never testdata/secrets or anything else.
+*
+!bin/recap
+!bin/recap-exporter
+!bin/recap-mock
+!formats/
+!testdata/providers/
+!testdata/render/
+!testdata/sink/

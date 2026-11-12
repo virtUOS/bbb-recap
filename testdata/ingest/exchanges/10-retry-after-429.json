@@ -1,0 +1,317 @@
+{
+  "case": "retry-after-429",
+  "pins": [
+    "bbb-exporter.md §6.5 (at least Retry-After)",
+    "architecture.md §4.1, §7 (ingest limit)"
+  ],
+  "fixture": "F-01",
+  "record_id": "536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000",
+  "exporter": {
+    "state": "acked",
+    "reason": null
+  },
+  "steps": [
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+        "credential": "bbb_server.bbb-fixture-a",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "meetings/F-01/expected/manifest.json",
+          "sha256": "fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+          "size": 2147
+        }
+      },
+      "response": {
+        "status": 429,
+        "headers": {
+          "Retry-After": "40"
+        },
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+        "credential": "bbb_server.bbb-fixture-a",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "meetings/F-01/expected/manifest.json",
+          "sha256": "fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+          "size": 2147
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "package_id": "fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+          "state": "receiving",
+          "missing": [
+            "90bcb623d1a30d21a06d4557f508b0a16c1cc5e6389d35d5af57abc925dcb2b8",
+            "5f9896375a24242e9fac5b4d0bcd7f9ce529328fc78fc4a554be91354c9a5164",
+            "a97dcb416122736a71d59a3176b269a1d5949b20c473ec0f5f86a17db8c72c8b",
+            "932917876a460b87d798e3b790dcfba9f15498cd842f325b80f39516aa42fe70",
+            "6a7b886b0e4f1753c9217739270819ab44283b9c01b4b10bcce6834c7eb1f23e",
+            "aed5f557326b97149f13a9529a97852d83d6918e108dacb724070b21060c5820",
+            "95eb91a281832d8a975dcdb14d27b2f15b9fbdcaee568b0570e2636b27603229",
+            "32e80c82b6817743cb4bac409b73f8b5bb69ecfba2b1f3d1e139b4cc4da27e01",
+            "ae5a6cb6cf092ef6039cfd001f0aa972d8eca566b7bf6d3d79d5e09bb26df66b"
+          ],
+          "received_size": 0,
+          "expected_size": 393967
+        }
+      },
+      "sides": [
+        "exporter"
+      ],
+      "min_delay_s": 40
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/90bcb623d1a30d21a06d4557f508b0a16c1cc5e6389d35d5af57abc925dcb2b8",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/audio/microphone-w_fixada0001-TR_fixA1-1761732005200.webm",
+          "sha256": "90bcb623d1a30d21a06d4557f508b0a16c1cc5e6389d35d5af57abc925dcb2b8",
+          "size": 93076
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/5f9896375a24242e9fac5b4d0bcd7f9ce529328fc78fc4a554be91354c9a5164",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/audio/microphone-w_fixada0001-TR_fixA2-1761732090200.webm",
+          "sha256": "5f9896375a24242e9fac5b4d0bcd7f9ce529328fc78fc4a554be91354c9a5164",
+          "size": 105490
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/a97dcb416122736a71d59a3176b269a1d5949b20c473ec0f5f86a17db8c72c8b",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/audio/microphone-w_fixben0002-TR_fixB1-1761732005300.webm",
+          "sha256": "a97dcb416122736a71d59a3176b269a1d5949b20c473ec0f5f86a17db8c72c8b",
+          "size": 85760
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/932917876a460b87d798e3b790dcfba9f15498cd842f325b80f39516aa42fe70",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/audio/microphone-w_fixben0002-TR_fixB2-1761732090300.webm",
+          "sha256": "932917876a460b87d798e3b790dcfba9f15498cd842f325b80f39516aa42fe70",
+          "size": 94046
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/6a7b886b0e4f1753c9217739270819ab44283b9c01b4b10bcce6834c7eb1f23e",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/events.xml",
+          "sha256": "6a7b886b0e4f1753c9217739270819ab44283b9c01b4b10bcce6834c7eb1f23e",
+          "size": 13699
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/aed5f557326b97149f13a9529a97852d83d6918e108dacb724070b21060c5820",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/notes/notes.html",
+          "sha256": "aed5f557326b97149f13a9529a97852d83d6918e108dacb724070b21060c5820",
+          "size": 350
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/95eb91a281832d8a975dcdb14d27b2f15b9fbdcaee568b0570e2636b27603229",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/presentation/d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000/d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000.pdf",
+          "sha256": "95eb91a281832d8a975dcdb14d27b2f15b9fbdcaee568b0570e2636b27603229",
+          "size": 903
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/32e80c82b6817743cb4bac409b73f8b5bb69ecfba2b1f3d1e139b4cc4da27e01",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/presentation/d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000/svgs/slide1.svg",
+          "sha256": "32e80c82b6817743cb4bac409b73f8b5bb69ecfba2b1f3d1e139b4cc4da27e01",
+          "size": 321
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/files/ae5a6cb6cf092ef6039cfd001f0aa972d8eca566b7bf6d3d79d5e09bb26df66b",
+        "credential": "bbb_server.bbb-fixture-a",
+        "body": {
+          "source": "meetings/F-01/raw/536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000/presentation/d855a7c389c84fc7e1f4fb9859a38068ef109a90-1761732001000/svgs/slide2.svg",
+          "sha256": "ae5a6cb6cf092ef6039cfd001f0aa972d8eca566b7bf6d3d79d5e09bb26df66b",
+          "size": 322
+        }
+      },
+      "response": {
+        "status": 204,
+        "body": null
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+        "credential": "bbb_server.bbb-fixture-a",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "meetings/F-01/expected/manifest.json",
+          "sha256": "fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+          "size": 2147
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "package_id": "fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+          "state": "complete",
+          "missing": [],
+          "received_size": 393967,
+          "expected_size": 393967
+        }
+      },
+      "sides": [
+        "exporter"
+      ]
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/ingest/packages/fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416/commit",
+        "credential": "bbb_server.bbb-fixture-a",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "ingest/exchanges/bodies/empty-object.json",
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "size": 2
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "package_id": "fe879bd8fa2edf76c226b8e781ef901495d265691f2743d3aa0e0d6100f17416",
+          "state": "committed",
+          "job_id": "{{uuid:job-F-01}}",
+          "record_id": "536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000",
+          "file_count": 9,
+          "size": 393967,
+          "committed_at": "{{time:job-F-01}}"
+        }
+      },
+      "sides": [
+        "exporter"
+      ]
+    }
+  ]
+}

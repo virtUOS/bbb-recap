@@ -1,0 +1,26 @@
+{
+  "meeting_type": "meeting-summary",
+  "meeting_name": "Fixture Widget Meeting",
+  "chat": [
+    {
+      "at_ms": 7000,
+      "sender_id": "w_fixben0002",
+      "name": "Ben Testperson",
+      "text": "Link to the widget spec will follow."
+    },
+    {
+      "at_ms": 9000,
+      "sender_id": "w_fixada0001",
+      "name": "Ada Testperson",
+      "text": "Thanks."
+    }
+  ],
+  "notes": "Widget colour\nDecision: the test widget is blue.\nAction: Ben updates the widget specification by Friday. Ada reviews it on Monday.",
+  "polls": [],
+  "owner": {
+    "sub": "fixture-sub-ada-0001",
+    "email": "ada.testperson@example.org"
+  },
+  "llm_model": "example-model",
+  "generated_at": "2025-10-29T10:20:00Z"
+}

@@ -1,0 +1,10 @@
+# Sink profiles fixture with a docs and a frontend profile, both without a
+# declaration (privacy.md §7: optional; each profile without one logs a WARN).
+schema_version: "1.0.0"
+sinks:
+  - name: docs-main
+    type: docs
+    docs_base_url: https://docs.recap.test
+    api_key_file: docs-s2s.key
+  - name: frontend-main
+    type: frontend

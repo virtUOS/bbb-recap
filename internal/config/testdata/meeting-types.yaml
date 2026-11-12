@@ -1,0 +1,5 @@
+# Meeting types fixture (docs/reference/templates.md §1).
+schema_version: "1.0.0"
+meeting_types:
+  - name: meeting-summary
+    format: meeting-summary

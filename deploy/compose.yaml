@@ -1,0 +1,121 @@
+# bbb-recap: the service and its database. Guide: docs/operations/install-compose.md.
+#
+# Settings come from .env next to this file (copy .env.example). Config files
+# are read from ./config, secrets from ./secrets (both read-only). Data lives
+# in the volumes pgdata (database) and blobdata (meeting files while a job
+# runs). The api listens on 127.0.0.1:8080; put a TLS reverse proxy in front
+# of it (Caddyfile.example).
+#
+# ":z" lets SELinux hosts share the bind mounts with the containers; other
+# hosts ignore it.
+name: recap
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+# Passed to migrate, api and worker. An empty value means the built-in
+# default (docs/reference/deployment.md §5).
+x-env: &env
+  RECAP_LOG_LEVEL: ${RECAP_LOG_LEVEL:-}
+  RECAP_DB_DSN: ${RECAP_DB_DSN:-postgres://recap@postgres:5432/recap?sslmode=disable}
+  RECAP_DB_PASSWORD_FILE: /run/secrets/recap/db-password
+  RECAP_BLOB_BACKEND: ${RECAP_BLOB_BACKEND:-fs}
+  RECAP_FS_ROOT: /var/lib/recap/blobs
+  RECAP_S3_ENDPOINT: ${RECAP_S3_ENDPOINT:-}
+  RECAP_S3_REGION: ${RECAP_S3_REGION:-}
+  RECAP_S3_BUCKET: ${RECAP_S3_BUCKET:-}
+  RECAP_S3_ACCESS_KEY_ID_FILE: /run/secrets/recap/s3-access-key-id
+  RECAP_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/recap/s3-secret-access-key
+  # Optional; empty: every front end may claim every BBB server. Set it when
+  # several organisations share this service (.env.example).
+  RECAP_FRONTEND_SERVERS: ${RECAP_FRONTEND_SERVERS:-}
+  RECAP_FRONTEND_TYPES: ${RECAP_FRONTEND_TYPES:-}
+  RECAP_FRONTEND_SINKS: ${RECAP_FRONTEND_SINKS:-}
+  RECAP_META_PREFIX: ${RECAP_META_PREFIX:-}
+  RECAP_RETENTION_AFTER_DELIVERY: ${RECAP_RETENTION_AFTER_DELIVERY:-}
+  RECAP_RESULT_TTL: ${RECAP_RESULT_TTL:-}
+  RECAP_REGISTRATION_TTL: ${RECAP_REGISTRATION_TTL:-}
+  RECAP_INGEST_STAGING_TTL: ${RECAP_INGEST_STAGING_TTL:-}
+  RECAP_JOB_METADATA_RETENTION: ${RECAP_JOB_METADATA_RETENTION:-}
+  RECAP_WORKER_SLOTS: ${RECAP_WORKER_SLOTS:-}
+  RECAP_DISPLAY_TZ: ${RECAP_DISPLAY_TZ:-}
+  RECAP_DEFAULT_LANGUAGE: ${RECAP_DEFAULT_LANGUAGE:-}
+  RECAP_ASR_LANGUAGE: ${RECAP_ASR_LANGUAGE:-}
+  RECAP_PUBLIC_BASE_URL: ${RECAP_PUBLIC_BASE_URL:-}
+  RECAP_OIDC_ISSUER: ${RECAP_OIDC_ISSUER:-}
+  RECAP_OIDC_CLIENT_ID: ${RECAP_OIDC_CLIENT_ID:-}
+  RECAP_OIDC_ROLE_CLAIM: ${RECAP_OIDC_ROLE_CLAIM:-}
+  RECAP_OIDC_CLIENT_SECRET_FILE: /run/secrets/recap/oidc-client-secret
+  RECAP_SESSION_KEY_FILE: /run/secrets/recap/session-key
+
+# api and worker: same image, files and healthcheck; the command picks the role.
+x-recap: &recap
+  <<: *hardening
+  image: ${RECAP_IMAGE:?set RECAP_IMAGE in .env}
+  environment: *env
+  volumes:
+    - ${RECAP_CONFIG_DIR:-./config}/providers.yaml:/etc/recap/providers.yaml:ro,z
+    - ${RECAP_CONFIG_DIR:-./config}/sinks.yaml:/etc/recap/sinks.yaml:ro,z
+    - ${RECAP_CONFIG_DIR:-./config}/meeting-types.yaml:/etc/recap/meeting-types.yaml:ro,z
+    - ${RECAP_SECRETS_DIR:-./secrets}:/run/secrets/recap:ro,z
+    - blobdata:/var/lib/recap/blobs
+  tmpfs:
+    - /tmp
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  restart: unless-stopped
+  stop_grace_period: 30s
+  # Probes /readyz on the unpublished ops port 9090.
+  healthcheck:
+    test: [CMD, /usr/local/bin/recap, healthcheck]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+
+services:
+  postgres:
+    image: docker.io/library/postgres:18-alpine
+    environment:
+      POSTGRES_USER: recap
+      POSTGRES_DB: recap
+      POSTGRES_PASSWORD_FILE: /run/secrets/db-password
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ${RECAP_SECRETS_DIR:-./secrets}/db-password:/run/secrets/db-password:ro,z
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, pg_isready, -q, -h, 127.0.0.1, -U, recap, -d, recap]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Applies database migrations, then exits.
+  migrate:
+    <<: *hardening
+    image: ${RECAP_IMAGE:?set RECAP_IMAGE in .env}
+    command: [migrate]
+    environment: *env
+    volumes:
+      - ${RECAP_SECRETS_DIR:-./secrets}:/run/secrets/recap:ro,z
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *recap
+    command: [api]
+    ports:
+      - 127.0.0.1:${RECAP_HTTP_PORT:-8080}:8080
+
+  worker:
+    <<: *recap
+    command: [worker]
+
+volumes:
+  pgdata:
+  blobdata:

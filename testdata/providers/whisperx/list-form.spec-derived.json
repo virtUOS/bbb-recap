@@ -1,0 +1,11 @@
+{
+  "text": "Welcome to the fixture meeting. Today we decide the colour of the test widget. I propose blue. Agreed. Yes, I will review it on Monday.",
+  "language": "en",
+  "segments": [
+    { "start": 1.0, "end": 5.5, "text": "  Welcome to the fixture meeting. Today we decide the colour of the test widget. ", "speaker": "SPEAKER_00" },
+    { "start": 6.0625, "end": 7.5625, "text": "I propose blue.", "speaker": "SPEAKER_01" },
+    { "start": 8.0, "end": 8.25, "text": "   ", "speaker": "SPEAKER_00" },
+    { "start": 9.5, "end": 9.0, "text": "Agreed.", "speaker": "SPEAKER_00" },
+    { "start": 10.0078125, "end": 12.4921875, "text": "Yes, I will review it on Monday.", "speaker": "SPEAKER_01" }
+  ]
+}

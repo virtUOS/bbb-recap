@@ -1,0 +1,23 @@
+{
+  "language_name": "German",
+  "speaker": "Sprecher {n}",
+  "header": "*{meeting_name} · {date} · {first_start}–{last_end} {tz} · aufgezeichnet: {recorded_duration}*",
+  "notice": "*Automatisch erstellt aus den aufgezeichneten Teilen dieser Besprechung. Kann Fehler enthalten.*",
+  "gap": "> **Unvollständiges Transkript:** kein Text für {speaker} von [{start}] bis [{end}] (Transkription fehlgeschlagen).",
+  "overview": "Überblick",
+  "topics": "Themen",
+  "decisions": "Beschlüsse",
+  "action_items": "Aufgaben",
+  "open_questions": "Offene Fragen",
+  "polls": "Umfragen",
+  "none": "Keine Einträge.",
+  "due": "fällig",
+  "option": "Option",
+  "votes": "Stimmen",
+  "no_speech": "In den aufgezeichneten Teilen dieser Besprechung wurde keine Sprache erkannt.",
+  "no_llm": "keines",
+  "footer": "*{format_id} {format_version} · ASR: {asr_model} · LLM: {llm_model} · {generated_at}*",
+  "vtt_header": "NOTE Automatisches Transkript (Spracherkennung). Zeiten sind Aufnahmezeit; Pausen sind entfernt.",
+  "vtt_pause": "NOTE Aufnahme hier pausiert.",
+  "vtt_gap": "NOTE Lücke {start} bis {end}, {name}: kein Transkript ({reason})."
+}

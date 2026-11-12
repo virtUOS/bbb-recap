@@ -1,0 +1,14 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Writing CLI output to stdout/stderr: there is nothing useful to do
+      # when that fails, so do not require `_, _ =` on every print.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Print
+        - fmt.Printf
+        - fmt.Println
