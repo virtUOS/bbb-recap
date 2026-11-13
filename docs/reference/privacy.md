@@ -45,7 +45,7 @@ flowchart LR
   EXP -- "A package" --> API
   FE -- "B registration" --> API
   W -- "C audio per track" --> ASR
-  W -- "D transcript, chat, notes" --> LLM
+  W -- "D transcript, chat, notes, slides" --> LLM
   W -- "E summary.md, title, owner sub + email" --> DOCS
   DOCS -- "F Docs' own email" --> MAIL
   W -- "G IDs, counts" --> MON
@@ -56,12 +56,17 @@ flowchart LR
 | A BBB → service        | voice per speaker, display names, user IDs, chat, polls, talk times, notes, slides; `events.xml` as is, incl. any personal data other front ends put in meta | per-server credential, TLS | raw: exporter (ADR-002); package: `cleanup` |
 | B front end → service  | owner `sub`, email, `meeting_id`                                                                                                                             | per-front-end credential   | service; `cleanup`                          |
 | C service → ASR        | voice                                                                                                                                                        | provider profile           | provider, per declaration                   |
-| D service → LLM        | transcript, names, chat, notes, polls                                                                                                                        | provider profile           | provider, per declaration                   |
+| D service → LLM        | transcript, names, chat, notes, polls; text of the slides shown during recording, only for meeting types that switch slides on (`templates.md` §3.1)         | provider profile           | provider, per declaration                   |
 | E service → Docs       | summary (may name people), title (meeting name + date), owner `sub` + email                                                                                  | s2s key (`sinks.md` §3.2)  | Docs; owner manages                         |
 | F Docs → mailbox       | owner email, title                                                                                                                                           | Docs' mail setup           | mail systems                                |
 | G service → monitoring | none by rule (§6)                                                                                                                                            | —                          | operator policy                             |
 
 The transcript (`transcript.vtt`) is **not** sent anywhere yet. There is no service email and no SMTP edge.
+
+Slides on edge D (ADR-015) are off by default; switching them on for a meeting type is the operator's decision. Then
+only the cleaned text of pages shown for at least 5 s during recording is sent, capped in size. Never sent: slide
+images, pages that were not shown, the default deck, presentation IDs and original file names. Slide text can hold
+personal data (names on title pages, participant lists, figures).
 
 ## 3. Data inventory
 
@@ -83,7 +88,7 @@ The transcript (`transcript.vtt`) is **not** sent anywhere yet. There is no serv
 | S0  | Ingest staging                                                      | as S1                                                                                 | blob store + `packages` rows                      | `RECAP_INGEST_STAGING_TTL` (72h)                                                           | cleanup loop                                                |
 | S1  | Package (`manifest.json`, `events.xml`, audio, notes, presentation) | edge A                                                                                | blob store `jobs/<job_id>/sha256/<hex>` (ADR-011) | after delivery: immediately                                                                | `cleanup` / admin                                           |
 | S2  | Registration                                                        | owner `sub`, email, `meeting_id`                                                      | Postgres                                          | as S1; unmatched: `RECAP_REGISTRATION_TTL` (14d); tombstone (IDs only): 30 days (constant) | `cleanup`, cleanup loop                                     |
-| S3  | Normalized data, audio per track                                    | voice, names, chat, polls, notes                                                      | blob store                                        | as S1                                                                                      | `cleanup`                                                   |
+| S3  | Normalized data, audio per track                                    | voice, names, chat, polls, notes, text of shown slides (`templates.md` §3.1)          | blob store                                        | as S1                                                                                      | `cleanup`                                                   |
 | S5  | ASR results, transcript JSON, LLM map outputs, summary JSON         | speech, names, summary                                                                | blob store                                        | as S1                                                                                      | `cleanup`                                                   |
 | S6  | `summary.md`, `transcript.vtt`, delivery request                    | summary, transcript, title, owner `sub` + email                                       | blob store / step input                           | as S1 (`transcript.vtt` is never delivered)                                                | `cleanup`                                                   |
 | S7  | Delivery record                                                     | Docs document ID, state (`sinks.md` §1.3)                                             | Postgres                                          | as J1                                                                                      | cleanup loop                                                |
@@ -101,7 +106,7 @@ The transcript (`transcript.vtt`) is **not** sent anywhere yet. There is no serv
 | ID  | Item                                       | Personal data                                   | Retention                                                                                                                              | Deleter                              |
 | --- | ------------------------------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
 | P1  | ASR copies                                 | voice, transcript                               | per declaration; whisperx-api-server result store on by default, 1 h TTL, recommend off ([`upstream-facts.md`](upstream-facts.md))     | adapter `cleanup`, provider operator |
-| P2  | LLM copies                                 | transcript, summary                             | per declaration (see Known limitations)                                                                                                | provider operator                    |
+| P2  | LLM copies                                 | transcript, summary, slide text (if sent)       | per declaration (see Known limitations)                                                                                                | provider operator                    |
 | D1  | Docs summary document                      | summary, title                                  | until deleted in Docs                                                                                                                  | owner; Docs operator if ownerless    |
 | D2  | Docs owner invitation (unknown owner only) | owner email                                     | valid 7 days ([`upstream-facts.md`](upstream-facts.md)); no purge of expired invitations found. After expiry the document is ownerless | Docs operator                        |
 | D3  | Docs emails                                | owner email, title                              | mail policy                                                                                                                            | mail operator, owner                 |
@@ -184,16 +189,16 @@ An ASR, LLM or sink profile **may** have a `declaration` block (optional, so pil
 A profile without one logs one WARN at start-up and in `check-config` ("profile <name> has no
 declaration"). A declaration that is present must be complete and valid as below, or the service refuses to start.
 
-| Field                        | Values                                                |
-| ---------------------------- | ----------------------------------------------------- |
-| `data_categories`            | from §3, e.g. `[voice]`, `[summary, email]`           |
-| `operator`                   | who runs it                                           |
-| `location`                   | `on_prem`, `eu`, `eea`, `third_country:<code>`        |
-| `retention`                  | free text + duration                                  |
-| `deletion`                   | `adapter_cleanup`, `ttl:<duration>`, `none`, `manual` |
-| `used_for_training`          | `no`, `yes`, `unknown`                                |
-| `contract_ref`               | DPA reference or `none`                               |
-| `reviewed_by`, `reviewed_at` | role, date                                            |
+| Field                        | Values                                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------------------------- |
+| `data_categories`            | from §3, e.g. `[voice]`, `[summary, email]`; `slides` for an LLM profile that gets slide text |
+| `operator`                   | who runs it                                                                                   |
+| `location`                   | `on_prem`, `eu`, `eea`, `third_country:<code>`                                                |
+| `retention`                  | free text + duration                                                                          |
+| `deletion`                   | `adapter_cleanup`, `ttl:<duration>`, `none`, `manual`                                         |
+| `used_for_training`          | `no`, `yes`, `unknown`                                                                        |
+| `contract_ref`               | DPA reference or `none`                                                                       |
+| `reviewed_by`, `reviewed_at` | role, date                                                                                    |
 
 Third-country and training-using providers should not be used in pilots. A declared profile with such values logs a
 WARN at start-up. The declarations feed the DPIA processor list; a deployment without them has to
