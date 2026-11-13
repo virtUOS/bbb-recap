@@ -1,0 +1,35 @@
+{
+  "name": "bbb-recap-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BigBlueButton plugin: AI summary button that starts and pauses the meeting recording",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "webpack --mode production",
+    "lint": "eslint . && prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "bigbluebutton-html-plugin-sdk": "1.0.0-beta.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "copy-webpack-plugin": "^14.0.0",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "3.10.1",
+    "terser-webpack-plugin": "^5.6.1",
+    "ts-loader": "^9.6.2",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0",
+    "webpack": "^5.112.2",
+    "webpack-cli": "^7.3.1"
+  }
+}

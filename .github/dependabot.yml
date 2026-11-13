@@ -3,7 +3,7 @@
 # (workflows/dependabot-auto-merge.yml, docs/operations/release.md).
 #
 # Cooldown: a new release waits 14 days before Dependabot proposes it. Go modules
-# support per-SemVer cooldowns (minor and major 14 days, patch the default 3);
+# and npm support per-SemVer cooldowns (minor and major 14 days, patch the default 3);
 # docker, docker-compose and github-actions only support default-days, so all
 # their updates wait 14 days. Security updates ignore the cooldown.
 version: 2
@@ -22,6 +22,33 @@ updates:
       go-modules:
         patterns: ["*"]
         update-types: [minor, patch]
+
+  # The BBB plugin's npm packages (plugin/package.json and its lockfile).
+  - package-ecosystem: npm
+    directory: "/plugin"
+    schedule:
+      interval: weekly
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 14
+    open-pull-requests-limit: 5
+    groups:
+      # Majors stay separate pull requests for a human to review.
+      npm:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # The SDK version follows the one BBB ships (bigbluebutton-html5/package.json); update it with BBB.
+      - dependency-name: bigbluebutton-html-plugin-sdk
+      # The SDK needs React 18 (peer dependency react ^18.2.0).
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
 
   # Base images in deploy/images/*.Containerfile (Dependabot matches
   # "containerfile" in file names).

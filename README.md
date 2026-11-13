@@ -55,6 +55,8 @@ A longer walk-through: [docs/overview.md](docs/overview.md).
 - Run the service with docker compose: [docs/operations/install-compose.md](docs/operations/install-compose.md).
 - Install the hook and exporter on a BBB server:
   [docs/operations/install-exporter.md](docs/operations/install-exporter.md).
+- Optional: an "AI summary" button in BBB that starts and pauses the recording:
+  [docs/operations/install-plugin.md](docs/operations/install-plugin.md).
 - Develop and test: [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Try it locally
@@ -76,6 +78,7 @@ podman compose -p recap-e2e-m1 -f deploy/compose.yaml -f tools/dev/compose.yaml 
 | `cmd/`       | binaries: `recap` (service), `recap-exporter` (BBB side), `recap-mock` (mock providers for tests) |
 | `internal/`  | service and exporter code                                                                         |
 | `hook/`      | the Ruby `post_archive` hook for BBB                                                              |
+| `plugin/`    | the BBB plugin with the "AI summary" button (TypeScript)                                          |
 | `formats/`   | built-in output formats (prompts and templates)                                                   |
 | `contracts/` | contract tests of the interfaces                                                                  |
 | `testdata/`  | synthetic fixtures and golden files                                                               |
