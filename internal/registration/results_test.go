@@ -87,7 +87,7 @@ func TestResultFields(t *testing.T) {
 		t.Fatalf("before delivery: %+v", j)
 	}
 	r := e.do(t, http.MethodGet, path(rid), tokenFE, nil)
-	if !strings.Contains(string(r.body), `"schema_version":"1.1.0"`) ||
+	if !strings.Contains(string(r.body), `"schema_version":"1.2.0"`) ||
 		!strings.Contains(string(r.body), `"summary_available":false`) || !strings.Contains(string(r.body), `"outcome":null`) {
 		t.Fatalf("response %s", r.body)
 	}

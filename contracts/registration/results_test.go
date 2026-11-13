@@ -84,6 +84,13 @@ func TestResponseSchema(t *testing.T) {
 				t.Errorf("%s registration.json: schema rejects it: %v", id, err)
 			}
 		}
+		for _, rid := range []string{"a", "0" + strings.Repeat("a_-", 84) + "yz"} {
+			m := fixtureRegistration(t, "F-01")
+			m["record_id"] = rid
+			if err := validate(req, mustJSON(t, m)); err != nil {
+				t.Errorf("record_id of %d characters: schema rejects it: %v", len(rid), err)
+			}
+		}
 		for _, c := range invalidRequests {
 			m := fixtureRegistration(t, "F-01")
 			c.edit(m)

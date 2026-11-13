@@ -35,7 +35,7 @@ const (
 	maxBody       = 8 << 10 // bytes
 	rateLimit     = 600     // requests per front end and rateWindow
 	rateWindow    = time.Minute
-	schemaVersion = "1.1.0" // of the responses (§2.3: 1.1.0 adds the result fields)
+	schemaVersion = "1.2.0" // of the responses (§2.3: 1.1.0 adds the result fields, 1.2.0 the record_id pattern)
 )
 
 // Sink is what the API needs to know of a sink profile to show a result

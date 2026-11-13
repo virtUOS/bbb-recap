@@ -23,7 +23,7 @@ func TestRegistration(t *testing.T) {
 }
 
 // recordIDPattern is the record_id grammar of §2.3.
-var recordIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+var recordIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$`)
 
 // fixtureRegistration reads testdata/meetings/<id>/registration.json as a map.
 func fixtureRegistration(t *testing.T, id string) map[string]any {
@@ -66,7 +66,9 @@ var invalidRequests = []invalidRequest{
 	{"extra-field", func(m map[string]any) { m["meeting_type"] = "meeting-summary" }, 400, "invalid-request"},
 	{"extra-owner-field", func(m map[string]any) { m["owner"].(map[string]any)["name"] = "Ada Testperson" }, 400, "invalid-request"},
 	{"record_id-bad-char", func(m map[string]any) { m["record_id"] = "bad.record.id" }, 400, "invalid-request"},
-	{"record_id-129-chars", func(m map[string]any) { m["record_id"] = strings.Repeat("a", 129) }, 400, "invalid-request"},
+	{"record_id-256-chars", func(m map[string]any) { m["record_id"] = strings.Repeat("a", 256) }, 400, "invalid-request"},
+	{"record_id-leading-underscore", func(m map[string]any) { m["record_id"] = "_" + freshRecordID() }, 400, "invalid-request"},
+	{"record_id-leading-hyphen", func(m map[string]any) { m["record_id"] = "-" + freshRecordID() }, 400, "invalid-request"},
 	{"sub-256-chars", func(m map[string]any) { m["owner"].(map[string]any)["sub"] = strings.Repeat("s", 256) }, 400, "invalid-request"},
 	{"bad-email", func(m map[string]any) { m["owner"].(map[string]any)["email"] = "not-an-email" }, 400, "invalid-request"},
 	{"schema_version-2.0.0", func(m map[string]any) { m["schema_version"] = "2.0.0" }, 422, "unsupported-schema-version"},
@@ -101,6 +103,12 @@ func testSchema(t *testing.T) {
 			}
 		})
 	}
+	t.Run("record_id-255-chars", func(t *testing.T) {
+		rid, mid := freshRecordID(), freshMeetingID()
+		rid += "-" + strings.Repeat("a", 255-len(rid)-1)
+		r := e.putReg(t, token, rid, regBody(t, rid, mid, ada))
+		expectRegistration(t, r, http.StatusCreated, rid, mid, "registered", "PUT with a 255-character record_id")
+	})
 	t.Run("sub-255-chars", func(t *testing.T) {
 		rid, mid := freshRecordID(), freshMeetingID()
 		r := e.putReg(t, token, rid, regBody(t, rid, mid, owner{Sub: longSub, Email: ada.Email}))
