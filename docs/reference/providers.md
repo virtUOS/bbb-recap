@@ -121,6 +121,10 @@ refer to this file). The server is synchronous: one `POST`, and the response bod
 | `suppress_numerals` | `false` (server default `true`, upstream API description)    | `whisperx.py:91`                                       |
 | `diarize`           | `false`, always                                              | `whisperx.py:92`; ADR-001                              |
 
+The file part's type is the request's media type, and the file name's extension matches it (`.webm` for
+`audio/webm`). A media type outside `media_types` (§2.4) is `permanent_input` (code `unsupported_media_type`) and no
+request is sent.
+
 Never sent: `min_speakers`, `max_speakers`, `prompt`, `hotwords`, `audio_url`, `callback_url`, `async`
 (`whisperx.py:85-97`).
 

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -121,7 +122,8 @@ func TestRequestAndResult(t *testing.T) {
 			t.Errorf("field %s = %v, want %s", k, v, want)
 		}
 	}
-	if fh := hr.MultipartForm.File["file"]; len(fh) != 1 || fh[0].Filename != "trk-3.webm" || fh[0].Size != int64(len(audio)) {
+	if fh := hr.MultipartForm.File["file"]; len(fh) != 1 || fh[0].Filename != "trk-3.webm" ||
+		fh[0].Header.Get("Content-Type") != "audio/webm" || fh[0].Size != int64(len(audio)) {
 		t.Errorf("file part %+v", fh)
 	}
 
@@ -212,6 +214,42 @@ func TestTimeoutAndLimits(t *testing.T) {
 
 	if AttemptTimeout(9000) != 600*time.Second || AttemptTimeout(3_600_000) != 1800*time.Second {
 		t.Error("AttemptTimeout does not follow max(600 s, 0.5 × duration)")
+	}
+}
+
+// The file part carries the request's media type and a matching file
+// extension; a media type outside Capabilities is permanent_input without a
+// request.
+func TestMediaType(t *testing.T) {
+	if c := New(profile(t, "http://asr.recap.test", ""), slog.New(slog.DiscardHandler)).Capabilities(); !slices.Equal(c.MediaTypes, []string{"audio/webm"}) {
+		t.Errorf("media types %v", c.MediaTypes)
+	}
+
+	fileExtensions["audio/ogg"] = ".ogg" // a second type, for this test only
+	defer delete(fileExtensions, "audio/ogg")
+	srv, got := fake(t, 200, nil, []byte(`{"segments":[]}`))
+	a := New(profile(t, srv.URL, ""), slog.New(slog.DiscardHandler))
+	req := request()
+	req.Audio.MediaType = "audio/ogg"
+	if _, err := run(t, a, req); err != nil {
+		t.Fatal(err)
+	}
+	if fh := (*got)[0].MultipartForm.File["file"]; len(fh) != 1 || fh[0].Filename != "trk-3.ogg" ||
+		fh[0].Header.Get("Content-Type") != "audio/ogg" {
+		t.Errorf("file part %+v", fh)
+	}
+
+	for _, mt := range []string{"audio/mpeg", "", "audio/webm; codecs=opus"} {
+		srv, got := fake(t, 200, nil, []byte(`{"segments":[]}`))
+		a := New(profile(t, srv.URL, ""), slog.New(slog.DiscardHandler))
+		req := request()
+		req.Audio.MediaType = mt
+		_, err := run(t, a, req)
+		var e *providers.Error
+		if !errors.As(err, &e) || e.Class != providers.PermanentInput || e.Code != "unsupported_media_type" ||
+			len(*got) != 0 {
+			t.Errorf("%q: %v, %d requests", mt, err, len(*got))
+		}
 	}
 }
 

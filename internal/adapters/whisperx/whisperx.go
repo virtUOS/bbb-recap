@@ -13,12 +13,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math"
 	"mime/multipart"
 	"net"
 	"net/http"
 	"net/textproto"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +41,13 @@ const (
 )
 
 var languageRE = regexp.MustCompile(`^[a-z]{2,3}$`)
+
+// fileExtensions maps each media type the adapter sends (§2.4
+// media_types) to the extension of the upload file name. Only WebM has
+// been tried against the server (§7).
+var fileExtensions = map[string]string{
+	"audio/webm": ".webm",
+}
 
 // AttemptTimeout is max(600 s, 0.5 × duration) (§1.5).
 func AttemptTimeout(durationMS int64) time.Duration {
@@ -74,7 +83,7 @@ func (a *Adapter) Capabilities() providers.Capabilities {
 	return providers.Capabilities{
 		Diarization:     true, // supported by the server, never requested
 		MaxFileBytes:    a.profile.MaxFileBytes,
-		MediaTypes:      []string{"audio/webm"},
+		MediaTypes:      slices.Sorted(maps.Keys(fileExtensions)),
 		RemoteRetention: "ttl",
 	}
 }
@@ -135,6 +144,9 @@ func (a *Adapter) Cleanup(context.Context, providers.AsrHandle) error { return n
 func (a *Adapter) send(ctx context.Context, req providers.AsrRequest) ([]byte, int, *providers.Error) {
 	if limit := a.profile.MaxFileBytes; limit != nil && req.Audio.Size > *limit {
 		return nil, 0, &providers.Error{Class: providers.PermanentInput, Code: "file_too_large"}
+	}
+	if _, ok := fileExtensions[req.Audio.MediaType]; !ok {
+		return nil, 0, &providers.Error{Class: providers.PermanentInput, Code: "unsupported_media_type"}
 	}
 	timeout := req.AttemptTimeout
 	if timeout <= 0 {
@@ -218,8 +230,9 @@ func writeForm(mw *multipart.Writer, req providers.AsrRequest, model string, aud
 		}
 	}
 	hdr := textproto.MIMEHeader{}
-	hdr.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s.webm"`, req.TrackRef))
-	hdr.Set("Content-Type", "audio/webm")
+	hdr.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s%s"`, req.TrackRef,
+		fileExtensions[req.Audio.MediaType]))
+	hdr.Set("Content-Type", req.Audio.MediaType)
 	w, err := mw.CreatePart(hdr)
 	if err != nil {
 		return err
