@@ -48,6 +48,11 @@ a maintainer. Auto-merge is only safe with two repository settings:
 - A branch protection rule (or ruleset) on `main` with **Require status checks to pass** and the `ci` jobs (`lint`,
   `fmt`, `test`, `build`, both `hook-test` entries) as required checks. Without required checks a queued pull request
   merges at once, before CI has run.
+  The rule must not require approving reviews: the workflow does not approve, so such a pull request would wait
+  forever.
+
+A merge done by auto-merge may not start the `image` workflow on `main` (GitHub does not start workflows for events
+of its own token). If `edge` should carry the update, run the `image` workflow by hand.
 
 ## Cut a release
 

@@ -8,7 +8,7 @@
 # their updates wait 14 days. Security updates ignore the cooldown.
 version: 2
 updates:
-  # Go modules and the go directive in go.mod.
+  # Go modules in go.mod (the go directive stays manual).
   - package-ecosystem: gomod
     directory: "/"
     schedule:
