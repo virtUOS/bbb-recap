@@ -77,7 +77,7 @@ func newS3(t *testing.T) blob.Store {
 	}
 	var b [6]byte
 	_, _ = rand.Read(b[:])
-	bucket := "recap-t022-" + hex.EncodeToString(b[:])
+	bucket := "recap-test-" + hex.EncodeToString(b[:])
 	if err := admin.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err != nil {
 		t.Fatalf("make bucket: %v", err)
 	}

@@ -78,7 +78,7 @@ func minioStores(t *testing.T) (*minio.Client, func(t *testing.T) blob.Store) {
 		if _, err := rand.Read(b[:]); err != nil {
 			t.Fatal(err)
 		}
-		bucket := "recap-t013-" + hex.EncodeToString(b[:])
+		bucket := "recap-test-" + hex.EncodeToString(b[:])
 		if err := admin.MakeBucket(t.Context(), bucket, minio.MakeBucketOptions{}); err != nil {
 			t.Fatalf("make bucket: %v", err)
 		}

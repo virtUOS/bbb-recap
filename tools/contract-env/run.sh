@@ -2,7 +2,7 @@
 # Contract environment: runs the service (Postgres, migrate, api, worker) in
 # podman for the HTTP contract tests, without host Postgres and without
 # pulling images. Several environments can run side by side under different
-# names: pick a unique NAME per run, e.g. recap-t021-$$, so that it clashes
+# names: pick a unique NAME per run, e.g. recap-ce-$$, so that it clashes
 # neither with another environment nor with a test database container.
 #
 #   run.sh up NAME HOSTPORT   start NAME-pg, NAME-migrate, NAME-mock, NAME-api, NAME-worker;
