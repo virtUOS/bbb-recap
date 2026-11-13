@@ -198,8 +198,9 @@ HTTP status of any request as in §1.4, except: a `422` from step 2 whose `detai
 
 ### 2a.4 Cleanup and remote retention
 
-`Cleanup` sends `DELETE /api/transcription/{id}`. It deletes the transcription and its uploaded file (on the test
-instance, status and media returned 404 afterwards; `routers/transcription.py:438-490`). 404 counts as done.
+`Cleanup` sends `DELETE /api/transcription/{id}`. It deletes the transcription and, unless another transcription uses
+it, its uploaded file (on the test instance, status and media returned 404 afterwards;
+`routers/transcription.py:438-490`). 404 counts as done.
 `remote_retention = until_cleanup`.
 
 transkribierBAR has no route to delete an uploaded file on its own (the file routes are upload, media, media fallback
