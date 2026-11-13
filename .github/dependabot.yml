@@ -49,6 +49,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@types/react-dom"
         update-types: ["version-update:semver-major"]
+      # typescript-eslint 8 supports TypeScript <6.1.0 only (its peer dependency), so TypeScript 7 would fail
+      # npm ci. Drop this once typescript-eslint supports it.
+      - dependency-name: typescript
+        versions: [">=6.1.0"]
 
   # Base images in deploy/images/*.Containerfile (Dependabot matches
   # "containerfile" in file names).

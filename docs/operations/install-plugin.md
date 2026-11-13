@@ -10,6 +10,9 @@ comes from the recording through the exporter ([install-exporter.md](install-exp
 You need BBB 4.0 (plugin SDK `1.0.0-beta.3`), a static HTTPS host and Node.js 24 or later to build. The plugin is
 built and unit-tested but not yet tested on a BBB server.
 
+`RecapPlugin.js` bundles the BBB plugin SDK (LGPL-3.0), React and browser-bunyan (MIT); [`plugin/NOTICE`](../../plugin/NOTICE)
+lists versions, licenses and sources.
+
 ## Quick start
 
 1. Build, on any machine with Node.js and git:
