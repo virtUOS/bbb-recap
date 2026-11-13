@@ -27,7 +27,7 @@ build:
 # into scratch, never pulling a base image. The labels carry the module
 # version and vcs.revision of each binary, the values recap_build_info shows.
 # The image is as reproducible as the host toolchain; CI runs this same target
-# with the latest Go 1.26 patch (.github/workflows/). The base image is never
+# with the latest Go 1.27 patch (.github/workflows/). The base image is never
 # pulled here: pull it first (the image workflow does). IMAGE_TAG builds other
 # local tags (e.g. `make images IMAGE_TAG=test`) without replacing :dev.
 IMAGE_TAG ?= dev
