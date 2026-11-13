@@ -18,6 +18,7 @@ import (
 const (
 	testdataDir = "../../testdata"
 	renderDir   = "../../testdata/render"
+	formatsDir  = "../../formats" // the repo's formats, used when RECAP_FORMATS_DIR is unset
 )
 
 // meetingTypesYAML is the default and fixture meeting-types file (templates.md §1).
@@ -28,7 +29,8 @@ meeting_types:
 `
 
 // Environment variables the tests set for every run. Everything else, in
-// particular RECAP_FORMATS_DIR, is passed through from the test environment.
+// particular RECAP_FORMATS_DIR, is passed through from the test environment;
+// an unset or empty RECAP_FORMATS_DIR becomes the repo's formats/ (execBin).
 var ownEnv = []string{
 	"RECAP_MEETING_TYPES_FILE=", "RECAP_DISPLAY_TZ=", "RECAP_DEFAULT_LANGUAGE=",
 	"RECAP_PROVIDERS_FILE=", "RECAP_ASR_LANGUAGE=", "SSL_CERT_FILE=",
@@ -120,6 +122,13 @@ func execBin(t *testing.T, bin string, env map[string]string, stdin []byte, args
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Env = envWithout(ownEnv)
+	if os.Getenv("RECAP_FORMATS_DIR") == "" && env["RECAP_FORMATS_DIR"] == "" {
+		dir, err := filepath.Abs(formatsDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd.Env = append(cmd.Env, "RECAP_FORMATS_DIR="+dir)
+	}
 	for k, v := range env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
