@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -113,6 +114,24 @@ var enums = []struct {
 	{"registrations", "status", []string{"registered", "cancelled"}},
 	{"audit", "actor_kind", []string{"system", "admin", "client"}},
 	{"audit", "action", []string{"retry", "release", "rerun", "purge", "erase", "ingest_commit", "job_state"}},
+}
+
+// The shared enum lists hold exactly the values of the enum columns.
+func TestEnumLists(t *testing.T) {
+	for _, c := range []struct {
+		column string
+		got    []string
+	}{
+		{"state", db.JobStates},
+		{"held_reason", db.HeldReasons},
+		{"failure_reason", db.FailureReasons},
+	} {
+		for _, e := range enums {
+			if e.table == "jobs" && e.column == c.column && !slices.Equal(c.got, e.values) {
+				t.Errorf("jobs.%s: list %v, want %v", c.column, c.got, e.values)
+			}
+		}
+	}
 }
 
 var steps = []string{"validate", "normalize", "transcribe", "assemble", "summarize", "render", "deliver", "cleanup"}
