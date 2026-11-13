@@ -6,6 +6,10 @@ HOOK_TESTS := $(wildcard hook/post_archive/test/*_test.rb)
 # Ruby 3.2 is the Ruby of BBB; 4.0 is the current release line.
 RUBY_IMAGE  := docker.io/library/ruby:3.2-slim-bookworm
 RUBY4_IMAGE := docker.io/library/ruby:4.0-slim
+# Go packages of the module. npm packages in plugin/node_modules can contain Go files (flatted does): ./... would
+# include them, and the go tool skips only directories named testdata or starting with "." or "_".
+# Relative directories (./internal/...), which go vet, staticcheck and golangci-lint all accept.
+GO_PACKAGES = $$(go list -f '{{.Dir}}' ./... | grep -v '/node_modules/' | sed "s|^$(CURDIR)|.|")
 
 all: lint test build
 
@@ -44,7 +48,7 @@ images: build
 # Unit tests: every package except the contract tests. The contract harness
 # (contracts/internal/) is a helper with its own unit tests, so it runs here.
 test:
-	go test $$(go list ./... | grep -v '^$(MODULE)/contracts/' ) ./contracts/internal/...
+	go test $$(go list ./... | grep -v -e '^$(MODULE)/contracts/' -e '/node_modules/') ./contracts/internal/...
 
 # Contract tests. Set RECAP_BIN, RECAP_EXPORTER_BIN or RECAP_CONTRACT_BASE_URL
 # in the environment to run them; without them the tests skip and say why.
@@ -74,9 +78,9 @@ endif
 # gofmt checks tracked and unignored Go files only, so ignored nested checkouts are skipped.
 lint:
 	@files=$$(git ls-files --cached --others --exclude-standard '*.go'); out=$$([ -z "$$files" ] || gofmt -l $$files); if [ -n "$$out" ]; then echo "gofmt: unformatted files:"; echo "$$out"; exit 1; fi
-	go vet ./...
-	@if command -v staticcheck >/dev/null 2>&1; then staticcheck ./...; else echo "staticcheck: skipped: not installed"; fi
-	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run; else echo "golangci-lint: skipped: not installed"; fi
+	go vet $(GO_PACKAGES)
+	@if command -v staticcheck >/dev/null 2>&1; then staticcheck $(GO_PACKAGES); else echo "staticcheck: skipped: not installed"; fi
+	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run $(GO_PACKAGES); else echo "golangci-lint: skipped: not installed"; fi
 
 # Prettier for the Markdown, YAML and JSON files (config .prettierrc.yaml; .prettierignore skips generated
 # fixtures and files read byte for byte). Runs through npx, so it needs Node.js; npx downloads the pinned

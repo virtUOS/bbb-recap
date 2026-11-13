@@ -1,0 +1,6 @@
+{
+  "requiredSdkVersion": "^1.0.0-beta.3",
+  "name": "RecapPlugin",
+  "javascriptEntrypointUrl": "RecapPlugin.js?recap-enabled=${meta_recap-enabled}",
+  "enabledForBreakoutRooms": false
+}
