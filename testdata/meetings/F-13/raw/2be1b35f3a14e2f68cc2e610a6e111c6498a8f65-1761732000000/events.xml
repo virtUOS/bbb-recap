@@ -60,6 +60,22 @@
     <originalFilename>fixture-original-photo-name.png</originalFilename>
     <date>2025-10-29T10:00:02.500Z</date>
   </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5003000" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732003000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000</presentationName>
+    <originalFilename>fixture-second-deck-original-name.pdf</originalFilename>
+    <date>2025-10-29T10:00:03.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5003500" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732003500</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>79a489143e23d160892b88ab0bf6da8923829019-1761732003500</presentationName>
+    <originalFilename>fixture-removed-deck-original-name.pdf</originalFilename>
+    <date>2025-10-29T10:00:03.500Z</date>
+  </event>
   <event timestamp="5005000" module="PARTICIPANT" eventname="RecordStatusEvent">
     <timestampUTC>1761732005000</timestampUTC>
     <userId>w_fixada0001</userId>
@@ -132,6 +148,21 @@
     <slide>1</slide>
     <date>2025-10-29T10:00:46.000Z</date>
   </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5050000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732050000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>79a489143e23d160892b88ab0bf6da8923829019-1761732003500</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:50.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5052000" module="PRESENTATION" eventname="RemovePresentationEvent">
+    <timestampUTC>1761732052000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>79a489143e23d160892b88ab0bf6da8923829019-1761732003500</presentationName>
+    <date>2025-10-29T10:00:52.000Z</date>
+  </event>
   <event timestamp="5060000" module="PARTICIPANT" eventname="RecordStatusEvent">
     <timestampUTC>1761732060000</timestampUTC>
     <userId>w_fixada0001</userId>
@@ -153,13 +184,21 @@
     <source>microphone</source>
   </event>
   <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
-  <event timestamp="5070000" module="PRESENTATION" eventname="GotoSlideEvent">
+  <event timestamp="5070000" module="PRESENTATION" eventname="SharePresentationEvent">
     <timestampUTC>1761732070000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:01:10.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5070001" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732070001</timestampUTC>
     <podId>DEFAULT_PRESENTATION_POD</podId>
     <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
     <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/3</id>
     <slide>2</slide>
-    <date>2025-10-29T10:01:10.000Z</date>
+    <date>2025-10-29T10:01:10.001Z</date>
   </event>
   <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
   <event timestamp="5080000" module="PRESENTATION" eventname="GotoSlideEvent">
@@ -169,6 +208,23 @@
     <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/2</id>
     <slide>1</slide>
     <date>2025-10-29T10:01:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5085000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732085000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:01:25.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5085001" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732085001</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000</presentationName>
+    <id>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000/1</id>
+    <slide>0</slide>
+    <date>2025-10-29T10:01:25.001Z</date>
   </event>
   <event timestamp="5090000" module="PARTICIPANT" eventname="RecordStatusEvent">
     <timestampUTC>1761732090000</timestampUTC>
@@ -191,12 +247,21 @@
     <source>microphone</source>
   </event>
   <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
-  <event timestamp="5100000" module="PRESENTATION" eventname="SharePresentationEvent">
-    <timestampUTC>1761732100000</timestampUTC>
+  <event timestamp="5096000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732096000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000</presentationName>
+    <id>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000/2</id>
+    <slide>1</slide>
+    <date>2025-10-29T10:01:36.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5100999" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732100999</timestampUTC>
     <podId>DEFAULT_PRESENTATION_POD</podId>
     <presentationName>9d3775b9b9959dea6604df34e9cd55aa7ff39928-1761732002500</presentationName>
     <share>true</share>
-    <date>2025-10-29T10:01:40.000Z</date>
+    <date>2025-10-29T10:01:40.999Z</date>
   </event>
   <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
   <event timestamp="5120000" module="PRESENTATION" eventname="SharePresentationEvent">
@@ -220,9 +285,18 @@
     <timestampUTC>1761732135000</timestampUTC>
     <podId>DEFAULT_PRESENTATION_POD</podId>
     <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/3</id>
+    <slide>2</slide>
+    <date>2025-10-29T10:02:15.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5139000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732139000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
     <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/1</id>
     <slide>0</slide>
-    <date>2025-10-29T10:02:15.000Z</date>
+    <date>2025-10-29T10:02:19.000Z</date>
   </event>
   <event timestamp="5150000" module="PARTICIPANT" eventname="RecordStatusEvent">
     <timestampUTC>1761732150000</timestampUTC>

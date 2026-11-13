@@ -10,5 +10,11 @@
     "deck": "d-1",
     "page": 2,
     "text": "Widget budget\nItem Amount\nBlue paint 120 EUR (fixture figure)\nTotal 120 EUR"
+  },
+  {
+    "t_ms": 85000,
+    "deck": "d-2",
+    "page": 1,
+    "text": "Second deck overview\nShown across the start of the second period"
   }
 ]

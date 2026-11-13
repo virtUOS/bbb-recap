@@ -487,28 +487,41 @@ def pres_id(label, offset):
 F13_DEFAULT = pres_id("F-13-default", 300)
 F13_DECK = pres_id("F-13-deck", 2000)
 F13_IMAGE = pres_id("F-13-image", 2500)
+F13_SECOND = pres_id("F-13-second", 3000)
+F13_REMOVED = pres_id("F-13-removed", 3500)
 # Original file names: in events.xml only; they must never leave normalize.
 F13_NAMES = {F13_DEFAULT: "default.pdf", F13_DECK: "Fixture Plan Original Name.pdf",
-             F13_IMAGE: "fixture-original-photo-name.png"}
-# textfiles/slide-<n>.txt as pdftotext -layout might write them; synthetic text. Page 2 has CRLF, a tab and
-# layout spacing for the cleaning rules; page 3 is never shown long enough; page 4 holds BBB's placeholder.
+             F13_IMAGE: "fixture-original-photo-name.png", F13_SECOND: "fixture-second-deck-original-name.pdf",
+             F13_REMOVED: "fixture-removed-deck-original-name.pdf"}
+# textfiles/slide-<n>.txt as pdftotext -layout might write them; synthetic text. Deck page 2 has CRLF, a tab and
+# layout spacing for the cleaning rules; page 3 is never shown long enough; page 4 is an empty file (BBB's
+# failure path may leave one, upstream-facts.md); the image deck holds BBB's placeholder.
 F13_TEXT = {
     F13_DEFAULT: ["Fixture default deck welcome text\n"],
     F13_DECK: [
         "Fixture Widget Agenda\n\n  1.  Widget colour\n  2.  Widget budget\n  3.  Next steps\n",
         "Widget budget\r\n\r\n   Item          Amount\n   Blue paint    120 EUR (fixture figure)\n\tTotal\t\t  120 EUR\n\n",
         "Unshown backup slide\nThis text must never reach the LLM.\n",
-        PLACEHOLDER,
+        "",
     ],
     F13_IMAGE: [PLACEHOLDER],
+    F13_SECOND: [
+        "Second deck overview\n  Shown across the start of the second period\n",
+        "Short-shown slide\n  Shown for 4999 ms only\n",
+    ],
+    F13_REMOVED: ["Removed deck slide\n  Shared by mistake and removed after 2 s\n"],
 }
 # Expected normalized slides[] (templates.md §3.1), written by hand from the timeline in gen_slides:
-# axis = offset - 5000. Deck page 1 first shown 14000-30000 -> t_ms 9000; page 2 30000-45000 -> 25000.
+# axis = offset - 5000. Deck page 1 first shown 14000-30000 -> t_ms 9000; page 2 30000-45000 -> 25000;
+# second deck page 1 shown 85000-96000, clipped to period 2 at 90000 -> t_ms 85000. Deck refs count only decks
+# with slides, in share order: the image and removed decks have none, so the second deck is d-2.
 F13_SLIDES = [
     {"t_ms": 9000, "deck": "d-1", "page": 1,
      "text": "Fixture Widget Agenda\n1. Widget colour\n2. Widget budget\n3. Next steps"},
     {"t_ms": 25000, "deck": "d-1", "page": 2,
      "text": "Widget budget\nItem Amount\nBlue paint 120 EUR (fixture figure)\nTotal 120 EUR"},
+    {"t_ms": 85000, "deck": "d-2", "page": 1,
+     "text": "Second deck overview\nShown across the start of the second period"},
 ]
 
 
@@ -521,19 +534,23 @@ def tiny_png():
 
 
 def gen_slides(g, fid, rid, mid, meta, base):
-    """F-13: F-01's joins, recording periods and microphone files (byte-identical copies) plus three decks.
+    """F-13: F-01's joins, recording periods and microphone files (byte-identical copies) plus five decks.
 
     Timeline (offset ms; periods 5000-60000 and 90000-150000):
       300  default deck converted and shared (page 1 shown 5000-12000 in period 1: 7 s, but the default deck)
-      2000 / 2500  the 4-page deck and the image deck converted (not current, so not shared)
+      2000-3500  the 4-page deck, the image deck, the second deck and the removed deck converted (not shared)
       12000 image deck shared (2 s, placeholder only)
       14000 deck shared, page 1 (to 30000)            -> slide d-1/1, t_ms 9000
       30000 page 2 (to 45000)                         -> slide d-1/2, t_ms 25000
       45000 page 3 for 1 s, 46000 back to page 2      -> page 3 below the 5 s minimum
-      70000 page 3 during the pause, 80000 page 2     -> page 3 still not shown
-      100000 image deck shared again (20 s, placeholder only)
+      50000 removed deck shared, 52000 removed        -> 2 s; without the removal it would show until 60000
+      70000 deck shared in the pause, page 3, 80000 page 2   -> nothing counts in the pause
+      85000 second deck shared, page 1 (to 96000)     -> clipped to 90000-96000: slide d-2/1, t_ms 85000
+      96000 second deck page 2 for 4999 ms            -> just below the minimum
+      100999 image deck shared again (to 120000, placeholder only)
       120000 deck re-shared: back on page 2 for 5 s   -> exactly the minimum, already listed
-      125000 page 4 (placeholder text, 10 s), 135000 page 1 again (already listed)
+      125000 page 4 (empty text file, 10 s); 135000 page 3 for 4 s (1 s + 4 s are not added up);
+      139000 page 1 again (already listed)
     """
     raw = base + "/raw/" + rid
     f01 = "testdata/meetings/F-01/raw/%s/audio/" % record_id("F-01")
@@ -562,26 +579,36 @@ def gen_slides(g, fid, rid, mid, meta, base):
     converted(300, F13_DEFAULT)
     share(301, F13_DEFAULT)
     goto(302, F13_DEFAULT, 1)
-    converted(2000, F13_DECK)
-    converted(2500, F13_IMAGE)
+    for off, pres in ((2000, F13_DECK), (2500, F13_IMAGE), (3000, F13_SECOND), (3500, F13_REMOVED)):
+        converted(off, pres)
     share(12000, F13_IMAGE)
     share(14000, F13_DECK)
     goto(14001, F13_DECK, 1)
-    for off, page in ((30000, 2), (45000, 3), (46000, 2), (70000, 3), (80000, 2)):
+    for off, page in ((30000, 2), (45000, 3), (46000, 2)):
         goto(off, F13_DECK, page)
-    share(100000, F13_IMAGE)
+    share(50000, F13_REMOVED)
+    pres_event(52000, "RemovePresentationEvent", [("presentationName", F13_REMOVED)])
+    share(70000, F13_DECK)
+    goto(70001, F13_DECK, 3)
+    goto(80000, F13_DECK, 2)
+    share(85000, F13_SECOND)
+    goto(85001, F13_SECOND, 1)
+    goto(96000, F13_SECOND, 2)
+    share(100999, F13_IMAGE)
     share(120000, F13_DECK)
     goto(125000, F13_DECK, 4)
-    goto(135000, F13_DECK, 1)
+    goto(135000, F13_DECK, 3)
+    goto(139000, F13_DECK, 1)
 
     for pres, pages in F13_TEXT.items():
         d = "%s/presentation/%s" % (raw, pres)
+        titles = [(p.splitlines() or ["(blank page)"])[0] for p in pages]
         if pres == F13_IMAGE:
             write("%s/%s.png" % (d, pres), tiny_png())
         else:
-            write("%s/%s.pdf" % (d, pres), minimal_pdf([p.splitlines()[0] for p in pages]))
-            for n, text in enumerate(pages, 1):
-                write("%s/svgs/slide%d.svg" % (d, n), slide_svg(n, text.splitlines()[0]))
+            write("%s/%s.pdf" % (d, pres), minimal_pdf(titles))
+            for n, title in enumerate(titles, 1):
+                write("%s/svgs/slide%d.svg" % (d, n), slide_svg(n, title))
         for n, text in enumerate(pages, 1):
             # bytes: keep CRLF and tabs exactly as written above
             write("%s/textfiles/slide-%d.txt" % (d, n), text.encode("utf-8"))
@@ -629,8 +656,8 @@ def readme(fid, fx, rid):
                      " default (bbb-webrtc-sfu lib/livekit/livekit-recorder-manager.js:30-32,195-246 @ c25fec6). In real BBB, archive halts without marks and the hook would not run"
                      " (bbb-exporter.md §2); the hook's `no_marks` check is defence in depth, logged at WARN.")
     if fid == "F-13":
-        lines.append("Slide selection (docs/reference/templates.md §3.1): three decks (the default deck, a 4-page deck,"
-                     " an image deck) with `textfiles/`; `expected/slides.json` is the expected normalized `slides[]`,"
+        lines.append("Slide selection (docs/reference/templates.md §3.1): five decks (the default deck, a 4-page deck, an image deck,"
+                     " a second deck and a removed deck) with `textfiles/`; `expected/slides.json` is the expected normalized `slides[]`,"
                      " written by hand from the timeline in `gen_slides`. Original file names appear only in"
                      " `ConversionCompletedEvent`.")
     if fid == "F-01":
