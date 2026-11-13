@@ -16,7 +16,7 @@ For maintainers. Image rules: [deployment.md](../reference/deployment.md) §1; u
 | branch `main`      | `edge`, `sha-<7 hex>`           |
 
 - `recap-mock` is never published. Other refs fail the workflow before anything is pushed.
-- Builds use the latest Go 1.26 patch (`check-latest: true`), not the minimum in `go.mod`.
+- Builds use the latest Go 1.27 patch (`check-latest: true`), not the minimum in `go.mod`.
 - **Label check:** `org.opencontainers.image.version` is the module version stamped into the binary and
   `org.opencontainers.image.revision` the full commit; `recap_build_info{version,commit}` shows the same. The workflow
   fails if the revision is not the built commit, the version is `+dirty`, unknown or `(devel)`, or, for a tag, not the

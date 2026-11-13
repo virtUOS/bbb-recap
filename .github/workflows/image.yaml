@@ -42,8 +42,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          # Latest 1.26 patch, not the minimum in go.mod (go 1.26.0).
-          go-version: "1.26.x"
+          # Latest 1.27 patch, not the minimum in go.mod (go 1.27.0).
+          go-version: "1.27.x"
           check-latest: true
       # A fresh base pull on every build brings current CA certificates.
       - name: Pull base image

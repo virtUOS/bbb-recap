@@ -25,4 +25,4 @@ First release.
 - Privacy defaults: content deleted right after delivery, configurable retention, no content in logs, optional
   provider data declarations.
 - Prometheus metrics and health endpoints; docker compose deployment with optional Caddy TLS; filesystem and S3 blob
-  backends; images on ghcr.io.
+  backends; images on ghcr.io, built with Go 1.27.
