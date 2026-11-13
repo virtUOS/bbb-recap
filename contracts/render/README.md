@@ -16,14 +16,14 @@ recap tool render --check-schema FORMAT/SCHEMA  # stdin: one JSON value, e.g. an
 
 ### Environment
 
-| Variable                   | Set by the tests                                                                                                      | Use                                                                                    |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `RECAP_MEETING_TYPES_FILE` | yes: the fixture file of templates.md §1 (a variant maps the type to a missing format)                                | format selection                                                                       |
-| `RECAP_FORMATS_DIR`        | no: passed through                                                                                                    | the shipped formats; set it when running the tests if the binary has no usable default |
-| `RECAP_DISPLAY_TZ`         | yes: `UTC`, one title case `Europe/Berlin`                                                                            | dates and header times                                                                 |
-| `RECAP_DEFAULT_LANGUAGE`   | yes: `en`, language cases `de`                                                                                        | templates.md §7                                                                        |
-| `RECAP_PROVIDERS_FILE`     | with `--summarize`: providers.md §4.1 fixture, `base_url` = the test's TLS fake LLM, `structured_output: json_schema` | LLM calls                                                                              |
-| `SSL_CERT_FILE`            | with `--summarize`: the fake's certificate                                                                            | TLS to the fake                                                                        |
+| Variable                   | Set by the tests                                                                                                      | Use                    |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `RECAP_MEETING_TYPES_FILE` | yes: the fixture file of templates.md §1 (a variant maps the type to a missing format)                                | format selection       |
+| `RECAP_FORMATS_DIR`        | passed through; unset: the repo's `formats/`                                                                          | the shipped formats    |
+| `RECAP_DISPLAY_TZ`         | yes: `UTC`, one title case `Europe/Berlin`                                                                            | dates and header times |
+| `RECAP_DEFAULT_LANGUAGE`   | yes: `en`, language cases `de`                                                                                        | templates.md §7        |
+| `RECAP_PROVIDERS_FILE`     | with `--summarize`: providers.md §4.1 fixture, `base_url` = the test's TLS fake LLM, `structured_output: json_schema` | LLM calls              |
+| `SSL_CERT_FILE`            | with `--summarize`: the fake's certificate                                                                            | TLS to the fake        |
 
 ### Input (stdin)
 

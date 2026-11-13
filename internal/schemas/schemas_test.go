@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -105,6 +106,32 @@ func TestValidateManifest(t *testing.T) {
 	}
 	if err := Validate(Manifest, []byte("{")); err == nil {
 		t.Fatal("broken JSON: no error")
+	}
+}
+
+// A validation error names the schema by its $id, never a local path.
+func TestErrorNamesSchemaID(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, id := range map[string]string{
+		Manifest:     "urn:recap:schema:manifest:1",
+		Registration: "urn:recap:schema:registration:1",
+		Transcript:   "urn:recap:schema:transcript:1",
+	} {
+		err := Validate(name, []byte(`{}`))
+		if err == nil {
+			t.Errorf("%s: {} is valid, want invalid", name)
+			continue
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, id) {
+			t.Errorf("%s: error %q does not name %s", name, msg, id)
+		}
+		if strings.Contains(msg, "file://") || strings.Contains(msg, wd) {
+			t.Errorf("%s: error %q contains a local path", name, msg)
+		}
 	}
 }
 

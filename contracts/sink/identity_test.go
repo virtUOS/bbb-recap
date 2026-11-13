@@ -116,8 +116,14 @@ func testOwnerCleanup(t *testing.T) {
 // text).
 func testIdentityLogs(t *testing.T) {
 	bin, base := os.Getenv(harness.EnvBin), os.Getenv(harness.EnvBaseURL)
+	if base != "" && os.Getenv(docsAddrVar) == "" {
+		// The resume and cleanup tests skip without it, so the service log
+		// holds no run to scan.
+		t.Logf("service log scan skipped: %s not set", docsAddrVar)
+		base = ""
+	}
 	if bin == "" && base == "" {
-		t.Skipf("skipped: %s and %s not set", harness.EnvBin, harness.EnvBaseURL)
+		t.Skipf("skipped: %s not set, and %s not set together with %s", harness.EnvBin, harness.EnvBaseURL, docsAddrVar)
 	}
 	canaries := append(append([]string{}, identityCanaries...), longSub, "Ada.Testperson@Example.ORG", `"u1"`, `"u2"`)
 	if bin != "" {

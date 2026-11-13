@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/virtUOS/bbb-recap/internal/admin"
+	"github.com/virtUOS/bbb-recap/internal/db"
 	"github.com/virtUOS/bbb-recap/internal/db/dbtest"
 	"github.com/virtUOS/bbb-recap/internal/metrics"
 	"github.com/virtUOS/bbb-recap/internal/metrics/metricstest"
@@ -120,4 +123,39 @@ func TestJobsCollector(t *testing.T) {
 	if got := v("recap_jobs", "state", "received"); got != 3 {
 		t.Errorf("after 15 s: received = %v, want 3", got)
 	}
+}
+
+// The job gauges report exactly the values of the shared enum lists, the same
+// lists the admin filters accept.
+func TestJobsSeriesMatchEnums(t *testing.T) {
+	reg, _ := jobsRegistry(dbtest.New(t))
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, f := range families {
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				got[f.GetName()] = append(got[f.GetName()], l.GetValue())
+			}
+		}
+	}
+	for name, want := range map[string][]string{
+		"recap_jobs":        db.JobStates,
+		"recap_jobs_held":   db.HeldReasons,
+		"recap_jobs_failed": db.FailureReasons,
+	} {
+		if !sameSet(got[name], want) {
+			t.Errorf("%s: label values %v, want %v", name, got[name], want)
+		}
+	}
+	if !slices.Equal(admin.JobStates, db.JobStates) || !slices.Equal(admin.HeldReasons, db.HeldReasons) {
+		t.Errorf("admin filters %v, %v differ from %v, %v", admin.JobStates, admin.HeldReasons, db.JobStates, db.HeldReasons)
+	}
+}
+
+func sameSet(a, b []string) bool {
+	a, b = slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b))
+	return slices.Equal(a, b)
 }

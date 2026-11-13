@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/virtUOS/bbb-recap/internal/db"
 	"github.com/virtUOS/bbb-recap/internal/httpapi"
 )
 
@@ -28,12 +29,11 @@ const (
 var (
 	// JobStates and HeldReasons are the allowed values of the state and
 	// held_reason filters; the admin web UI offers them. Read only.
-	JobStates   = []string{"received", "running", "held", "failed", "delivered", "cleaned"}
-	HeldReasons = []string{"invalid_metadata", "unknown_type", "unknown_sink", "no_registration",
-		"owner_unresolved", "delivery_uncertain"}
-	outcomes   = []string{"delivered", "cancelled", "purged"}
-	serverIDRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
-	auditIDRE  = regexp.MustCompile(`^[0-9]{1,18}$`)
+	JobStates   = db.JobStates
+	HeldReasons = db.HeldReasons
+	outcomes    = []string{"delivered", "cancelled", "purged"}
+	serverIDRE  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+	auditIDRE   = regexp.MustCompile(`^[0-9]{1,18}$`)
 )
 
 // listQuery collects WHERE conditions and their arguments. Every value goes

@@ -37,7 +37,7 @@ The harness's own unit tests also run under `make test`.
 - Sink tests that drive the service serve their own mock Docs on `RECAP_CONTRACT_DOCS_ADDR` (`host:port`). The
   contract environment configures a sink profile `docs-contract` pointing at `http://<that address>`; `docs-main`
   stays on `recap-mock`. Unset: those tests skip.
-- Tests that render need `RECAP_FORMATS_DIR="$PWD/formats"` when the binary runs on the host.
+- Tests that render pass `RECAP_FORMATS_DIR` through; unset, they set it to the repo's `formats/`.
 - Results in the front end: the contract environment has the sink profile `frontend-contract` (`type: frontend`) and
   passes `RECAP_CONTRACT_RESULT_TTL` (default `7d`) to the service as `RECAP_RESULT_TTL`. The lifetime tests (record
   and summary after `cleanup`, expiry by the hourly cleanup loop, admin `erase`) run only when

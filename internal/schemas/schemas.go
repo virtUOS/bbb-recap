@@ -48,6 +48,11 @@ func compileAll() (map[string]*jsonschema.Schema, error) {
 		c.DefaultDraft(jsonschema.Draft2020)
 		c.AssertFormat()
 		c.UseRegexpEngine(ecmaToGo)
+		// Each schema is added and compiled under its "$id" (a URN), so
+		// validation errors name the schema and nothing about the host. A bare
+		// file name would be resolved against the working directory. A reference
+		// from one schema to another must use the other schema's "$id".
+		ids := map[string]string{} // schema name -> $id
 		for _, n := range names {
 			b, err := files.ReadFile(n)
 			if err != nil {
@@ -59,19 +64,26 @@ func compileAll() (map[string]*jsonschema.Schema, error) {
 				compileErr = fmt.Errorf("schema %s: %w", n, err)
 				return
 			}
-			if err := c.AddResource(n, doc); err != nil {
+			obj, _ := doc.(map[string]any)
+			id, _ := obj["$id"].(string)
+			if id == "" {
+				compileErr = fmt.Errorf("schema %s: no $id", n)
+				return
+			}
+			if err := c.AddResource(id, doc); err != nil {
 				compileErr = fmt.Errorf("schema %s: %w", n, err)
 				return
 			}
+			ids[strings.TrimSuffix(n, ".schema.json")] = id
 		}
 		m := map[string]*jsonschema.Schema{}
-		for _, n := range names {
-			sch, err := c.Compile(n)
+		for name, id := range ids {
+			sch, err := c.Compile(id)
 			if err != nil {
-				compileErr = fmt.Errorf("schema %s: %w", n, err)
+				compileErr = fmt.Errorf("schema %s: %w", name, err)
 				return
 			}
-			m[strings.TrimSuffix(n, ".schema.json")] = sch
+			m[name] = sch
 		}
 		compiled = m
 	})

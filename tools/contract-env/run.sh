@@ -191,6 +191,7 @@ down() {
 	podman volume rm -f "$NAME-blobs" >/dev/null 2>&1 || true
 	podman network rm -f "$NAME-net" >/dev/null 2>&1 || true
 	rm -rf "$STATE"
+	rmdir "$STATE_BASE" 2>/dev/null || true # only when no other environment uses it
 	echo "contract-env: $NAME removed"
 }
 

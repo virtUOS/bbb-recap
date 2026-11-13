@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/virtUOS/bbb-recap/internal/db"
 )
 
 // JobsCacheTime is how long the DB gauges are kept between queries
@@ -18,16 +20,6 @@ const JobsCacheTime = 15 * time.Second
 // CleanupOverdueAfter: a job is cleanup-overdue when its cleanup step is
 // pending more than this after its run_after (docs/reference/README.md "HTTP").
 const CleanupOverdueAfter = time.Hour
-
-// The enum values of docs/reference/README.md "States and enums". Every value is
-// reported, 0 when no job has it, so a scrape always lists every series.
-var (
-	jobStates   = []string{"received", "running", "held", "failed", "delivered", "cleaned"}
-	heldReasons = []string{"invalid_metadata", "unknown_type", "unknown_sink", "no_registration",
-		"owner_unresolved", "delivery_uncertain"}
-	failureReasons = []string{"unsupported_audio_bridge", "events_mismatch", "manifest_metadata_mismatch",
-		"retries_exhausted", "all_tracks_failed", "config_error", "rejected_by_provider", "rejected_by_sink"}
-)
 
 var (
 	jobsDesc = prometheus.NewDesc("recap_jobs",
@@ -91,7 +83,9 @@ func (c *JobsCollector) Collect(ch chan<- prometheus.Metric) {
 
 // query reads all DB gauges.
 func (c *JobsCollector) query(ctx context.Context) ([]prometheus.Metric, error) {
-	states, held, failed := zeros(jobStates), zeros(heldReasons), zeros(failureReasons)
+	// Every enum value is reported, 0 when no job has it, so a scrape always
+	// lists every series.
+	states, held, failed := zeros(db.JobStates), zeros(db.HeldReasons), zeros(db.FailureReasons)
 	rows, err := c.pool.Query(ctx, `
 		SELECT state, coalesce(held_reason, ''), coalesce(failure_reason, ''), count(*)::float8
 		FROM jobs GROUP BY 1, 2, 3`)
