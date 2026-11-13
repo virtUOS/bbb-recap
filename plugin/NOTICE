@@ -3,21 +3,26 @@ Licensed under the Apache License 2.0 (see ../LICENSE).
 
 The built file dist/RecapPlugin.js bundles the following third-party packages,
 unmodified, as resolved by package-lock.json. The list is the set of packages
-webpack includes in the build (npx webpack --mode production --json).
+webpack includes in the build (npx webpack --mode production --json). The same
+notice is the comment at the top of RecapPlugin.js (webpack.config.js).
 
 bigbluebutton-html-plugin-sdk 1.0.0-beta.3
   License: GNU Lesser General Public License v3.0 (LGPL-3.0)
   Source: https://github.com/bigbluebutton/bigbluebutton-html-plugin-sdk/tree/v1.0.0-beta.3
   npm: https://www.npmjs.com/package/bigbluebutton-html-plugin-sdk/v/1.0.0-beta.3
-  The full license text is in node_modules/bigbluebutton-html-plugin-sdk/LICENSE.md
-  after npm ci. To use a modified version of the SDK, change the dependency in
-  package.json and rebuild with npm run build (docs/operations/install-plugin.md).
+  License text: https://github.com/bigbluebutton/bigbluebutton-html-plugin-sdk/blob/v1.0.0-beta.3/LICENSE.md
+  (also node_modules/bigbluebutton-html-plugin-sdk/LICENSE.md after npm ci); the LGPL
+  supplements the GNU GPL v3.0: https://www.gnu.org/licenses/gpl-3.0.txt.
+  To use a modified version of the SDK, change the dependency in package.json
+  and rebuild with npm run build (docs/operations/install-plugin.md).
 
 react 18.3.1, react-dom 18.3.1, scheduler 0.23.2
   License: MIT. Copyright (c) Facebook, Inc. and its affiliates.
-  Source: https://github.com/facebook/react
+  Source: https://github.com/react/react
+  License text: https://github.com/react/react/blob/v18.3.1/LICENSE
 
 browser-bunyan 1.8.0, @browser-bunyan/levels 1.8.0,
 @browser-bunyan/console-formatted-stream 1.8.0
   License: MIT. Copyright (c) 2011-2012 Joyent Inc.
   Source: https://github.com/philmander/browser-bunyan
+  License text: https://github.com/philmander/browser-bunyan/blob/master/LICENSE

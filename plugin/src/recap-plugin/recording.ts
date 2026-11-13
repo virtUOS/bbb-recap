@@ -100,14 +100,41 @@ export function recordingPolicies(data: RecordingPoliciesData | undefined): {
 
 // The plugin loads in every meeting created with meta_recap-enabled, whatever its value: bbb-web only checks that
 // the placeholder in manifest.json can be filled. The value is passed on in the script URL, and only the literal
-// "true" opts in (docs/reference/metadata-interface.md §1.2).
+// "true" opts in (docs/reference/metadata-interface.md §1.2). bbb-web inserts the value unescaped
+// (bbb-common-web/.../api/util/PluginUtils.java:257-269), so "true&x=1" or "true#x" would also read as "true"; the
+// URL must therefore hold recap-enabled=true and at most BBB's own version parameter
+// (akka-bbb-apps/.../core/models/Plugins.scala:128-140), nothing else.
 export function isRecapEnabled(scriptUrl: string | null | undefined): boolean {
   if (!scriptUrl) {
     return false;
   }
+  let url: URL;
   try {
-    return new URL(scriptUrl, "https://invalid.invalid/").searchParams.get("recap-enabled") === "true";
+    url = new URL(scriptUrl, "https://invalid.invalid/");
   } catch {
     return false;
   }
+  if (url.hash !== "") {
+    return false;
+  }
+  const keys = [...url.searchParams.keys()];
+  const count = (key: string) => keys.filter((k) => k === key).length;
+  return (
+    url.searchParams.get("recap-enabled") === "true" &&
+    count("recap-enabled") === 1 &&
+    count("version") <= 1 &&
+    keys.length === 1 + count("version")
+  );
+}
+
+export interface Response<T> {
+  loading?: boolean;
+  error?: unknown;
+  data?: T | null;
+}
+
+// True only when every source has finished loading without an error and has data. Until then the button stays
+// hidden: deciding on missing data could show it to a user without permission, whom the server would eject.
+export function allLoaded(responses: (Response<unknown> | undefined)[]): boolean {
+  return responses.every((r) => r !== undefined && !r.loading && !r.error && r.data !== undefined && r.data !== null);
 }

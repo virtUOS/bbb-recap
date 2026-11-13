@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { isRecapEnabled, isRecording, mayRecord, parseRecordPermission, recordingPolicies } from "./recording";
+import {
+  allLoaded,
+  isRecapEnabled,
+  isRecording,
+  mayRecord,
+  parseRecordPermission,
+  recordingPolicies,
+} from "./recording";
 
 describe("mayRecord", () => {
   const base = { record: true, allowStartStopRecording: true, isModerator: false, recordPermission: undefined };
@@ -81,9 +88,45 @@ describe("isRecapEnabled", () => {
     expect(isRecapEnabled("https://bbb.example.org/plugins/recap/RecapPlugin.js?recap-enabled=")).toBe(false);
   });
 
+  it("rejects extra parameters or a fragment smuggled in with the value", () => {
+    const base = "https://bbb.example.org/plugins/recap/RecapPlugin.js";
+    expect(isRecapEnabled(`${base}?recap-enabled=true`)).toBe(true);
+    expect(isRecapEnabled(`${base}?recap-enabled=true&x=1&version=0.1.0`)).toBe(false);
+    expect(isRecapEnabled(`${base}?recap-enabled=true#x&version=0.1.0`)).toBe(false);
+    expect(isRecapEnabled(`${base}?recap-enabled=true&version=0.1.0#x`)).toBe(false);
+    expect(isRecapEnabled(`${base}?recap-enabled=true&recap-enabled=true`)).toBe(false);
+    expect(isRecapEnabled(`${base}?recap-enabled=true&version=1&version=2`)).toBe(false);
+  });
+
   it("is false without the parameter or a URL", () => {
     expect(isRecapEnabled("https://bbb.example.org/plugins/recap/RecapPlugin.js")).toBe(false);
     expect(isRecapEnabled(null)).toBe(false);
     expect(isRecapEnabled(undefined)).toBe(false);
+  });
+});
+
+describe("allLoaded", () => {
+  const ok = { loading: false, data: {} };
+
+  it("is true when every source has data", () => {
+    expect(allLoaded([ok, ok, { loading: false, data: { user_metadata: [] } }])).toBe(true);
+  });
+
+  it("is false while a source is loading", () => {
+    expect(allLoaded([ok, { loading: true, data: {} }])).toBe(false);
+    expect(allLoaded([ok, { loading: true }])).toBe(false);
+  });
+
+  it("is false when a source has an error", () => {
+    expect(allLoaded([ok, { loading: false, error: new Error("x"), data: {} }])).toBe(false);
+  });
+
+  it("is false when a source has finished without data", () => {
+    expect(allLoaded([ok, { loading: false }])).toBe(false);
+    expect(allLoaded([ok, { loading: false, data: null }])).toBe(false);
+  });
+
+  it("is false when a source is missing", () => {
+    expect(allLoaded([ok, undefined])).toBe(false);
   });
 });

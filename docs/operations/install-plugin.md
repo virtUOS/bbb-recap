@@ -1,8 +1,8 @@
 # Install the BBB plugin
 
 The plugin adds an **AI summary** button to the BBB nav bar, right of BBB's recording indicator. It shows the state
-("AI summary: off" or "on") and, after a confirmation, starts or pauses the normal BBB recording, exactly like BBB's
-record button, which stays. It shows only to users who may record (moderators, or users with the join parameter
+("AI summary: off" or "on") and, after a confirmation, starts or pauses the normal BBB recording like BBB's record
+button, which stays (without its "no microphone" warning). It shows only to users who may record (moderators, or users with the join parameter
 `userdata-bbb_record_permission=true`) and only in meetings with `record=true` and `allowStartStopRecording=true`. It
 is active only in meetings created with `meta_recap-enabled=true`. The plugin sends no data outside BBB; the summary
 comes from the recording through the exporter ([install-exporter.md](install-exporter.md)) as before.
@@ -10,8 +10,8 @@ comes from the recording through the exporter ([install-exporter.md](install-exp
 You need BBB 4.0 (plugin SDK `1.0.0-beta.3`), a static HTTPS host and Node.js 24 or later to build. The plugin is
 built and unit-tested but not yet tested on a BBB server.
 
-`RecapPlugin.js` bundles the BBB plugin SDK (LGPL-3.0), React and browser-bunyan (MIT); [`plugin/NOTICE`](../../plugin/NOTICE)
-lists versions, licenses and sources.
+`RecapPlugin.js` bundles the BBB plugin SDK (LGPL-3.0), React and browser-bunyan (MIT). The comment at the top of the
+file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sources.
 
 ## Quick start
 
@@ -43,25 +43,35 @@ lists versions, licenses and sources.
    PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.1.0      # from step 2
    PROPS=/etc/bigbluebutton/bbb-web.properties
    if grep -q '^pluginManifests=' "$PROPS"; then
-     grep '^pluginManifests=' "$PROPS"          # already set: add {"url":"$PLUGIN_URL/manifest.json"} to this list
+     grep '^pluginManifests=' "$PROPS"   # already set: add {"url":"$PLUGIN_URL/manifest.json"} to this list,
+                                         # then run: systemctl restart bbb-web
    else
      echo "pluginManifests=[{\"url\":\"$PLUGIN_URL/manifest.json\"}]" >> "$PROPS" && systemctl restart bbb-web
    fi
    ```
 
-   **Docker BBB** (bigbluebutton PR #26186 setup; `BBB_DIR` holds its `docker-compose.yml`): bbb-web takes any key of
-   its properties from the environment (PR #26186 @ `152e63c`, `docker/README.md`, "Environment variables"). If a
-   `docker-compose.override.yml` exists already, add the `web` service to it instead.
+   **Docker BBB** (bigbluebutton PR #26186 setup): bbb-web takes any key of its properties from the environment
+   (PR #26186 @ `152e63c`, `docker/README.md`, "Environment variables"). Add the `web` service to the
+   `docker-compose.override.yml` that [install-exporter.md](install-exporter.md) step 4 created. This writes the whole
+   file: the exporter's three `recording-workers` mounts and the plugin. If your file has more entries, add the `web`
+   block by hand instead.
 
    ```sh
+   BBB_DIR=/srv/bbb                                          # holds BBB's docker-compose.yml
    PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.1.0      # from step 2
+   cat "$BBB_DIR/docker-compose.override.yml"               # check: only the exporter's recording-workers mounts
    cat > "$BBB_DIR/docker-compose.override.yml" <<EOF
    services:
+     recording-workers:
+       volumes:
+         - /etc/recap-exporter/recap_export.rb:/usr/local/bigbluebutton/core/scripts/post_archive/recap_export.rb:ro,z
+         - /etc/recap-exporter/exporter.env:/etc/recap-exporter/exporter.env:ro,z
+         - /var/lib/recap-exporter/spool:/var/lib/recap-exporter/spool:z
      web:
        environment:
          PLUGINMANIFESTS: '[{"url":"$PLUGIN_URL/manifest.json"}]'
    EOF
-   cd "$BBB_DIR" && docker compose up -d web
+   cd "$BBB_DIR" && docker compose up -d web recording-workers
    ```
 
 4. Check: create a meeting with `meta_recap-enabled=true`, `record=true` and `allowStartStopRecording=true` (a front
@@ -73,7 +83,9 @@ lists versions, licenses and sources.
 
 `manifest.json` contains the placeholder `${meta_recap-enabled}` without a default. bbb-web fills it from the
 meeting's `meta_recap-enabled` parameter and does not load the plugin when the parameter is missing; the client only
-writes a debug log. bbb-web passes the value on in the script URL, and the plugin stays idle unless it is the literal
+writes a debug log. bbb-web logs an ERROR ("Missing required metadata … Plugin not loaded.", with a stack trace) for
+every meeting created without the parameter; this is expected. To avoid it, register the plugin per meeting instead
+(below). bbb-web passes the value on in the script URL, and the plugin stays idle unless it is exactly
 `true` ([metadata-interface.md](../reference/metadata-interface.md) §1.2). So the global `pluginManifests` entry is
 enough: no change in the front end. Sources: BBB `docs/docs/plugins.md` ("Meta\_ parameters", "Default value
 (fallback) for missing placeholder's parameters") and `bbb-common-web/.../api/util/PluginUtils.java` at BBB v4.0.x.
@@ -85,7 +97,8 @@ enough: no change in the front end. Sources: BBB `docs/docs/plugins.md` ("Meta\_
   Plugin on a BBB Server").
 - **On the BBB server, docker BBB** (PR #26186 setup): its nginx serves `/var/www/bigbluebutton-default/assets` as
   well (`docker/compose/nginx/bigbluebutton`). Copy both files to `$BBB_DIR/plugins/recap/` and mount that directory
-  in `docker-compose.override.yml`, then `docker compose up -d nginx`:
+  by adding `nginx` to `docker-compose.override.yml` (next to the services from step 3), then
+  `docker compose up -d nginx`:
 
   ```yaml
   services:
@@ -100,8 +113,8 @@ enough: no change in the front end. Sources: BBB `docs/docs/plugins.md` ("Meta\_
 ## Upgrade
 
 Build the new release, upload it to a new directory (`$PLUGIN_URL` with the new version), change the URL in
-`pluginManifests` and restart bbb-web as in step 3. Running meetings keep the old version. The manifest carries the plugin version, which BBB appends to the script URL, so browsers do not
-use a cached old script. With `pluginManifestCacheEnabled=true`, bbb-web may keep an old manifest for up to
+`pluginManifests` and restart bbb-web as in step 3. Running meetings keep the old version. The manifest carries the
+plugin version, which BBB appends to the script URL, so browsers do not use a cached old script. With `pluginManifestCacheEnabled=true`, bbb-web may keep an old manifest for up to
 `pluginManifestCacheRefreshIntervalMinutes`.
 
 The plugin uses BBB's recording GraphQL fields, which are not part of the plugin SDK's contract. Test it after every

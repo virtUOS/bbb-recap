@@ -19,6 +19,7 @@ import {
   type RecordingPoliciesData,
   type RecordPermissionData,
   SET_RECORDING_STATUS,
+  allLoaded,
   isRecording,
   mayRecord,
   parseRecordPermission,
@@ -52,15 +53,20 @@ export default function RecapPlugin({ pluginUuid }: RecapPluginProps) {
   const [pending, setPending] = useState<boolean | null>(null);
 
   const messages = messagesFor(locale);
-  const loaded = [currentUser, policies, recordingState, permission].every((r) => r && !r.loading && !r.error);
   const allowed =
-    loaded &&
+    allLoaded([currentUser, policies, recordingState, permission]) &&
     mayRecord({
       ...recordingPolicies(policies.data),
       isModerator: currentUser?.data?.role === MODERATOR_ROLE,
       recordPermission: parseRecordPermission(permission.data),
     });
   const recording = isRecording(recordingState.data);
+
+  // A confirmation that was open when the user lost the permission must not come back by itself. Adjusting state
+  // during render, as React recommends instead of an effect (react.dev "You Might Not Need an Effect").
+  if (!allowed && pending !== null) {
+    setPending(null);
+  }
 
   useEffect(() => {
     if (!allowed) {
