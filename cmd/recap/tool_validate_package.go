@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/virtUOS/bbb-recap/internal/jcs"
 	"github.com/virtUOS/bbb-recap/internal/manifest"
 	"github.com/virtUOS/bbb-recap/internal/steps/validate"
 )
@@ -42,12 +43,12 @@ func toolValidatePackage(args []string, stdout, stderr io.Writer) int {
 	manifestFile := fs.String("manifest", "", "manifest `FILE`; without it DIR is a raw recording directory")
 	packageID := fs.String("package-id", "", "package_id from the ingest URL (V-I01)")
 	serverID := fs.String("bbb-server-id", "", "server bound to the upload credential (V-I03)")
-	jcs := fs.Bool("jcs", false, "write the RFC 8785 canonical form of the JSON on stdin")
+	jcsMode := fs.Bool("jcs", false, "write the RFC 8785 canonical form of the JSON on stdin")
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
 
-	if *jcs {
+	if *jcsMode {
 		if fs.NArg() > 0 || *manifestFile != "" || *packageID != "" || *serverID != "" {
 			fmt.Fprintf(stderr, "%s: --jcs takes no other arguments\n", prog)
 			return exitUsage
@@ -57,7 +58,7 @@ func toolValidatePackage(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "%s: read stdin: %v\n", prog, err)
 			return exitFailure
 		}
-		out, err := manifest.Canonicalize(in)
+		out, err := jcs.Canonicalize(in)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s: %v\n", prog, err)
 			return exitFailure

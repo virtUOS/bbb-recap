@@ -26,6 +26,7 @@ import (
 	"github.com/virtUOS/bbb-recap/internal/blob"
 	"github.com/virtUOS/bbb-recap/internal/db/dbtest"
 	"github.com/virtUOS/bbb-recap/internal/httpapi"
+	"github.com/virtUOS/bbb-recap/internal/jcs"
 	"github.com/virtUOS/bbb-recap/internal/manifest"
 )
 
@@ -79,7 +80,7 @@ func f01(t *testing.T, manifestPath string, mutate func(map[string]any)) pkg {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if data, err = manifest.Canonicalize(raw); err != nil {
+		if data, err = jcs.Canonicalize(raw); err != nil {
 			t.Fatal(err)
 		}
 	}

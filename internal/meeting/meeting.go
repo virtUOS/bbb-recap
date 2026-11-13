@@ -72,6 +72,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/virtUOS/bbb-recap/internal/jcs"
 )
 
 // Version is the format version of the normalized meeting.
@@ -194,6 +196,16 @@ type Poll struct {
 type PollOption struct {
 	Text  string `json:"text"`
 	Votes int    `json:"votes"`
+}
+
+// Marshal returns the canonical JSON of m (RFC 8785, see the package
+// documentation).
+func Marshal(m *Meeting) ([]byte, error) {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	return jcs.Canonicalize(b)
 }
 
 // Decode parses a normalized meeting blob. It returns an error wrapping

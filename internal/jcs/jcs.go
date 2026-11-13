@@ -1,4 +1,7 @@
-package manifest
+// Package jcs is the RFC 8785 (JSON Canonicalization Scheme) form of the
+// JSON subset the meeting package manifest and the normalized meeting use
+// (contracts/README.md).
+package jcs
 
 import (
 	"bytes"
@@ -19,10 +22,11 @@ import (
 const maxSafeInteger = 1<<53 - 1
 
 // Canonicalize returns the RFC 8785 (JCS) canonical form of one JSON value.
-// Only the subset the manifest uses is supported (contracts/README.md): null,
-// booleans, integers in ±(2^53-1), strings, arrays and objects. A number with
-// a fraction or exponent is rejected, not formatted. Duplicate object keys,
-// invalid UTF-8 and data after the value are rejected too.
+// Only the subset the manifest and the normalized meeting use is supported
+// (contracts/README.md): null, booleans, integers in ±(2^53-1), strings,
+// arrays and objects. A number with a fraction or exponent is rejected, not
+// formatted. Duplicate object keys, invalid UTF-8 and data after the value
+// are rejected too.
 func Canonicalize(data []byte) ([]byte, error) {
 	if !utf8.Valid(data) {
 		return nil, errors.New("jcs: input is not valid UTF-8")
