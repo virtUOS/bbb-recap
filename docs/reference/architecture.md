@@ -260,7 +260,10 @@ code.
   ([AWS S3 conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html); MinIO
   honours both, tested with the dev MinIO). If the condition fails, the object another `Put` wrote is verified instead.
   After a mismatch, `Put` removes the object only while it still has the ETag of its own upload. A server that ignores
-  the conditional headers gets plain writes. **Filesystem:** same layout under `RECAP_FS_ROOT`;
+  the conditional headers gets plain writes. Ceph RGW checks both headers on `PutObject` when it commits the object
+  (ceph/ceph `src/rgw/rgw_rest_s3.cc:2796-2797`, `src/rgw/driver/rados/rgw_rados.cc:3296` @ v20.2.5; also read in
+  v18.2.7 and v19.2.3), and on `CompleteMultipartUpload` only from v20 (`rgw_rest_s3.cc:4614-4615` @ v20.2.5): on
+  older releases objects above 64 MiB are written unconditionally. **Filesystem:** same layout under `RECAP_FS_ROOT`;
   temp file, fsync, rename; the compose default (one host, one shared volume), not for Kubernetes (ADR-011).
 - **Cleanup loop:** one loop in every worker, hourly, every delete guarded so parallel runs are safe. It removes
   (1) staging idle longer than `RECAP_INGEST_STAGING_TTL`; (2) unmatched registrations past `RECAP_REGISTRATION_TTL`
