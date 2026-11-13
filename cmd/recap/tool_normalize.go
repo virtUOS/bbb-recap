@@ -10,6 +10,7 @@ import (
 
 	"github.com/virtUOS/bbb-recap/internal/logging"
 	"github.com/virtUOS/bbb-recap/internal/manifest"
+	"github.com/virtUOS/bbb-recap/internal/meeting"
 	"github.com/virtUOS/bbb-recap/internal/steps/normalize"
 	"github.com/virtUOS/bbb-recap/internal/steps/validate"
 )
@@ -70,7 +71,7 @@ func normalizeDir(dir string, log *slog.Logger) ([]byte, error) {
 	}
 	log.Debug("normalized", "tracks", len(m.Tracks), "gaps", gaps, "periods", len(m.RecordingPeriods),
 		"participants", len(m.Participants), "chat_messages", len(m.Chat), "skipped_files", sel.Skipped)
-	return normalize.Marshal(m)
+	return meeting.Marshal(m)
 }
 
 // errorCode reduces an error to a message without file paths (they contain

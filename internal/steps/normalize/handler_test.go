@@ -9,7 +9,7 @@ import (
 
 	"github.com/virtUOS/bbb-recap/internal/blob"
 	"github.com/virtUOS/bbb-recap/internal/db/dbtest"
-	"github.com/virtUOS/bbb-recap/internal/manifest"
+	"github.com/virtUOS/bbb-recap/internal/jcs"
 	"github.com/virtUOS/bbb-recap/internal/meeting"
 	"github.com/virtUOS/bbb-recap/internal/queue"
 	"github.com/virtUOS/bbb-recap/internal/steps/normalize"
@@ -50,7 +50,7 @@ func TestNormalizeHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if canon, err := manifest.Canonicalize(data); err != nil || string(canon) != string(data) {
+	if canon, err := jcs.Canonicalize(data); err != nil || string(canon) != string(data) {
 		t.Fatalf("blob is not canonical JSON: %v", err)
 	}
 	var m meeting.Meeting

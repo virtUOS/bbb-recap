@@ -15,7 +15,6 @@ import (
 	"log/slog"
 	"maps"
 	"mime/multipart"
-	"net"
 	"net/http"
 	"net/textproto"
 	"net/url"
@@ -26,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/virtUOS/bbb-recap/internal/adapters/whisperx"
 	"github.com/virtUOS/bbb-recap/internal/providers"
 )
 
@@ -41,7 +39,7 @@ const (
 	// cleanupTimeout bounds the DELETE of Cleanup, which runs even when the
 	// caller's context is already cancelled (assumption: the connect
 	// timeout of §1.5).
-	cleanupTimeout   = whisperx.ConnectTimeout
+	cleanupTimeout   = providers.ConnectTimeout
 	maxResponseBytes = 64 << 20 // assumption: far above any result of one track
 	maxErrorBytes    = 64 << 10 // an error body is read only to select a code
 	// keepUploadFor bounds how long the file ID of an upload whose
@@ -85,16 +83,9 @@ type upload struct {
 
 // New returns the adapter for an ASR profile with dialect transkribierbar.
 func New(p *providers.Profile, log *slog.Logger) *Adapter {
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.DialContext = (&net.Dialer{Timeout: whisperx.ConnectTimeout, KeepAlive: 30 * time.Second}).DialContext
-	tr.TLSHandshakeTimeout = whisperx.ConnectTimeout
 	return &Adapter{
-		profile: p,
-		client: &http.Client{
-			Transport: tr,
-			// A redirect is answered as it is; it is a configuration problem.
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
+		profile:  p,
+		client:   providers.NewHTTPClient(),
 		log:      log,
 		interval: PollInterval,
 		uploads:  map[string]upload{},
@@ -133,7 +124,7 @@ func (a *Adapter) Submit(ctx context.Context, req providers.AsrRequest) (provide
 	start := time.Now()
 	timeout := req.AttemptTimeout
 	if timeout <= 0 {
-		timeout = whisperx.AttemptTimeout(req.DurationMS)
+		timeout = providers.AsrAttemptTimeout(req.DurationMS)
 	}
 	h := &handle{idempotencyKey: req.IdempotencyKey, deadline: start.Add(timeout)}
 	status := 0
@@ -362,7 +353,7 @@ func (a *Adapter) call(ctx context.Context, h *handle, method, path, contentType
 		if ctx.Err() != nil {
 			return 0, contextError(ctx)
 		}
-		return 0, &providers.Error{Class: providers.Retryable, Code: transportCode(err)}
+		return 0, &providers.Error{Class: providers.Retryable, Code: providers.TransportCode(err)}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -373,7 +364,7 @@ func (a *Adapter) call(ctx context.Context, h *handle, method, path, contentType
 		if transcribe && resp.StatusCode == http.StatusUnprocessableEntity && modelUnavailable(b) {
 			return resp.StatusCode, &providers.Error{Class: providers.PermanentConfig, Code: "model_unavailable"}
 		}
-		return resp.StatusCode, statusError(resp)
+		return resp.StatusCode, providers.AsrStatusError(resp)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	switch {
@@ -453,62 +444,9 @@ func failedError(code string) *providers.Error {
 func contextError(ctx context.Context) *providers.Error {
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		// The transcription may still run remotely.
-		return &providers.Error{Class: providers.Retryable, Code: "timeout", RetryAfter: whisperx.MinTimeoutRetry}
+		return &providers.Error{Class: providers.Retryable, Code: "timeout", RetryAfter: providers.AsrTimeoutRetry}
 	}
 	return &providers.Error{Class: providers.Retryable, Code: "cancelled"}
-}
-
-// statusError maps an HTTP status to an error class (§1.4).
-func statusError(resp *http.Response) *providers.Error {
-	code := "http_" + strconv.Itoa(resp.StatusCode)
-	switch resp.StatusCode {
-	case 408, 429, 500, 502, 503, 504:
-		return &providers.Error{Class: providers.Retryable, Code: code, RetryAfter: retryAfter(resp.Header.Get("Retry-After"))}
-	case 400, 413, 415, 422:
-		return &providers.Error{Class: providers.PermanentInput, Code: code}
-	case 401, 403, 404:
-		return &providers.Error{Class: providers.PermanentConfig, Code: code}
-	}
-	// Not in §1.4: other 5xx are treated as temporary, anything else
-	// (redirects, other 4xx) as a configuration problem (as in whisperx).
-	if resp.StatusCode >= 500 {
-		return &providers.Error{Class: providers.Retryable, Code: code}
-	}
-	return &providers.Error{Class: providers.PermanentConfig, Code: code}
-}
-
-// retryAfter parses Retry-After (delta-seconds or HTTP date), capped at
-// providers.MaxRetryAfter. Absent or invalid: 0.
-func retryAfter(v string) time.Duration {
-	if v == "" {
-		return 0
-	}
-	var d time.Duration
-	if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {
-		if n > int64(providers.MaxRetryAfter/time.Second) {
-			return providers.MaxRetryAfter
-		}
-		d = time.Duration(n) * time.Second
-	} else if t, err := http.ParseTime(v); err == nil {
-		d = max(time.Until(t), 0).Round(time.Second)
-	}
-	return min(d, providers.MaxRetryAfter)
-}
-
-// transportCode names a transport failure without its message (which may
-// contain the URL).
-func transportCode(err error) string {
-	var opErr *net.OpError
-	var dnsErr *net.DNSError
-	switch {
-	case errors.As(err, &dnsErr):
-		return "dns"
-	case strings.Contains(err.Error(), "tls:") || strings.Contains(err.Error(), "x509:"):
-		return "tls"
-	case errors.As(err, &opErr) && opErr.Op == "dial":
-		return "connect"
-	}
-	return "transport"
 }
 
 // parse maps a transcription reply to an AsrResult (§2a.2). model is the

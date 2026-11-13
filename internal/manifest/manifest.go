@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/virtUOS/bbb-recap/internal/jcs"
 	"github.com/virtUOS/bbb-recap/internal/schemas"
 )
 
@@ -125,7 +126,7 @@ func Check(data []byte, opts Options) (*Manifest, *Violation) {
 	if opts.PackageID != "" && PackageID(data) != opts.PackageID {
 		return nil, violation("V-I01", ProblemPackageIDMismatch, 400, "SHA-256 of the manifest differs from the package ID")
 	}
-	canon, err := Canonicalize(data)
+	canon, err := jcs.Canonicalize(data)
 	if err != nil {
 		// Not JSON of the supported subset (e.g. a float): no valid manifest.
 		return nil, violation("V-I02", ProblemManifestInvalid, 422, "%v", err)
@@ -219,5 +220,5 @@ func Marshal(m *Manifest) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Canonicalize(b)
+	return jcs.Canonicalize(b)
 }

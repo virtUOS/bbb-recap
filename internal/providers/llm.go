@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -93,22 +90,4 @@ func CompileSchema(schema []byte) (*jsonschema.Schema, error) {
 		return nil, err
 	}
 	return c.Compile(name)
-}
-
-// RetryAfter parses a Retry-After header value (delta-seconds or HTTP date),
-// capped at MaxRetryAfter (architecture.md §5.3). Absent or invalid: 0.
-func RetryAfter(v string) time.Duration {
-	if v == "" {
-		return 0
-	}
-	if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {
-		if n > int64(MaxRetryAfter/time.Second) {
-			return MaxRetryAfter
-		}
-		return time.Duration(n) * time.Second
-	}
-	if t, err := http.ParseTime(v); err == nil {
-		return min(max(time.Until(t), 0).Round(time.Second), MaxRetryAfter)
-	}
-	return 0
 }

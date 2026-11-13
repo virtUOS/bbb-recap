@@ -6,7 +6,6 @@
 package normalize
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -84,15 +83,6 @@ func Normalize(fsys fs.FS, files []manifest.File) (*meeting.Meeting, error) {
 	m.Participants = people.list
 	m.Notes = notes(files)
 	return m, nil
-}
-
-// Marshal returns the canonical JSON of m.
-func Marshal(m *meeting.Meeting) ([]byte, error) {
-	b, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
-	}
-	return manifest.Canonicalize(b)
 }
 
 func readEvents(fsys fs.FS) (*events.Events, error) {
