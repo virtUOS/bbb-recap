@@ -64,20 +64,36 @@ func slidesInput(s []slide) []any {
 	return out
 }
 
+// recordedF01 maps the meeting axis to recorded time in F-01's recording
+// periods (0-55 000 at recorded 0, 85 000-145 000 at recorded 55 000).
+func recordedF01(ms int64) int64 {
+	if ms >= 85000 {
+		return ms - 85000 + 55000
+	}
+	return ms
+}
+
 // slideBlock is one block of the SLIDES section: "[hh:mm:ss] Slide d-1/2:"
-// and the text. Every test slide lies in F-01's first recording period
-// (axis 0-55 000 ms, recorded offset 0), so recorded time = t_ms.
+// and the text, at the recorded time of t_ms in F-01's periods.
 func slideBlock(s slide, text string) string {
-	sec := s.TMS / 1000
+	return slideBlockAt(s, text, recordedF01)
+}
+
+func slideBlockAt(s slide, text string, recorded func(int64) int64) string {
+	sec := recorded(s.TMS) / 1000
 	return fmt.Sprintf("[%02d:%02d:%02d] Slide %s/%d:\n%s", sec/3600, sec/60%60, sec%60, s.Deck, s.Page, text)
 }
 
 // fullSection and titlesSection are the expected SLIDES data without and
 // with the titles-only fallback.
 func fullSection(s []slide) string {
+	return fullSectionAt(s, recordedF01)
+}
+
+func fullSectionAt(s []slide, recorded func(int64) int64) string {
 	var b []string
 	for _, x := range s {
-		b = append(b, slideBlock(x, x.Text))
+		b = append(b, slideBlockAt(x, x.Text, recorded))
 	}
 	return strings.Join(b, "\n\n")
 }
@@ -93,6 +109,18 @@ func titlesSection(s []slide) string {
 // userText is the content of the user messages of a call, joined by LF.
 func userText(t *testing.T, c llmCall) string {
 	t.Helper()
+	return roleText(t, c, "user")
+}
+
+// systemText is the content of the system messages of a call, joined by LF.
+func systemText(t *testing.T, c llmCall) string {
+	t.Helper()
+	return roleText(t, c, "system")
+}
+
+// roleText is the content of the messages of one role, joined by LF.
+func roleText(t *testing.T, c llmCall, role string) string {
+	t.Helper()
 	var req struct {
 		Messages []struct {
 			Role    string `json:"role"`
@@ -104,7 +132,7 @@ func userText(t *testing.T, c llmCall) string {
 	}
 	var out []string
 	for _, m := range req.Messages {
-		if m.Role == "user" {
+		if m.Role == role {
 			out = append(out, m.Content)
 		}
 	}
@@ -168,12 +196,14 @@ func TestSlideSelection(t *testing.T) {
 			forbidden := []string{
 				"Fixture default deck welcome text",        // default deck
 				"Unshown backup slide",                     // page 3: 1 s, and shown in the pause
-				"No text could be retrieved for the slide", // placeholder (page 4, image deck)
+				"No text could be retrieved for the slide", // placeholder (image deck)
+				"Removed deck slide",                       // deck removed 2 s after its share
+				"Short-shown slide",                        // shown for 4 999 ms
 			}
 			forbidden = append(forbidden, originalFilenames(t, raw)...)
 			entries, err := os.ReadDir(filepath.Join(raw, "presentation"))
-			if err != nil || len(entries) != 3 {
-				t.Fatalf("fixture: F-13 presentation/: %v (%d decks, want 3)", err, len(entries))
+			if err != nil || len(entries) != 5 {
+				t.Fatalf("fixture: F-13 presentation/: %v (%d decks, want 5)", err, len(entries))
 			}
 			for _, e := range entries {
 				forbidden = append(forbidden, e.Name(), strings.SplitN(e.Name(), "-", 2)[0])
@@ -228,8 +258,8 @@ func originalFilenames(t *testing.T, raw string) []string {
 	for _, m := range originalFilenameRE.FindAllStringSubmatch(string(readFile(t, filepath.Join(raw, "events.xml"))), -1) {
 		names = append(names, m[1])
 	}
-	if len(names) != 3 {
-		t.Fatalf("fixture: F-13 events.xml has %d originalFilename values, want 3", len(names))
+	if len(names) != 5 {
+		t.Fatalf("fixture: F-13 events.xml has %d originalFilename values, want 5", len(names))
 	}
 	return names
 }
@@ -255,6 +285,18 @@ func TestSlideCallPlan(t *testing.T) {
 			if res.FormatVersion != "1.1.0" {
 				t.Errorf("format_version = %q, want 1.1.0 (templates.md §2)", res.FormatVersion)
 			}
+			// The slide rule joins the system message only with the section (§3.1 "Prompt").
+			_, off := summarize(t, bin, c.input(), slidesTypes(t, false))
+			if len(off) != 1 {
+				t.Fatalf("calls with slides off = %s, want one summary.v1 call", kinds(off))
+			}
+			sys := systemText(t, calls[0])
+			if sys == systemText(t, off[0]) {
+				t.Errorf("system message with the SLIDES section equals the one with slides off; want the slide rule added")
+			}
+			if !strings.Contains(sys, "SLIDES") {
+				t.Errorf("system message does not name the SLIDES section")
+			}
 		})
 		t.Run("on-over-budget", func(t *testing.T) {
 			c := longMeeting(t)
@@ -271,7 +313,9 @@ func TestSlideCallPlan(t *testing.T) {
 					}
 				}
 			}
-			wantSection(t, "consolidate call", calls[len(calls)-1], want)
+			// longMeeting has one recording period from 0 with recorded offset 0.
+			wantSection(t, "consolidate call", calls[len(calls)-1],
+				fullSectionAt(slides, func(ms int64) int64 { return ms }))
 		})
 		for _, off := range []struct {
 			name string
@@ -334,6 +378,20 @@ func TestSlideCap(t *testing.T) {
 			cut := s
 			cut.Text = string([]rune(s.Text)[:1000])
 			wantSection(t, "summarize call", one(t, []slide{s}), fullSection([]slide{cut}))
+		})
+		t.Run("within-limit", func(t *testing.T) {
+			// About 6 000 characters: over the 2 000-character minimum, under 15 % of the
+			// fixture budget, so every slide must arrive in full.
+			var s []slide
+			for i := 1; i <= 8; i++ {
+				s = append(s, slide{TMS: int64(i) * 1000, Deck: "d-1", Page: i,
+					Text: fmt.Sprintf("Title %02d of the medium deck\n%s", i,
+						strings.TrimSpace(strings.Repeat(fmt.Sprintf("Medium %02d text ", i), 46)))})
+			}
+			if n := len(fullSection(s)); n < 5500 || n > 6500 {
+				t.Fatalf("test input: full section %d characters, want about 6 000", n)
+			}
+			wantSection(t, "summarize call", one(t, s), fullSection(s))
 		})
 		t.Run("titles-only", func(t *testing.T) {
 			var s []slide
