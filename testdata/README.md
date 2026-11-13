@@ -15,13 +15,14 @@ across runs with the tool versions recorded in `generator/manifest.txt`.
 | Path | Content |
 |---|---|
 | `meetings/F-NN/README.md` | purpose, IDs, metadata and expected outcomes of the fixture |
-| `meetings/F-NN/registration.json` | registration request body (F-01, F-04, F-06 only) |
+| `meetings/F-NN/registration.json` | registration request body (F-01, F-04, F-06, F-13 only) |
 | `meetings/F-NN/raw/<record_id>/` | raw recording dir as `archive.rb` leaves it (F-07 and F-09 use F-01's by reference) |
 | `meetings/F-NN/expected/hook.json` | post_archive hook decision (below) |
 | `meetings/F-NN/expected/exporter.json` | exporter end state (below) |
 | `meetings/F-NN/expected/service.json` | service job outcome (below) |
 | `meetings/F-NN/expected/manifest.json` | canonical (JCS) manifest, only where the exporter builds a package (F-01, F-04, F-06, F-07) |
 | `meetings/F-NN/expected/package_id.txt` | SHA-256 of `manifest.json` bytes, hex, one line |
+| `meetings/F-13/expected/slides.json` | expected `slides[]` of the normalized meeting (`docs/reference/templates.md` §3.1), written by hand in the generator |
 | `manifests/invalid/<M-ID>.<rule>.json` | manifests from F-01 that violate exactly `<rule>` (`tools/ref/manifest_rules.py`) |
 | `secrets/` | fixture credentials, every value starts with `FIXTURE-NOT-A-SECRET-` |
 | `generator/manifest.txt` | tool, version, license and command for every audio and video file |
@@ -33,8 +34,9 @@ Injected exporter inputs for the manifests: `bbb_server_id=bbb-fixture-a`, `crea
 
 All IDs and values are synthetic. They include `bbb_version="4.0.0"` (in `events.xml` and the golden manifests;
 not checked against a packaged BBB 4.0, since `bigbluebutton.yml:1 @ 7d27e7e` still says `3.0.17`), `padId`
-`fixturepad0001`, chat `messageId` `fixmsg-000N`, poll ID `fixpoll-0001`, the presentation ID
-`<sha1("F-01-deck")>-1761732001000`, the `TR_fix…` track IDs (the real format was not researched), the user IDs
+`fixturepad0001`, chat `messageId` `fixmsg-000N`, poll ID `fixpoll-0001`, the presentation IDs
+`<sha1("F-01-deck")>-1761732001000` and those of F-13 (`<sha1("F-13-default"|"F-13-deck"|"F-13-image")>-<ms>`),
+F-13's original file names and slide texts, the `TR_fix…` track IDs (the real format was not researched), the user IDs
 `w_fix…`, VOICE `bridge`/`recordingTimestamp` (F-02), and the record IDs `<sha1(fixture ID)>-1761732000000`.
 Event shapes not checked against a real `events.xml` carry a generated `<!-- SYNTHETIC: shape … -->` comment in
 `events.xml` (`docs/reference/fixtures.md` §8).

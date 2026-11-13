@@ -47,6 +47,7 @@ type `meeting-summary`, sink profile `docs-main` (`https://docs.recap.test`), pr
 | F-10 | `livekit-no-mic`      | opted in, no published microphone (no `audio/` dir: git cannot store empty dirs) | exporter `failed/no_microphone_tracks`                                                          |
 | F-11 | `optin-false`         | `recap-enabled=false`                                                            | as F-05                                                                                         |
 | F-12 | `no-marks`            | opted in, `record=true`, no `RecordStatusEvent`                                  | hook WARN `no_marks`, no spool entry (`bbb-exporter.md` §3.3)                                   |
+| F-13 | `slides`              | F-01's periods and audio plus three decks with `textfiles/` (§3.2)               | `normalize` gives the golden `slides[]` (`templates.md` §3.1); job `delivered`                  |
 
 ### 3.1 F-01 `two-speakers-pause`
 
@@ -89,6 +90,29 @@ Deltas from F-01:
 - **F-02:** VOICE `StartRecordingEvent`/`StopRecordingEvent`, mixed `audio/<record_id>-<ts>.opus`, no
   publish events. **F-10:** no publish events, empty `audio/`. **F-03:** only `bbb-origin`. **F-07:** F-01 by reference.
 - **F-08:** `<meeting … breakout="true">` plus `<breakout>` (encoding synthetic, §8). **F-09:** never committed.
+
+### 3.2 F-13 `slides`
+
+F-01's participants, recording periods (5 000–60 000, 90 000–150 000) and microphone files (byte-identical copies),
+without chat, poll and notes, plus three decks in the default pod. Offsets in ms from the epoch base:
+
+| Offset            | Event                                                                        | Expected (`templates.md` §3.1)          |
+| ----------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
+| 300–302           | default deck (`originalFilename` `default.pdf`) converted, shared, page 1    | shown 5 000–12 000 (7 s), but skipped   |
+| 2 000 / 2 500     | `ConversionCompletedEvent` for a 4-page deck and an image deck (not current) | original file names never leave         |
+| 12 000            | image deck shared (2 s)                                                      | no slide (placeholder text)             |
+| 14 000            | 4-page deck shared, page 1 until 30 000                                      | slide `d-1`/1, `t_ms` 9 000             |
+| 30 000            | page 2 until 45 000                                                          | slide `d-1`/2, `t_ms` 25 000            |
+| 45 000 / 46 000   | page 3 for 1 s, back to page 2                                               | page 3 under the 5 s minimum            |
+| 70 000 / 80 000   | page 3 during the pause, back to page 2                                      | page 3 still not shown                  |
+| 100 000           | image deck shared again (20 s)                                               | no slide (placeholder text)             |
+| 120 000           | 4-page deck shared again: back on page 2 for exactly 5 s                     | already listed                          |
+| 125 000 / 135 000 | page 4 (placeholder text) for 10 s, then page 1 again                        | no slide for page 4; page 1 listed once |
+
+Page texts are synthetic, shaped like `pdftotext -layout` output; page 2 also has CRLF, a tab and layout spacing for
+the cleaning rules. Golden: `testdata/meetings/F-13/expected/slides.json`, written by hand in the generator from this
+table. F-13 has no package golden (`manifest.json`); its slide behaviour is tested at raw-directory level with
+`recap tool normalize`.
 
 ## 4. Synthetic audio
 
@@ -147,6 +171,7 @@ M-03…M-06 are also committed as `testdata/manifests/invalid/*.json`.
 | `testdata/transcripts/F-01/…` (`transcript.json` etc.)                                                          | CT-TR-01, CT-TR-02                 |
 | `testdata/render/F-01/…` (`summary.json` mock LLM reply, `summary.md`, `transcript.vtt`, `de` and gap variants) | CT-TPL-02, CT-TPL-08…10            |
 | `ingest/exchanges/*.json`                                                                                       | CT-EXP-04                          |
+| `meetings/F-13/expected/slides.json`                                                                            | CT-TPL-12                          |
 
 Notes: F-02 has no manifest (no microphone WebM); it is tested at raw-directory level only
 (`recap tool validate-package`). Golden manifests assume exporter version `0.0.0-fixture` and `created_at`
@@ -196,7 +221,8 @@ Not checked against a real BBB 4.0 recording, so synthetic in the fixtures:
 
 - the exact rendering of `AudioTrackPublishedEvent` (child order, `<date>`), poll event fields and the breakout
   encoding in `events.xml`;
-- the internal layout of `presentation/`;
+- the internal layout of `presentation/`, including `textfiles/` (F-13 follows BBB's code, `upstream-facts.md`
+  "BBB presentations"), and the child order of the presentation events;
 - the Opus channel count of LiveKit WebM files, and whether muted stretches stay as silence or are collapsed in the
   file timeline;
 - the format of LiveKit track IDs.
