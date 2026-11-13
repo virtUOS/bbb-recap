@@ -1,4 +1,4 @@
-// Package jcs is the RFC 8785 (JSON Canonicalization Scheme) form of the
+// Package jcs writes the RFC 8785 (JSON Canonicalization Scheme) form of the
 // JSON subset the meeting package manifest and the normalized meeting use
 // (contracts/README.md).
 package jcs

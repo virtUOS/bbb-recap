@@ -14,7 +14,7 @@ func TestAsrAttemptTimeout(t *testing.T) {
 	}
 }
 
-func TestRetryAfterHTTPDate(t *testing.T) {
+func TestRetryAfterDateAndCap(t *testing.T) {
 	d := RetryAfter(time.Now().Add(90 * time.Second).UTC().Format(http.TimeFormat))
 	if d < 85*time.Second || d > 91*time.Second {
 		t.Errorf("RetryAfter(date) = %v", d)
