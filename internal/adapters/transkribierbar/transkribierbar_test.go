@@ -628,3 +628,32 @@ func TestUploadNotReused(t *testing.T) {
 		t.Errorf("reused after keepUploadFor: %q", id)
 	}
 }
+
+// The upload carries the request's media type and a matching file
+// extension; a media type outside Capabilities is permanent_input without a
+// request.
+func TestMediaType(t *testing.T) {
+	fileExtensions["audio/ogg"] = ".ogg" // a second type, for this test only
+	defer delete(fileExtensions, "audio/ogg")
+	f := newFake(t)
+	req := request()
+	req.Audio.MediaType = "audio/ogg"
+	if _, err := run(t, adapter(t, f.server(), nil), req); err != nil {
+		t.Fatal(err)
+	}
+	if up := f.seen[0]; up.file != "trk-3.ogg" || up.fileType != "audio/ogg" {
+		t.Errorf("upload file %q type %q", up.file, up.fileType)
+	}
+
+	for _, mt := range []string{"audio/mpeg", "", "audio/webm; codecs=opus"} {
+		f := newFake(t)
+		req := request()
+		req.Audio.MediaType = mt
+		_, err := run(t, adapter(t, f.server(), nil), req)
+		var e *providers.Error
+		if !errors.As(err, &e) || e.Class != providers.PermanentInput || e.Code != "unsupported_media_type" ||
+			len(f.calls()) != 0 {
+			t.Errorf("%q: %v, calls %v", mt, err, f.calls())
+		}
+	}
+}

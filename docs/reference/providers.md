@@ -177,6 +177,10 @@ All requests carry `Authorization: Bearer <token>` and `X-Request-ID`. The token
 
 The poll interval of 5 s is our choice. The whole flow runs within the ASR attempt timeout (§1.5).
 
+The uploaded file part's type is the request's media type, and the file name's extension matches it (`.webm` for
+`audio/webm`); transkribierBAR accepts or rejects a file by its extension (`routers/upload.py:16,26-30`). A media type
+outside `media_types` (§2a.4) is `permanent_input` (code `unsupported_media_type`) and no request is sent.
+
 ### 2a.2 Response mapping
 
 `utterances[]` = `{start, end, text, speaker}` with `start`, `end` as integer **ms** (`models.py:55-59`; the test
