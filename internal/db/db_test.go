@@ -126,10 +126,17 @@ func TestEnumLists(t *testing.T) {
 		{"held_reason", db.HeldReasons},
 		{"failure_reason", db.FailureReasons},
 	} {
+		found := false
 		for _, e := range enums {
-			if e.table == "jobs" && e.column == c.column && !slices.Equal(c.got, e.values) {
-				t.Errorf("jobs.%s: list %v, want %v", c.column, c.got, e.values)
+			if e.table == "jobs" && e.column == c.column {
+				found = true
+				if !slices.Equal(c.got, e.values) {
+					t.Errorf("jobs.%s: list %v, want %v", c.column, c.got, e.values)
+				}
 			}
+		}
+		if !found {
+			t.Errorf("jobs.%s: no entry in the enums table", c.column)
 		}
 	}
 }

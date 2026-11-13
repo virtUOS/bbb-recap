@@ -50,7 +50,8 @@ func compileAll() (map[string]*jsonschema.Schema, error) {
 		c.UseRegexpEngine(ecmaToGo)
 		// Each schema is added and compiled under its "$id" (a URN), so
 		// validation errors name the schema and nothing about the host. A bare
-		// file name would be resolved against the working directory.
+		// file name would be resolved against the working directory. A reference
+		// from one schema to another must use the other schema's "$id".
 		ids := map[string]string{} // schema name -> $id
 		for _, n := range names {
 			b, err := files.ReadFile(n)
