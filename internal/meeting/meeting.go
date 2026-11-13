@@ -6,7 +6,8 @@
 // # Format (internal, not pinned by a contract; field "version")
 //
 // version changes whenever a field changes its meaning, so a reader can tell
-// old blobs apart; adding a field does not change it. Version 2 made
+// old blobs apart; adding a field does not change it. Readers decode the
+// blob with Decode, which rejects any version but Version. Version 2 made
 // chat plain text with edits and deletions applied and added polls. Version
 // 3 made participant roles neutral (moderator, viewer) and span optional,
 // and added the media types and the track kind.
@@ -67,8 +68,18 @@
 //	                   notes/export_failed exists
 package meeting
 
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
+
 // Version is the format version of the normalized meeting.
 const Version = 3
+
+// ErrVersion means a normalized meeting blob has a version this build
+// cannot read, for example one written before an upgrade.
+var ErrVersion = errors.New("normalized meeting: unsupported version")
 
 // GapTrackUnreadable is the README gap reason of a track that cannot be read.
 const GapTrackUnreadable = "track_unreadable"
@@ -183,4 +194,19 @@ type Poll struct {
 type PollOption struct {
 	Text  string `json:"text"`
 	Votes int    `json:"votes"`
+}
+
+// Decode parses a normalized meeting blob. It returns an error wrapping
+// ErrVersion when the blob's version is not Version, so a reader never
+// takes an old or newer format for the current one. Every pipeline step
+// reads the normalized meeting through Decode.
+func Decode(data []byte) (*Meeting, error) {
+	var m Meeting
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("normalized meeting: %w", err)
+	}
+	if m.Version != Version {
+		return nil, fmt.Errorf("%w %d (want %d)", ErrVersion, m.Version, Version)
+	}
+	return &m, nil
 }

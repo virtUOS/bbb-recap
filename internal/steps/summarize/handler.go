@@ -172,8 +172,12 @@ func (d Deps) load(ctx context.Context, jobID string) (*format.Format, Input, er
 		return nil, Input{}, errFormat
 	}
 
-	var m meeting.Meeting
-	if err := d.readJSON(ctx, jobID, nout.NormalizedSHA256, &m); err != nil {
+	data, err := d.read(ctx, jobID, nout.NormalizedSHA256)
+	if err != nil {
+		return nil, Input{}, err
+	}
+	m, err := meeting.Decode(data)
+	if err != nil {
 		return nil, Input{}, err
 	}
 	var tr assemble.Transcript
@@ -236,6 +240,8 @@ func errorCode(err error) string {
 		return "blob_hash_mismatch"
 	case errors.Is(err, blob.ErrTransient):
 		return "blob_transient"
+	case errors.Is(err, meeting.ErrVersion):
+		return "meeting_version"
 	}
 	return "summarize"
 }

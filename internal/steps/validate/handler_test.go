@@ -416,7 +416,7 @@ func TestValidateThroughEngine(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		queue.New(e.pool, queue.Config{
-			Owner: "t016", Slots: 1, Handlers: map[string]queue.Handler{"validate": validate.Handler(e.deps)},
+			Owner: "test-a", Slots: 1, Handlers: map[string]queue.Handler{"validate": validate.Handler(e.deps)},
 			Log: slog.New(slog.DiscardHandler),
 		}).Run(rctx)
 		close(done)
@@ -450,7 +450,7 @@ func (e *env) runEngine(t *testing.T, deps validate.Deps, jobID string, done fun
 	finished := make(chan struct{})
 	go func() {
 		queue.New(e.pool, queue.Config{
-			Owner: "t037", Slots: 1, Handlers: map[string]queue.Handler{"validate": validate.Handler(deps)},
+			Owner: "test-b", Slots: 1, Handlers: map[string]queue.Handler{"validate": validate.Handler(deps)},
 			Log: slog.New(slog.DiscardHandler),
 		}).Run(rctx)
 		close(finished)

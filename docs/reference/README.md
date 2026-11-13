@@ -41,8 +41,8 @@ PILOS and providers, with sources, are in [`upstream-facts.md`](upstream-facts.m
 
 - Meta prefix: `^[a-z][a-z0-9]{1,15}$`, default `recap`, configurable in exporter and service.
 - Names (meeting types, sink profiles, provider profiles): `^[a-z][a-z0-9-]{0,62}$`.
-- `record_id`: `^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$` (manifest schema). The hook rejects any other `-m` value as an
-  error row; `hook_version` is the exporter package version.
+- `record_id`: `^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$` (manifest and registration schemas, exporter, hook). The hook
+  rejects any other `-m` value as an error row; `hook_version` is the exporter package version.
 - `meta_recap-enabled`: only the literal `true` opts in. Absent or any other value = not opted in, silently ignored (no failure).
 
 ## States and enums

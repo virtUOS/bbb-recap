@@ -26,3 +26,9 @@ First release.
   provider data declarations.
 - Prometheus metrics and health endpoints; docker compose deployment with optional Caddy TLS; filesystem and S3 blob
   backends; images on ghcr.io, built with Go 1.27.
+
+### Changed
+
+- Registration API: `record_id` follows the pattern of the meeting package manifest, the exporter and the hook,
+  `^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$` (up to 255 characters instead of 128, a letter or digit first). Responses carry
+  `schema_version` `1.2.0`.

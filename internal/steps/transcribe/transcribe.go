@@ -160,9 +160,9 @@ func (d Deps) load(ctx context.Context, jobID string) ([]*item, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	var m meeting.Meeting
-	if err := json.Unmarshal(data, &m); err != nil {
-		return nil, 0, fmt.Errorf("normalized meeting: %w", err)
+	m, err := meeting.Decode(data)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	type row struct {
@@ -392,6 +392,8 @@ func errorCode(err error) string {
 		return "blob_hash_mismatch"
 	case errors.Is(err, blob.ErrTransient):
 		return "blob_transient"
+	case errors.Is(err, meeting.ErrVersion):
+		return "meeting_version"
 	}
 	return "internal"
 }

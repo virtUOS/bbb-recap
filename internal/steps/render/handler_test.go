@@ -64,7 +64,7 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store, lang string, noSpe
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := meeting.Meeting{MeetingName: "Fixture Widget Meeting", Polls: []meeting.Poll{{
+	m := meeting.Meeting{Version: meeting.Version, MeetingName: "Fixture Widget Meeting", Polls: []meeting.Poll{{
 		Question: "Blue or green?", Options: []meeting.PollOption{{Text: "Blue", Votes: 2}, {Text: "Green"}},
 	}}}
 	mb, _ := json.Marshal(m)
@@ -241,5 +241,24 @@ func TestHandlerInternalError(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE jobs SET state = 'failed', failure_reason = $2 WHERE job_id = $1`,
 		jobID, ReasonInternalError); err != nil {
 		t.Errorf("failure_reason internal_error rejected: %v", err)
+	}
+}
+
+// A normalized meeting of another version (one written before an upgrade)
+// fails the step with an internal error instead of being read with the
+// wrong meaning.
+func TestHandlerMeetingVersion(t *testing.T) {
+	ctx := context.Background()
+	pool, store := newStore(t)
+	jobID := seed(t, pool, store, "en", false)
+	old := []byte(`{"version":2,"meeting_name":"Fixture Widget Meeting","polls":[]}`)
+	nout, _ := json.Marshal(meeting.Output{NormalizedSHA256: put(t, store, jobID, old)})
+	if _, err := pool.Exec(ctx, `UPDATE steps SET output = $2 WHERE job_id = $1 AND name = 'normalize'`,
+		jobID, nout); err != nil {
+		t.Fatal(err)
+	}
+	res := Handler(deps(pool, store, slog.New(slog.DiscardHandler)))(ctx, queue.Run{JobID: jobID, Step: Step, Attempt: 1})
+	if res.Outcome != queue.Permanent || res.Reason != ReasonInternalError || res.ErrorCode != "meeting_version" {
+		t.Errorf("result %+v, want permanent internal_error meeting_version", res)
 	}
 }

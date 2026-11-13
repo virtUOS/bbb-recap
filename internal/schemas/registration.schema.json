@@ -46,11 +46,11 @@
     "record_id": {
       "type": "string",
       "description": "BBB internal meeting ID (internalMeetingID of the create response; names raw/<record_id>).",
-      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$"
     },
     "registration_response": {
       "type": "object",
-      "description": "Response of PUT (200/201) and GET (schema_version 1.1.0 adds the result fields of job). Never contains owner data.",
+      "description": "Response of PUT (200/201) and GET (schema_version 1.1.0 adds the result fields of job; 1.2.0 the record_id pattern of the manifest). Never contains owner data.",
       "additionalProperties": false,
       "required": [
         "schema_version",

@@ -121,6 +121,10 @@ refer to this file). The server is synchronous: one `POST`, and the response bod
 | `suppress_numerals` | `false` (server default `true`, upstream API description)    | `whisperx.py:91`                                       |
 | `diarize`           | `false`, always                                              | `whisperx.py:92`; ADR-001                              |
 
+The file part's type is the request's media type, and the file name's extension matches it (`.webm` for
+`audio/webm`). A media type outside `media_types` (§2.4) is `permanent_input` (code `unsupported_media_type`) and no
+request is sent.
+
 Never sent: `min_speakers`, `max_speakers`, `prompt`, `hotwords`, `audio_url`, `callback_url`, `async`
 (`whisperx.py:85-97`).
 
@@ -173,6 +177,10 @@ All requests carry `Authorization: Bearer <token>` and `X-Request-ID`. The token
 
 The poll interval of 5 s is our choice. The whole flow runs within the ASR attempt timeout (§1.5).
 
+The uploaded file part's type is the request's media type, and the file name's extension matches it (`.webm` for
+`audio/webm`); transkribierBAR accepts or rejects a file by its extension (`routers/upload.py:16,26-30`). A media type
+outside `media_types` (§2a.4) is `permanent_input` (code `unsupported_media_type`) and no request is sent.
+
 ### 2a.2 Response mapping
 
 `utterances[]` = `{start, end, text, speaker}` with `start`, `end` as integer **ms** (`models.py:55-59`; the test
@@ -190,9 +198,23 @@ HTTP status of any request as in §1.4, except: a `422` from step 2 whose `detai
 
 ### 2a.4 Cleanup and remote retention
 
-`Cleanup` sends `DELETE /api/transcription/{id}`. It deletes the transcription and its uploaded file (on the test
-instance, status and media returned 404 afterwards; `routers/transcription.py:438-490`). 404 counts as done.
-`remote_retention = until_cleanup`. transkribierBAR has no route to delete a file on its own; see Known limitations.
+`Cleanup` sends `DELETE /api/transcription/{id}`. It deletes the transcription and, unless another transcription uses
+it, its uploaded file (on the test instance, status and media returned 404 afterwards;
+`routers/transcription.py:438-490`). 404 counts as done.
+`remote_retention = until_cleanup`.
+
+transkribierBAR has no route to delete an uploaded file on its own (the file routes are upload, media, media fallback
+and rename: `routers/upload.py:20,105,121,139`). A file whose transcription could not be started (step 2) is therefore
+reused: when step 2 fails with `retryable` or `invalid_response`, the adapter keeps the file ID in memory for 24 h,
+per job, track and audio SHA-256, and the track's next attempt in the same worker process starts the transcription on
+that file instead of uploading it again. If the instance answers 404 for the kept file
+(`routers/transcription.py:53`), the track is uploaded again. Once the transcription exists, `Cleanup` deletes it,
+and with it the file unless another transcription still refers to the file (`routers/transcription.py:461-469`). That
+happens when a start timed out on our side but succeeded on the instance: the retry starts a second transcription on
+the kept file, the first one is unknown to the adapter, and the file stays after `Cleanup`. Otherwise
+transkribierBAR's own expiry removes the file: `expires_at` is set at upload to
+`DEFAULT_EXPIRY_HOURS` later (default 72 h; `routers/upload.py:79`, `config.py:102`), and an hourly task deletes
+expired files that no pending or processing transcription uses (`main.py:150-163`). See Known limitations.
 
 Capabilities: `async=false`, `word_timestamps=false`, `word_confidence=false`, `diarization=false`,
 `max_file_bytes` 1 GiB (`routers/upload.py:17,49`), `media_types=[audio/webm]`, `remote_retention=until_cleanup`.
@@ -423,8 +445,10 @@ CT-PROV-01..03, CT-PROV-09, CT-TR-01 and CT-TR-02 were written before the implem
 - **Response shape.** The full whisperx-api-server `verbose_json` schema (words, `word_segments`) is not documented
   upstream; word-level data is ignored. The list of error body forms (§2.3) may be incomplete.
 - **Remote retention.** whisperx-api-server has no known endpoint to delete a stored result; operators must turn the
-  result store off (§2.4). transkribierBAR cannot delete an uploaded file on its own: if step 2 of §2a.1 fails, the
-  file stays on the instance until transkribierBAR's own retention removes it. How long that is was not checked.
+  result store off (§2.4). transkribierBAR cannot delete an uploaded file on its own (§2a.4): if step 2 of §2a.1
+  fails and the track is not retried in the same worker process (a permanent error, the track's last attempt, a
+  worker restart, or the retry runs on another worker), the file stays on the instance until transkribierBAR's expiry
+  removes it, by default 72 h after the upload (`DEFAULT_EXPIRY_HOURS`, checked hourly).
 - **Clock and skew.** That BBB's event clock and the audio publish events share one clock is implied by BBB's code,
   not read in source. The skew between a WebM file's start and its publish event, and whether muted stretches are kept
   in the file, are not measured; tests allow 1000 ms.

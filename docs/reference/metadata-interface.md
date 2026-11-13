@@ -122,13 +122,13 @@ Schema: [`schemas/registration.schema.json`](schemas/registration.schema.json) (
 }
 ```
 
-| Field            | Rule                                                                                                                                     |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema_version` | semver, major `1`                                                                                                                        |
-| `meeting_id`     | external `meetingID` from `create`; 1–256 characters, no control characters                                                              |
-| `record_id`      | equals the path parameter; `^[A-Za-z0-9_-]{1,128}$`. Observed form `<40 hex>-<epoch ms>` (`api.md:360 @ 7d27e7e`); kept loose on purpose |
-| `owner.sub`      | OIDC `sub` as Docs knows it; 1–255 characters ([`identity-mapping.md`](identity-mapping.md) §2)                                          |
-| `owner.email`    | 3–254 characters, `format: email`                                                                                                        |
+| Field            | Rule                                                                                                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema_version` | semver, major `1`                                                                                                                                                      |
+| `meeting_id`     | external `meetingID` from `create`; 1–256 characters, no control characters                                                                                            |
+| `record_id`      | equals the path parameter; `^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$` as in the manifest. Observed form `<40 hex>-<epoch ms>` (`api.md:360 @ 7d27e7e`); kept loose on purpose |
+| `owner.sub`      | OIDC `sub` as Docs knows it; 1–255 characters ([`identity-mapping.md`](identity-mapping.md) §2)                                                                        |
+| `owner.email`    | 3–254 characters, `format: email`                                                                                                                                      |
 
 No other fields (`additionalProperties: false`); type and sink come only from meta.
 Response (201 or 200; also `GET`), never containing `owner`:
@@ -151,7 +151,8 @@ Response (201 or 200; also `GET`), never containing `owner`:
 delivered_at, document_url, summary_available}` with the states, held reasons and outcomes of
 [`README.md`](README.md)), `cancelled`. `expires_at` is `null` unless `registered`. The result fields (`outcome`,
 `delivered_at`, `document_url`, `summary_available`) are `null`/`false` until delivery (§2.7). Response
-`schema_version` `1.1.0`.
+`schema_version` `1.2.0` (1.1.0 added the result fields; 1.2.0 the `record_id` pattern of the manifest, which allows up
+to 255 characters and needs a letter or digit first).
 
 ### 2.4 `PUT` matrix
 

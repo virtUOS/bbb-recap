@@ -96,8 +96,12 @@ func (d Deps) load(ctx context.Context, jobID string) (Input, error) {
 		WHERE j.job_id = $1`, jobID).Scan(&createdAt, &nout); err != nil {
 		return Input{}, fmt.Errorf("normalize output: %w", err)
 	}
-	var m meeting.Meeting
-	if err := d.readJSON(ctx, jobID, nout.NormalizedSHA256, &m); err != nil {
+	data, err := d.read(ctx, jobID, nout.NormalizedSHA256)
+	if err != nil {
+		return Input{}, err
+	}
+	m, err := meeting.Decode(data)
+	if err != nil {
 		return Input{}, err
 	}
 
@@ -121,7 +125,7 @@ func (d Deps) load(ctx context.Context, jobID string) (Input, error) {
 		return Input{}, err
 	}
 
-	in := Input{JobID: jobID, CreatedAt: createdAt, Meeting: &m}
+	in := Input{JobID: jobID, CreatedAt: createdAt, Meeting: m}
 	for i, t := range m.Tracks {
 		if t.Gap != "" {
 			continue // normalize gap: no step_items row
@@ -144,14 +148,19 @@ func (d Deps) load(ctx context.Context, jobID string) (Input, error) {
 	return in, nil
 }
 
-// readJSON reads a JSON blob of the job into v.
-func (d Deps) readJSON(ctx context.Context, jobID, key string, v any) error {
+// read reads a blob of the job.
+func (d Deps) read(ctx context.Context, jobID, key string) ([]byte, error) {
 	rc, err := d.Blobs.Get(ctx, jobID, key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = rc.Close() }()
-	data, err := io.ReadAll(rc)
+	return io.ReadAll(rc)
+}
+
+// readJSON reads a JSON blob of the job into v.
+func (d Deps) readJSON(ctx context.Context, jobID, key string, v any) error {
+	data, err := d.read(ctx, jobID, key)
 	if err != nil {
 		return err
 	}
@@ -166,6 +175,8 @@ func errorCode(err error) string {
 		return "no_normalize_output"
 	case errors.Is(err, errIncomplete):
 		return "transcribe_incomplete"
+	case errors.Is(err, meeting.ErrVersion):
+		return "meeting_version"
 	case errors.Is(err, blob.ErrNotFound):
 		return "blob_not_found"
 	case errors.Is(err, blob.ErrHashMismatch):
