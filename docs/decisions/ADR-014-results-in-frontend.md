@@ -1,6 +1,6 @@
 # ADR-014 Summaries available in the front end (PILOS room)
 
-Status: accepted (2026-11-10), amended 2026-11-12
+Status: accepted (2026-11-10), amended 2026-11-12 and 2026-11-13
 
 ## Context
 
@@ -76,3 +76,10 @@ nothing to sanitize. Users who want a formatted, editable document use the Docs 
 - The front end serves the download from its own database with the same access check as the list, as
   `text/markdown; charset=utf-8`, `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`.
 - The service side (sink type `frontend`, `GET`/`DELETE …/summary`, `RECAP_RESULT_TTL`) is unchanged.
+
+## Amendment 2026-11-13: several sinks
+
+A meeting may name up to four sink profiles ([ADR-016](ADR-016-multiple-sinks-webhook-matrix.md)), so a room can get a
+Docs document and the `frontend` copy together. The result record lists every sink in `job.deliveries` (response
+`schema_version` 1.3.0); `document_url` and `summary_available` keep their meaning for the job as a whole. The
+sentence "A meeting has one sink" above no longer applies.

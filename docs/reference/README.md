@@ -13,11 +13,11 @@ PILOS and providers, with sources, are in [`upstream-facts.md`](upstream-facts.m
 | [`architecture.md`](architecture.md)                                                  | components, trust zones, service HTTP surface, job lifecycle, step model, queue, blob store, admin actions, metrics | 002, 009, 010, 011, 012 |
 | [`meeting-package.md`](meeting-package.md) + `schemas/manifest.schema.json`           | package layout, manifest, file roles, validation rules                                                              | 001, 004                |
 | [`bbb-exporter.md`](bbb-exporter.md)                                                  | hook, spool, exporter daemon, exporter states, ingest protocol (wire), raw deletion, pull-API outline               | 002, 003                |
-| [`metadata-interface.md`](metadata-interface.md) + `schemas/registration.schema.json` | `meta_recap-*` keys, registration API, held reasons                                                                 | 005                     |
+| [`metadata-interface.md`](metadata-interface.md) + `schemas/registration.schema.json` | `meta_recap-*` keys, registration API, held reasons                                                                 | 005, 014, 016           |
 | [`identity-mapping.md`](identity-mapping.md)                                          | owner identity, PILOS mapping, later participant map                                                                | 006, 007                |
 | [`providers.md`](providers.md) + `schemas/transcript.schema.json`                     | ASR and LLM adapters, provider profiles, transcript schema                                                          | 008                     |
 | [`templates.md`](templates.md)                                                        | built-in output format, selection by meeting type                                                                   | 005, 008, 015           |
-| [`sinks.md`](sinks.md)                                                                | sink interface, Markdown dialect, Docs sink (`create-for-owner`)                                                    | 006, 007, 009, 010      |
+| [`sinks.md`](sinks.md)                                                                | sink interface, several sinks per job, Markdown dialect, Docs, front-end, webhook and Matrix sinks                  | 006, 007, 009, 010, 016 |
 | [`deployment.md`](deployment.md)                                                      | images, compose, K8s, config contract, migrations, exporter installation                                            | 010, 011, 012           |
 | [`privacy.md`](privacy.md)                                                            | data inventory, flows, retention, deletion, logging rules                                                           | 002, 004–009, 011, 015  |
 | [`fixtures.md`](fixtures.md)                                                          | synthetic meetings, mutation set, fixture secrets, golden files                                                     | all                     |
@@ -25,22 +25,23 @@ PILOS and providers, with sources, are in [`upstream-facts.md`](upstream-facts.m
 
 ## Identifiers
 
-| Name                           | Definition                                                                                                                                                     |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `meeting_id`                   | external meeting ID from the front end's `create`; consistency check only                                                                                      |
-| `record_id`                    | BBB `internalMeetingID` from the `create` response = `raw/<record_id>` = `/recording/@meeting_id` in events.xml. **Join key** between package and registration |
-| `bbb_server_id`, `frontend_id` | configured names, `^[a-z0-9][a-z0-9-]{0,62}$`, each bound to one credential                                                                                    |
-| `package_id`                   | SHA-256 (lowercase hex) of the RFC 8785 (JCS) canonical `manifest.json`                                                                                        |
-| `job_id`                       | UUIDv7. A `rerun` creates a new `job_id` (`rerun_of` links it); `retry` keeps it                                                                               |
-| Docs document ID               | returned by Docs' `create-for-owner`; stored in the job's delivery record. New documents come only from `rerun`                                                |
-| Outputs (`render`)             | `summary.md` (delivered to the sink), `transcript.vtt` (WebVTT; produced, **not delivered yet**, kept until cleanup)                                           |
-| Format ID                      | `meeting-summary` (built in), selected through the meeting type named in `meta_recap-type`                                                                     |
-| Transcript refs                | `spk-<n>`, `trk-<n>`, `seg-<nnnnnn>`                                                                                                                           |
+| Name                           | Definition                                                                                                                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `meeting_id`                   | external meeting ID from the front end's `create`; consistency check only                                                                                                                                          |
+| `record_id`                    | BBB `internalMeetingID` from the `create` response = `raw/<record_id>` = `/recording/@meeting_id` in events.xml. **Join key** between package and registration                                                     |
+| `bbb_server_id`, `frontend_id` | configured names, `^[a-z0-9][a-z0-9-]{0,62}$`, each bound to one credential                                                                                                                                        |
+| `package_id`                   | SHA-256 (lowercase hex) of the RFC 8785 (JCS) canonical `manifest.json`                                                                                                                                            |
+| `job_id`                       | UUIDv7. A `rerun` creates a new `job_id` (`rerun_of` links it); `retry` keeps it                                                                                                                                   |
+| Docs document ID               | returned by Docs' `create-for-owner`; stored in the job's delivery record for that sink (the Matrix sink stores the event ID). New documents come only from `rerun` or an admin `retry` after `delivery_uncertain` |
+| Outputs (`render`)             | `summary.md` (delivered to the sink), `transcript.vtt` (WebVTT; produced, **not delivered yet**, kept until cleanup)                                                                                               |
+| Format ID                      | `meeting-summary` (built in), selected through the meeting type named in `meta_recap-type`                                                                                                                         |
+| Transcript refs                | `spk-<n>`, `trk-<n>`, `seg-<nnnnnn>`                                                                                                                                                                               |
 
 ## Grammars
 
 - Meta prefix: `^[a-z][a-z0-9]{1,15}$`, default `recap`, configurable in exporter and service.
-- Names (meeting types, sink profiles, provider profiles): `^[a-z][a-z0-9-]{0,62}$`.
+- Names (meeting types, sink profiles, provider profiles): `^[a-z][a-z0-9-]{0,62}$`. `meta_recap-sink` is a list of 1–4
+  names; `meta_recap-matrix-room` a Matrix room (`metadata-interface.md` §1.2).
 - `record_id`: `^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$` (manifest and registration schemas, exporter, hook). The hook
   rejects any other `-m` value as an error row; `hook_version` is the exporter package version.
 - `meta_recap-enabled`: only the literal `true` opts in. Absent or any other value = not opted in, silently ignored (no failure).
@@ -83,8 +84,13 @@ PILOS and providers, with sources, are in [`upstream-facts.md`](upstream-facts.m
   | Sink    | `config` (401/403) / `rejected` (other 4xx)                                                             | permanent                                                                             |
   | Sink    | `recipient_unresolved` (Docs cannot match the owner, e.g. two users with that email)                    | hold (`owner_unresolved`)                                                             |
 
+  The sink rows are the Docs sink's; the webhook and Matrix sinks have their own status mapping (`sinks.md` §4b, §4c).
+  A job with several sinks combines the sinks' outcomes (`sinks.md` §1.8).
+
 - **Admin actions:** `retry`, `release`, `rerun`, `purge`, `erase` (data-subject erasure in the service;
-  Docs documents are reported to the Docs operator, since the service has no rights on them).
+  Docs documents are reported to the Docs operator, since the service has no rights on them). `retry` and `release`
+  take an optional `sink` for a job with several sinks (`sinks.md` §1.8); `release` of a failed sink skips it
+  (`skipped_by_admin`).
   - `retry`: re-run the current step of a `failed` job, or of a `held` job with `delivery_uncertain` (re-sends). Same `job_id`.
     Other holds are lifted with `release`.
   - `release`: lift a hold and continue. On `delivery_uncertain` it **marks the job delivered** without re-sending;
@@ -134,7 +140,9 @@ PILOS and providers, with sources, are in [`upstream-facts.md`](upstream-facts.m
   `RECAP_RETENTION_AFTER_DELIVERY=0`, `RECAP_JOB_METADATA_RETENTION=180d` (provisional), `RECAP_INGEST_STAGING_TTL=72h` (provisional).
 - Profile concurrency field: `max_inflight` (provider and sink profiles), counted **per worker process**; total load on a
   provider = worker processes × `max_inflight`.
-- Ports are fixed: public `:8080`, ops `:9090`. Delivery record states: `sending`, `sent`, `confirmed_by_admin`.
+- Ports are fixed: public `:8080`, ops `:9090`. Delivery record states: `sending`, `sent`, `confirmed_by_admin`,
+  `skipped_by_admin`. Sink status (per sink of a job): `pending`, `sending`, `sent`, `confirmed_by_admin`,
+  `skipped_by_admin`, `failed` (`sinks.md` §1.8).
 - Metrics prefix `recap_` (exporter `recap_exporter_`); no job, meeting, record, document or user IDs as labels.
 
 ## Logging

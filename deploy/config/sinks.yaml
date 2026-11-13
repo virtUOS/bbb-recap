@@ -1,4 +1,5 @@
-# Where summaries go. A front end picks one profile per meeting.
+# Where summaries go. A front end names one to four profiles per meeting
+# (meta_recap-sink=docs-main,frontend-main; ADR-016).
 # Reference: docs/reference/sinks.md. Keep the profiles you use; replace every
 # REPLACE value. The declaration blocks are optional; if present they must be
 # complete (docs/reference/privacy.md §7).
@@ -39,3 +40,46 @@ sinks:
       contract_ref: none
       reviewed_by: "REPLACE: role of the person who checked this"
       reviewed_at: "2026-11-12"
+  # Signed webhook (Standard Webhooks) to a fixed URL, e.g. an LMS. Sends the
+  # title and the links of the other sinks; content: summary also sends the
+  # text. The declaration is required for this type.
+  # - name: webhook-main
+  #   type: webhook
+  #   url: https://lms.example.org/hooks/recap # REPLACE
+  #   signing_secret_file: /run/secrets/recap/sinks/webhook-signing.key
+  #   content: notice
+  #   request_timeout: 30s
+  #   max_inflight: 2
+  #   max_document_bytes: 2097152
+  #   declaration:
+  #     data_categories: [summary]
+  #     operator: "REPLACE: who runs the receiver"
+  #     location: on_prem
+  #     retention: "REPLACE: the receiver's retention"
+  #     deletion: manual
+  #     used_for_training: "no"
+  #     contract_ref: none
+  #     reviewed_by: "REPLACE: role of the person who checked this"
+  #     reviewed_at: "2026-11-13"
+  # Matrix: a bot account posts a notice to the room the room owner chose
+  # (meta_recap-matrix-room). The bot posts only to rooms it was invited to.
+  # The declaration is required for this type.
+  # - name: matrix-main
+  #   type: matrix
+  #   homeserver_url: https://matrix.example.org # REPLACE
+  #   access_token_file: /run/secrets/recap/sinks/matrix-bot.token
+  #   allowed_servers: [example.org] # REPLACE or remove
+  #   content: notice
+  #   request_timeout: 30s
+  #   max_inflight: 2
+  #   max_document_bytes: 30000
+  #   declaration:
+  #     data_categories: [summary]
+  #     operator: "REPLACE: who runs the homeserver"
+  #     location: on_prem
+  #     retention: "Room history; every member of the room can read the post"
+  #     deletion: manual
+  #     used_for_training: "no"
+  #     contract_ref: none
+  #     reviewed_by: "REPLACE: role of the person who checked this"
+  #     reviewed_at: "2026-11-13"

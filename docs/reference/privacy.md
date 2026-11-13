@@ -246,6 +246,49 @@ council), outside this project.
 | Docs-side processing (invitations, emails, ownerless documents)           | `sinks.md` §3.3, Docs operator                                       |
 | BBB-side retention                                                        | ADR-002, `bbb-exporter.md`, [`upstream-facts.md`](upstream-facts.md) |
 
+## 11. Several sinks, webhook and Matrix sinks
+
+ADR-016. A meeting may name up to four sink profiles; each is a processor with its own declaration (§7). The webhook
+and Matrix sinks reach a wider audience than the owner-only Docs document (ADR-006), so their `declaration` is
+required and `content: notice` is the default.
+
+### 11.1 Edges
+
+| Edge                          | Personal data                                                                                                                                                            | Auth                                      | Stored / deleted                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| H service → webhook receiver  | title (meeting name + date; room names can contain names), links of the job's other sinks, `job_id`; with `content: summary` the summary (names, content). No owner data | HMAC signature (`sinks.md` §4b), TLS      | receiver, per declaration; deleted by the receiver's operator                                     |
+| I service → Matrix homeserver | as H. The post reaches **every member of the room**, now and later (room history settings), and every server in the room keeps a copy                                    | bot access token (`sinks.md` §4c), TLS    | homeserver, federated servers, members' clients; room moderators can redact; the service does not |
+| `meta_recap-matrix-room`      | the room ID or alias; an alias may reveal a room name                                                                                                                    | none (meta, `metadata-interface.md` §1.1) | as B4 and S1; the room stays in J1 as job metadata                                                |
+
+The Docs sink keeps edges E and F; the `frontend` sink keeps S10 and F1. Owner `sub` and email go only to Docs.
+
+### 11.2 Inventory additions
+
+| ID  | Item                                  | Personal data                                       | Storage                                | Retention                                        | Deleter                                       |
+| --- | ------------------------------------- | --------------------------------------------------- | -------------------------------------- | ------------------------------------------------ | --------------------------------------------- |
+| S7  | Delivery records, one per sink (§3.2) | Docs document ID or Matrix event ID, state per sink | Postgres                               | as J1                                            | cleanup loop, admin `erase`                   |
+| S11 | Matrix room of the job                | room ID or alias                                    | Postgres (job column)                  | as J1                                            | cleanup loop, admin `erase`                   |
+| P3  | Webhook copy                          | title, links; summary with `content: summary`       | receiver                               | receiver's policy, per declaration               | receiver operator                             |
+| P4  | Matrix post                           | title, links; summary with `content: summary`       | homeserver, federated servers, clients | room and server policy; no expiry by the service | room moderators (redaction), server operators |
+
+### 11.3 Rules
+
+- **The room owner chooses the destinations**, from the set the room type offers (front end), and the Matrix room. The
+  front end's consent and recording notice names every destination of the meeting: the owner's Docs document, the
+  room in the front end, a webhook receiver by its purpose, the Matrix room ("members of the room … will see that a
+  summary exists" for `notice`, "… will read the summary" for `summary`).
+- **No owner data** in webhook bodies or Matrix posts; no `record_id` or `meeting_id`.
+- **Deletion:** the service cannot delete what a webhook receiver or a Matrix room holds. Admin `erase` returns every
+  sink's document ID (Docs document ID, Matrix event ID) with its profile, for the Docs operator or a room moderator.
+  A Matrix redaction removes the content from servers that honour it; copies in clients and on servers that do not
+  are outside anyone's control (declare `deletion: manual`).
+- **Partial delivery:** content stays in the service until every sink is done or skipped (`sinks.md` §1.8); a failing
+  sink keeps it as a held or failed job does (§4).
+- **Logging:** never the webhook URL, a secret, the access token, the Matrix room, a sync response or a request body,
+  at any level (§6).
+- **Accepted for pilots** as §9: a `notice` in a Matrix room tells its members that a meeting was summarised, with its
+  title. Use `content: summary` only for rooms whose members may read the summary.
+
 ## Sources
 
 ADR-002, ADR-004 to ADR-011; external facts (BBB cron and meta handling, Moodle meta, Docs invitations and emails,

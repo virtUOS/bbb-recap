@@ -1,0 +1,26 @@
+# Sink profile fixture for the Matrix sink (docs/reference/sinks.md §4c). Tests
+# replace homeserver_url with a local mock homeserver and the key directory
+# /run/secrets/recap/sinks/ with testdata/secrets/. One key per line; the
+# declaration comes last, so a test can cut it off.
+schema_version: "1.0.0"
+sinks:
+  -
+    name: matrix-main
+    type: matrix
+    homeserver_url: https://matrix.recap.test
+    access_token_file: /run/secrets/recap/sinks/matrix-bot.token
+    allowed_servers: [matrix.recap.test]
+    content: notice
+    request_timeout: 30s
+    max_inflight: 2
+    max_document_bytes: 30000
+    declaration:
+      data_categories: [summary]
+      operator: "operator's Matrix homeserver"
+      location: on_prem
+      retention: "Room history; every member of the room can read the post"
+      deletion: manual
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-11-13"

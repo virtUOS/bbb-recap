@@ -24,6 +24,13 @@
 # host.containers.internal:PORT for a mock Docs server on the host.
 # If that is refused (some rootless podman networks), use the host's LAN address.
 #
+# RECAP_CONTRACT_HOOKS_ADDR (host:port, set at up and for the tests): adds the
+# sink profiles webhook-contract (url http://ADDR/webhook) and matrix-contract
+# (homeserver_url http://ADDR, allowed_servers matrix.recap.test), where the
+# multi-sink tests serve a webhook receiver and a Matrix homeserver
+# (contracts/README.md; docs/reference/sinks.md §4b, §4c). Reachable from the
+# containers as for RECAP_CONTRACT_DOCS_ADDR.
+#
 # RECAP_CONTRACT_RESULT_TTL (duration, set at up and for the tests): the
 # RECAP_RESULT_TTL of api and worker, default 7d. The slow lifetime tests of
 # contracts/registration run only when it is set (contracts/README.md); use a
@@ -68,6 +75,8 @@ recap_container() {
 		-v "$ROOT/bin/recap:/usr/local/bin/recap:ro" \
 		-v "$ROOT/testdata/secrets/clients:/run/secrets/recap/clients:ro" \
 		-v "$ROOT/testdata/secrets/docs-s2s.key:/run/secrets/recap/sinks/docs-s2s.key:ro" \
+		-v "$ROOT/testdata/secrets/webhook-signing.key:/run/secrets/recap/sinks/webhook-signing.key:ro" \
+		-v "$ROOT/testdata/secrets/matrix-bot.token:/run/secrets/recap/sinks/matrix-bot.token:ro" \
 		-v "$ROOT/testdata/secrets/asr-fixture.key:/run/secrets/recap/providers/asr-fixture.key:ro" \
 		-v "$ROOT/testdata/secrets/llm-fixture.key:/run/secrets/recap/providers/llm-fixture.key:ro" \
 		-v "$STATE/config:/etc/recap:ro" \
@@ -128,6 +137,58 @@ add_docs_contract() {
 EOF
 }
 
+# add_hooks_contract ADDR prints the sink profiles webhook-contract and
+# matrix-contract (testdata/sink/sinks-webhook.yaml, sinks-matrix.yaml) on
+# http://ADDR.
+add_hooks_contract() {
+	case $1 in
+	*[!A-Za-z0-9.:-]* | *:) die "RECAP_CONTRACT_HOOKS_ADDR must be host:port: got '$1'" ;;
+	*:*) ;;
+	*) die "RECAP_CONTRACT_HOOKS_ADDR must be host:port: got '$1'" ;;
+	esac
+	cat <<EOF
+  -
+    name: webhook-contract
+    type: webhook
+    url: http://$1/webhook
+    signing_secret_file: /run/secrets/recap/sinks/webhook-signing.key
+    content: notice
+    request_timeout: 30s
+    max_inflight: 2
+    max_document_bytes: 2097152
+    declaration:
+      data_categories: [summary]
+      operator: "operator's webhook receiver"
+      location: on_prem
+      retention: "Receiver's policy"
+      deletion: manual
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-11-13"
+  -
+    name: matrix-contract
+    type: matrix
+    homeserver_url: http://$1
+    access_token_file: /run/secrets/recap/sinks/matrix-bot.token
+    allowed_servers: [matrix.recap.test]
+    content: notice
+    request_timeout: 30s
+    max_inflight: 2
+    max_document_bytes: 30000
+    declaration:
+      data_categories: [summary]
+      operator: "operator's Matrix homeserver"
+      location: on_prem
+      retention: "Room history; every member of the room can read the post"
+      deletion: manual
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-11-13"
+EOF
+}
+
 up() {
 	case $PORT in
 	'' | *[!0-9]*) die "HOSTPORT must be a number: got '$PORT'" ;;
@@ -152,6 +213,9 @@ up() {
 	cp -R "$ROOT/formats/." "$STATE/config/formats/"
 	if [ -n "${RECAP_CONTRACT_DOCS_ADDR:-}" ]; then
 		add_docs_contract "$RECAP_CONTRACT_DOCS_ADDR" >>"$STATE/config/sinks.yaml"
+	fi
+	if [ -n "${RECAP_CONTRACT_HOOKS_ADDR:-}" ]; then
+		add_hooks_contract "$RECAP_CONTRACT_HOOKS_ADDR" >>"$STATE/config/sinks.yaml"
 	fi
 	printf '%s\n' "$DB_PASSWORD" >"$STATE/db-password"
 	chmod 0644 "$STATE/db-password" # readable by uid 10001 in the containers
