@@ -1,7 +1,8 @@
 // Package s3blob is the S3 backend of the blob store (docs/reference/architecture.md
 // §8, ADR-011): one bucket, path-style addressing, multipart above 64 MiB,
-// hash verified on write and on read. The client's own retries are off: the
-// job queue is the only retry layer.
+// hash verified on write and on read. Single-part writes are conditional
+// (see Put); multipart writes are not conditional when they are completed.
+// The client's own retries are off: the job queue is the only retry layer.
 //
 // Errors never carry request URLs or S3 error messages, only the operation,
 // the S3 error code and the HTTP status.
@@ -74,18 +75,25 @@ func New(cfg Config) (*Store, error) {
 
 // Put uploads r unless the key already holds a blob that verifies.
 //
-// Writes are conditional, so that a concurrent Put of the same key never
-// replaces or removes an object another Put wrote: a new object is written
-// with If-None-Match: *, a corrupt one is replaced with If-Match on its
-// ETag. If the condition fails, another Put got there first, and the
-// object is checked like an existing one. On a hash mismatch the object
-// this Put wrote is removed only while it still has this upload's ETag.
+// A single-part write (up to PartSize) is conditional, so that a concurrent
+// Put of the same key does not replace an object another Put wrote: a new
+// object is written with If-None-Match: *, a corrupt one is replaced with
+// If-Match on its ETag. If the condition fails (or the object to replace is
+// gone), another Put got there first, and the object is checked like an
+// existing one. A multipart write (above PartSize) is not conditional when
+// it is completed: minio-go v7.4.1 sends the headers only when it creates
+// the upload and drops them for the completion (completeUploadOpts,
+// api-put-object-multipart.go:389-395).
+//
+// On a hash mismatch Put removes the object only if this Put committed it
+// and it still has this upload's ETag when that is checked.
 func (s *Store) Put(ctx context.Context, jobID, sha256 string, size int64, r io.Reader) error {
 	key, err := blob.Key(jobID, sha256)
 	if err != nil {
 		return err
 	}
 	opts := minio.PutObjectOptions{PartSize: PartSize, ContentType: "application/octet-stream"}
+	replace := false
 	info, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
 	switch err = classify("stat", err); {
 	case err == nil:
@@ -93,6 +101,7 @@ func (s *Store) Put(ctx context.Context, jobID, sha256 string, size int64, r io.
 			return nil
 		}
 		opts.SetMatchETag(info.ETag)
+		replace = true
 	case errors.Is(err, blob.ErrNotFound):
 		opts.SetMatchETagExcept("*")
 	default:
@@ -101,7 +110,7 @@ func (s *Store) Put(ctx context.Context, jobID, sha256 string, size int64, r io.
 
 	vr := blob.NewVerifyingReader(r, sha256, size)
 	up, err := s.client.PutObject(ctx, s.bucket, key, vr, size, opts)
-	if conditionFailed(err) {
+	if conditionFailed(err, replace) {
 		// Another Put wrote the key since the stat.
 		if s.intact(ctx, key, sha256) {
 			return nil
@@ -123,8 +132,8 @@ func (s *Store) Put(ctx context.Context, jobID, sha256 string, size int64, r io.
 	return classify("put", err)
 }
 
-// removeOwn removes the object at key if it still has the ETag etag, that
-// is if no other Put has replaced it.
+// removeOwn removes the object at key if it still has the ETag etag when
+// that is checked, that is if no other Put has replaced it by then.
 func (s *Store) removeOwn(ctx context.Context, key, etag string) error {
 	info, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
 	switch err = classify("stat", err); {
@@ -139,12 +148,14 @@ func (s *Store) removeOwn(ctx context.Context, key, etag string) error {
 }
 
 // conditionFailed reports whether a conditional write failed because the
-// object changed: 412 Precondition Failed, or 409 Conflict when a delete
-// finished during the write
+// object changed: 412 Precondition Failed, 409 Conflict when a delete
+// finished during the write, or, for a replace with If-Match, 404 when the
+// object is gone
 // (https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html).
-func conditionFailed(err error) bool {
+func conditionFailed(err error, replace bool) bool {
 	var resp minio.ErrorResponse
-	return errors.As(err, &resp) && (resp.StatusCode == 412 || resp.StatusCode == 409)
+	return errors.As(err, &resp) &&
+		(resp.StatusCode == 412 || resp.StatusCode == 409 || (replace && resp.StatusCode == 404))
 }
 
 // intact reports whether the object at key reads back with hash sha256.

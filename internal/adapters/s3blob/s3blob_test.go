@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -115,17 +116,20 @@ func TestClassifyContext(t *testing.T) {
 
 func TestConditionFailed(t *testing.T) {
 	for _, c := range []struct {
-		err  error
-		want bool
+		err     error
+		replace bool
+		want    bool
 	}{
-		{minio.ErrorResponse{Code: "PreconditionFailed", StatusCode: 412}, true},
-		{minio.ErrorResponse{Code: "Conflict", StatusCode: 409}, true},
-		{minio.ErrorResponse{Code: "AccessDenied", StatusCode: 403}, false},
-		{errors.New("connection refused"), false},
-		{nil, false},
+		{minio.ErrorResponse{Code: "PreconditionFailed", StatusCode: 412}, false, true},
+		{minio.ErrorResponse{Code: "Conflict", StatusCode: 409}, false, true},
+		{minio.ErrorResponse{Code: "NoSuchKey", StatusCode: 404}, true, true},
+		{minio.ErrorResponse{Code: "NoSuchKey", StatusCode: 404}, false, false},
+		{minio.ErrorResponse{Code: "AccessDenied", StatusCode: 403}, true, false},
+		{errors.New("connection refused"), true, false},
+		{nil, true, false},
 	} {
-		if got := conditionFailed(c.err); got != c.want {
-			t.Errorf("conditionFailed(%v) = %v, want %v", c.err, got, c.want)
+		if got := conditionFailed(c.err, c.replace); got != c.want {
+			t.Errorf("conditionFailed(%v, %v) = %v, want %v", c.err, c.replace, got, c.want)
 		}
 	}
 }
@@ -240,5 +244,95 @@ func TestS3RemoveOwn(t *testing.T) {
 	}
 	if err := s.removeOwn(t.Context(), key, up.ETag); err != nil {
 		t.Fatalf("removeOwn of a missing object: %v", err)
+	}
+}
+
+// putHook is an http.RoundTripper that runs before once, just before the
+// first single-part object PUT: after Put's stat, before its write.
+type putHook struct {
+	next   http.RoundTripper
+	before func()
+	done   bool
+}
+
+func (h *putHook) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.Method == http.MethodPut && r.URL.RawQuery == "" && !h.done {
+		h.done = true
+		h.before()
+	}
+	return h.next.RoundTrip(r)
+}
+
+// hooked returns a store on a new bucket whose client runs before between
+// Put's stat and its write.
+func hooked(t *testing.T, newStore func(t *testing.T) blob.Store, before func()) *Store {
+	t.Helper()
+	s := newStore(t).(*Store)
+	u, err := url.Parse(os.Getenv("TEST_S3_ENDPOINT"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.client, err = minio.New(u.Host, &minio.Options{
+		Creds:  credentials.NewStaticV4(os.Getenv("TEST_S3_ACCESS_KEY"), os.Getenv("TEST_S3_SECRET_KEY"), ""),
+		Secure: u.Scheme == "https", Region: "us-east-1", BucketLookup: minio.BucketLookupPath, MaxRetries: 1,
+		Transport: &putHook{next: http.DefaultTransport, before: before},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// Another writer puts the key between Put's stat and its write. The
+// conditional write never replaces what the other writer put: Put verifies
+// that object instead (nil if it is intact, ErrTransient if not, and a retry
+// replaces it). Without the conditional headers the corrupt cases would be
+// overwritten and return nil.
+func TestS3LostRace(t *testing.T) {
+	admin, newStore := minioStores(t)
+	good := bytes.Repeat([]byte("good blob bytes "), 256)
+	sum := sha256.Sum256(good)
+	sha := hex.EncodeToString(sum[:])
+	corruptA, corruptB := []byte("corrupt object A"), []byte("corrupt object B")
+	for _, c := range []struct {
+		name          string
+		before, other []byte // the object before Put (nil: none) and the other writer's
+		wantErr       error  // nil: success
+	}{
+		{"new key, other good", nil, good, nil},
+		{"new key, other corrupt", nil, corruptA, blob.ErrTransient},
+		{"replace, other good", corruptA, good, nil},
+		{"replace, other corrupt", corruptA, corruptB, blob.ErrTransient},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			job := blobtest.NewJobID(t)
+			key, err := blob.Key(job, sha)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var s *Store
+			write := func(b []byte) {
+				if _, err := admin.PutObject(t.Context(), s.bucket, key, bytes.NewReader(b), int64(len(b)),
+					minio.PutObjectOptions{}); err != nil {
+					t.Fatalf("other writer: %v", err)
+				}
+			}
+			s = hooked(t, newStore, func() { write(c.other) })
+			if c.before != nil {
+				write(c.before)
+			}
+			err = s.Put(t.Context(), job, sha, int64(len(good)), bytes.NewReader(good))
+			if (c.wantErr == nil && err != nil) || (c.wantErr != nil && !errors.Is(err, c.wantErr)) {
+				t.Errorf("Put: %v, want %v", err, c.wantErr)
+			}
+			obj, err := admin.GetObject(t.Context(), s.bucket, key, minio.GetObjectOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = obj.Close() }()
+			if got, err := io.ReadAll(obj); err != nil || !bytes.Equal(got, c.other) {
+				t.Errorf("object afterwards: %d bytes, %v; want the other writer's %d bytes", len(got), err, len(c.other))
+			}
+		})
 	}
 }
