@@ -25,7 +25,8 @@ and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is 
   ```
 
 - Optional inputs are switched on per type with `inputs` (a map of input name to boolean; missing means `false`).
-  The only optional input is `slides` (§3.1); `schema_version` `1.1.0` adds the key, and `1.0.0` files stay valid:
+  The only optional input is `slides` (§3.1); `schema_version` `1.1.0` adds the key, and `1.0.0` files stay valid.
+  **Status:** specified, not implemented yet; the current service rejects the `inputs` key and does not start.
 
   ```yaml
   schema_version: "1.1.0"
@@ -36,7 +37,9 @@ and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is 
   ```
 
   An unknown input name, or an input the type's format does not declare (`inputs` in the format's `format.json`,
-  §2), is a configuration error: the service does not start and `check-config` names it.
+  §2), is a configuration error: the service does not start and `check-config` names it. This holds for `true` and
+  `false` alike. `inputs` in a file with `schema_version` `1.0.0` is accepted (minor versions only add keys). For a
+  type whose format is missing, the `inputs` check is skipped; the job is held `unknown_type` as below.
 
 - A type not in the file, or a type whose format is missing → job `held/unknown_type` in `validate`, before any
   provider call (ADR-005). After the operator fixes the file, an admin `release`s the job.
@@ -44,6 +47,8 @@ and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is 
   the exact format.
 
 ## 2. Format `meeting-summary` v1.1.0
+
+**Status:** version 1.1.0 is specified, not implemented yet; the shipped format is 1.0.0, without `inputs`.
 
 `format.json` names the format and the optional inputs it can use:
 `{ "id": "meeting-summary", "version": "1.1.0", "inputs": ["slides"] }`. Version 1.1.0 added the slide input (§3.1);
@@ -85,7 +90,8 @@ Data flow (inputs → LLM → render):
 
 ### 3.1 Slides
 
-Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB presentations".
+**Status:** specified, not implemented yet. The current service does not read slides, and the `inputs` key of §1 is
+rejected. Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB presentations".
 
 **Selection (`normalize`, BBB source).** `normalize` replays the presentation events of `events.xml` in file order:
 
@@ -94,18 +100,26 @@ Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB pres
 2. `SharePresentationEvent` with `share` `true` makes its deck current in its `podId`. The pod shows the deck's
    page: the page last set for that deck by a `GotoSlideEvent`, page 1 if none.
 3. `GotoSlideEvent` sets the page of its `presentationName` deck to `slide + 1` (`slide` is zero-based); if that deck
-   is current in the event's `podId`, the pod now shows that page.
+   is current in the event's `podId`, the pod now shows that page. (BBB's playback applies the event to the current
+   deck without checking `presentationName`; using the named deck keeps a page change of another deck from moving
+   the shown page.)
 4. A pod shows a page from the event that made it current until the next event that changes the pod's deck or page,
-   a `RemovePresentationPodEvent` for the pod, or the end of the last recording period. Each pod is replayed on its
-   own. Other presentation events (annotations, zoom, cursor) do not matter.
-5. A page is **shown** if one of its showing intervals, clipped to a recording period, lasts at least **5 000 ms**.
-   `t_ms` is the start of the first such clipped interval, on the meeting axis (`providers.md` §4.3).
-6. Its text is `presentation/<presentationName>/textfiles/slide-<page>.txt`. The page gives no slide when the file is
-   missing or unreadable, or when its cleaned text is empty or equals BBB's placeholder
+   a `RemovePresentationEvent` for the deck that is current in the pod, a `RemovePresentationPodEvent` for the pod,
+   or the end of the last recording period. After a removal the pod shows nothing until the next
+   `SharePresentationEvent`. Each pod is replayed on its own. Other presentation events (annotations, zoom, cursor)
+   do not matter.
+5. A page is **shown** if one of its showing intervals, clipped to a recording period, lasts at least **5 000 ms**
+   (inclusive; separate shorter intervals are not added up). `t_ms` is the start of the first such clipped interval,
+   on the meeting axis (`providers.md` §4.3); an interval that began before the period starts at the period start.
+6. Its text is `presentation/<presentationName>/textfiles/slide-<page>.txt`. A `presentationName` that does not match
+   BBB's own check `^[a-z0-9-]+$` is never used in a path; its deck gives no slides. The page gives no slide when the
+   file is missing or unreadable, or when its cleaned text is empty or equals BBB's placeholder
    `No text could be retrieved for the slide`.
 7. Cleaning: decode UTF-8 (invalid bytes become U+FFFD); CRLF and CR become LF; every other control character
    (Unicode `Cc`, including tab and form feed) becomes a space; in each line, runs of spaces become one space and the
-   line is trimmed; empty lines are dropped; lines are joined with LF. The cleaned text is stored in full.
+   line is trimmed; empty lines are dropped; lines are joined with LF. Only the first 64 KiB of a file are read, and
+   the cleaned text is stored cut to its first 1 000 Unicode code points (the most the LLM input uses, "Size" item
+   1).
 8. A page shown in several pods or several times appears once, with its earliest `t_ms`.
 
 **Normalized meeting.** Version 4 adds `slides`: `[{t_ms, deck, page, text}]`, sorted by `t_ms`, then `deck`, then
@@ -132,8 +146,8 @@ out, as chat is. The section is fenced like the other sections (`<<<` and `>>>` 
 
 1. Each slide's text is cut to its first 1 000 characters (Unicode code points).
 2. The section data (the blocks joined, without the fence lines) may have at most
-   `L = max(2 000, floor(0.15 × budget × 3))` characters, `budget` being the token budget of that call
-   (`providers.md` §3.5 item 1).
+   `L = max(2 000, floor(0.15 × budget × 3))` characters (Unicode code points, measured before the fence markers are
+   broken up), `budget` being the token budget of that call (`providers.md` §3.5 item 1).
 3. If the blocks are longer than `L`, every block keeps only its first line (the title): `[hh:mm:ss] Slide d-1/2:`
    and the first line of the text. If that is still longer than `L`, slides are dropped from the end of the list
    until it fits.
@@ -303,28 +317,32 @@ transkribierBAR also falls back to the transcription language (`backend/app/rout
 
 ## 8. Contract tests
 
-| ID        | Test                                                                                                                                                                                                                                                                                                     |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CT-TPL-01 | Fixture LLM replies (valid and invalid) validate/fail against `summary.v1` and `chunk-notes.v1`.                                                                                                                                                                                                         |
-| CT-TPL-02 | Golden `summary.md`: fixture transcript + summary JSON → byte-identical, for `en` and `de`, with and without gaps, polls, empty sections.                                                                                                                                                                |
-| CT-TPL-03 | Call plan under/over the budget against a fake LLM; no chat or notes in `extract` calls.                                                                                                                                                                                                                 |
-| CT-TPL-04 | Markdown escaping: `# x`, `[a](b)`, `<script>`, `- [x]`, `\|`, newlines render as literal text.                                                                                                                                                                                                          |
-| CT-TPL-05 | Captured LLM requests contain no BBB user IDs, no email, no per-user poll answers.                                                                                                                                                                                                                       |
-| CT-TPL-06 | Selection: `meeting-summary` → format selected; `no-such-type` (F-04) → `held/unknown_type` before any provider call.                                                                                                                                                                                    |
-| CT-TPL-07 | Manual or optional CI check: golden Markdown through a local y-provider `/convert` at the pinned Docs version gives the expected block types.                                                                                                                                                            |
-| CT-TPL-08 | Golden `transcript.vtt` for F-01 (`fixtures.md` §7): byte-identical.                                                                                                                                                                                                                                     |
-| CT-TPL-09 | WebVTT syntax: a test validator written from §4.1–4.2 of the W3C spec checks header, timing format, end > start, non-decreasing starts, unique IDs, no blank line or `-->` in any cue or NOTE. Runs over every rendered `.vtt`, including adversarial names and text (`&`, `<b>`, `-->`, `>`, newlines). |
-| CT-TPL-10 | WebVTT mapping: pause collapse, pause NOTE, gap NOTE placement (failed-track gap; the M-11 case is not covered yet, `providers.md` §7), zero-length segment → +1 ms, segment crossing a period end → clamped.                                                                                            |
-| CT-TPL-11 | Title and language: title rule of §5.1 incl. the 200-character cut; `transcript.language` `de` → `de` strings; unsupported language → `RECAP_DEFAULT_LANGUAGE`.                                                                                                                                          |
-| CT-TPL-12 | Slide selection (§3.1): `normalize` of F-13 gives the golden `slides[]`: shown pages only (5 s minimum, recording periods), no default deck, no placeholder text, cleaned text; no presentation ID or original file name in the output. F-01 (no `textfiles/`) gives `slides: []`.                       |
-| CT-TPL-13 | Slides in the call plan: switched on → `SLIDES` section in the single call and in `consolidate`, never in `extract`; switched off (no `inputs`, or `slides: false`) → requests byte-identical to the same input without slides.                                                                          |
-| CT-TPL-14 | Slide size cap: per-slide cut at 1 000 characters; titles-only fallback over the section limit; latest slides dropped when titles alone are over it.                                                                                                                                                     |
-| CT-TPL-15 | Slide fencing: adversarial slide text (fence markers, "ignore previous instructions", `# heading`, `[link](x)`) stays inside the `SLIDES` section; no extra fence line appears.                                                                                                                          |
+| ID        | Test                                                                                                                                                                                                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CT-TPL-01 | Fixture LLM replies (valid and invalid) validate/fail against `summary.v1` and `chunk-notes.v1`.                                                                                                                                                                                                                    |
+| CT-TPL-02 | Golden `summary.md`: fixture transcript + summary JSON → byte-identical, for `en` and `de`, with and without gaps, polls, empty sections.                                                                                                                                                                           |
+| CT-TPL-03 | Call plan under/over the budget against a fake LLM; no chat or notes in `extract` calls.                                                                                                                                                                                                                            |
+| CT-TPL-04 | Markdown escaping: `# x`, `[a](b)`, `<script>`, `- [x]`, `\|`, newlines render as literal text.                                                                                                                                                                                                                     |
+| CT-TPL-05 | Captured LLM requests contain no BBB user IDs, no email, no per-user poll answers.                                                                                                                                                                                                                                  |
+| CT-TPL-06 | Selection: `meeting-summary` → format selected; `no-such-type` (F-04) → `held/unknown_type` before any provider call.                                                                                                                                                                                               |
+| CT-TPL-07 | Manual or optional CI check: golden Markdown through a local y-provider `/convert` at the pinned Docs version gives the expected block types.                                                                                                                                                                       |
+| CT-TPL-08 | Golden `transcript.vtt` for F-01 (`fixtures.md` §7): byte-identical.                                                                                                                                                                                                                                                |
+| CT-TPL-09 | WebVTT syntax: a test validator written from §4.1–4.2 of the W3C spec checks header, timing format, end > start, non-decreasing starts, unique IDs, no blank line or `-->` in any cue or NOTE. Runs over every rendered `.vtt`, including adversarial names and text (`&`, `<b>`, `-->`, `>`, newlines).            |
+| CT-TPL-10 | WebVTT mapping: pause collapse, pause NOTE, gap NOTE placement (failed-track gap; the M-11 case is not covered yet, `providers.md` §7), zero-length segment → +1 ms, segment crossing a period end → clamped.                                                                                                       |
+| CT-TPL-11 | Title and language: title rule of §5.1 incl. the 200-character cut; `transcript.language` `de` → `de` strings; unsupported language → `RECAP_DEFAULT_LANGUAGE`.                                                                                                                                                     |
+| CT-TPL-12 | Slide selection (§3.1): `normalize` of F-13 gives the golden `slides[]`: shown pages only (5 s minimum, recording periods, removal ends a showing), no default deck, no placeholder or empty text, cleaned text; no presentation ID or original file name in the output. F-01 (no `textfiles/`) gives `slides: []`. |
+| CT-TPL-13 | Slides in the call plan: switched on → `SLIDES` section in the single call and in `consolidate`, never in `extract`, and the system message carries the slide rule; switched off (no `inputs`, or `slides: false`) → requests byte-identical to the same input without slides.                                      |
+| CT-TPL-14 | Slide size cap: per-slide cut at 1 000 characters; a section under 15 % of the budget but over 2 000 characters arrives in full; titles-only fallback over the section limit; latest slides dropped when titles alone are over it.                                                                                  |
+| CT-TPL-15 | Slide fencing: adversarial slide text (fence markers, "ignore previous instructions", `# heading`, `[link](x)`) stays inside the `SLIDES` section; no extra fence line appears.                                                                                                                                     |
 
 CT-TPL-01, the golden files of CT-TPL-02 and CT-TPL-08, CT-TPL-04, CT-TPL-06 and CT-TPL-09 were written before the
 implementation and are not changed to fit it. CT-TPL-12 to CT-TPL-15 were written before the implementation of §3.1
-and fail until it exists. Format version 1.1.0 (§2) changes the footer of the CT-TPL-02 goldens and the version that
-CT-TPL-06 expects; that golden change comes as its own change with the implementation (`fixtures.md` §7).
+and fail until it exists. Format version 1.1.0 (§2) changes protected goldens: the footer `meeting-summary 1.0.0` of
+`testdata/render/F-01/summary.md`, `F-01/summary.de.md`, `gap/summary.md` and `gap/summary.de.md` (and
+`FORMAT_VERSION` in `testdata/render/make_goldens.py`, which writes them), and the version CT-TPL-06 expects
+(`contracts/render/summarize_test.go:373-374`). That golden change is a dedicated fixture change (`fixtures.md` §7):
+its own commit, made by the golden script and not by the code under test, which comes first in the pull request that
+implements §3.1 and is reviewed on its own.
 
 ## 9. Later: admin-defined templates (not supported yet)
 
@@ -339,8 +357,10 @@ escaping by the engine; no user prompt text.
 - Admin-defined templates are not supported; the template engine and where templates are stored are not chosen yet.
 - There is no per-meeting prompt text from users.
 - Slides (§3.1): the `textfiles/` layout is known from BBB's code only; a real BBB 4.0 recording has not been
-  checked. Image-only slides give no text. How BBB 4.0 records several presentation pods was not checked against a real
-  recording.
+  checked. Image-only slides give no text. How BBB 4.0 records several presentation pods, what the client shows after
+  a presentation is removed, and whether BBB deletes the removed deck's `textfiles/` were not checked against a real
+  recording. A default presentation configured under another file name than `default.pdf`
+  (`beans.presentationService.defaultUploadedPresentation`) is not recognized and is treated as a normal deck.
 - The poll event fields were checked against one real recording only.
 - Raw HTML, images and block content in table cells are avoided because how Docs converts them was not checked
   (`sinks.md` §2.2).

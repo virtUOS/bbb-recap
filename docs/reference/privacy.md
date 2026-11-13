@@ -63,7 +63,7 @@ flowchart LR
 
 The transcript (`transcript.vtt`) is **not** sent anywhere yet. There is no service email and no SMTP edge.
 
-Slides on edge D (ADR-015) are off by default; switching them on for a meeting type is the operator's decision. Then
+Slides on edge D (ADR-015) are specified but not implemented yet. They are off by default; switching them on for a meeting type is the operator's decision. Then
 only the cleaned text of pages shown for at least 5 s during recording is sent, capped in size. Never sent: slide
 images, pages that were not shown, the default deck, presentation IDs and original file names. Slide text can hold
 personal data (names on title pages, participant lists, figures).
@@ -177,7 +177,8 @@ invalid-job-state`. In one transaction it deletes the job's rows (J1: `jobs`, `s
 
 README "Logging" applies. In addition, for service, exporter and hook:
 
-1. Never at any level: content, titles, names, emails, OIDC `sub`, keys, tokens, `Authorization` headers.
+1. Never at any level: content (including slide text), titles, presentation file names, names, emails, OIDC `sub`,
+   keys, tokens, `Authorization` headers.
 2. DEBUG may add HTTP method, path, status, allow-listed headers and body **lengths**. Never bodies.
 3. Upstream error bodies are reduced to an allow-listed code before logging or storing.
 4. Stack traces must not contain payloads. Admin content views go to J4, not the log.

@@ -47,7 +47,7 @@ type `meeting-summary`, sink profile `docs-main` (`https://docs.recap.test`), pr
 | F-10 | `livekit-no-mic`      | opted in, no published microphone (no `audio/` dir: git cannot store empty dirs) | exporter `failed/no_microphone_tracks`                                                          |
 | F-11 | `optin-false`         | `recap-enabled=false`                                                            | as F-05                                                                                         |
 | F-12 | `no-marks`            | opted in, `record=true`, no `RecordStatusEvent`                                  | hook WARN `no_marks`, no spool entry (`bbb-exporter.md` §3.3)                                   |
-| F-13 | `slides`              | F-01's periods and audio plus three decks with `textfiles/` (§3.2)               | `normalize` gives the golden `slides[]` (`templates.md` §3.1); job `delivered`                  |
+| F-13 | `slides`              | F-01's periods and audio plus five decks with `textfiles/` (§3.2)                | `normalize` gives the golden `slides[]` (`templates.md` §3.1); job `delivered`                  |
 
 ### 3.1 F-01 `two-speakers-pause`
 
@@ -94,25 +94,29 @@ Deltas from F-01:
 ### 3.2 F-13 `slides`
 
 F-01's participants, recording periods (5 000–60 000, 90 000–150 000) and microphone files (byte-identical copies),
-without chat, poll and notes, plus three decks in the default pod. Offsets in ms from the epoch base:
+without chat, poll and notes, plus five decks in the default pod. Offsets in ms from the epoch base:
 
-| Offset            | Event                                                                        | Expected (`templates.md` §3.1)          |
-| ----------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
-| 300–302           | default deck (`originalFilename` `default.pdf`) converted, shared, page 1    | shown 5 000–12 000 (7 s), but skipped   |
-| 2 000 / 2 500     | `ConversionCompletedEvent` for a 4-page deck and an image deck (not current) | original file names never leave         |
-| 12 000            | image deck shared (2 s)                                                      | no slide (placeholder text)             |
-| 14 000            | 4-page deck shared, page 1 until 30 000                                      | slide `d-1`/1, `t_ms` 9 000             |
-| 30 000            | page 2 until 45 000                                                          | slide `d-1`/2, `t_ms` 25 000            |
-| 45 000 / 46 000   | page 3 for 1 s, back to page 2                                               | page 3 under the 5 s minimum            |
-| 70 000 / 80 000   | page 3 during the pause, back to page 2                                      | page 3 still not shown                  |
-| 100 000           | image deck shared again (20 s)                                               | no slide (placeholder text)             |
-| 120 000           | 4-page deck shared again: back on page 2 for exactly 5 s                     | already listed                          |
-| 125 000 / 135 000 | page 4 (placeholder text) for 10 s, then page 1 again                        | no slide for page 4; page 1 listed once |
+| Offset                      | Event                                                                                    | Expected (`templates.md` §3.1)                |
+| --------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 300–302                     | default deck (`originalFilename` `default.pdf`) converted, shared, page 1                | shown 5 000–12 000 (7 s), but skipped         |
+| 2 000–3 500                 | `ConversionCompletedEvent` for a 4-page deck, an image deck, a second and a removed deck | original file names never leave               |
+| 12 000                      | image deck shared (2 s)                                                                  | no slide (placeholder text)                   |
+| 14 000                      | 4-page deck shared, page 1 until 30 000                                                  | slide `d-1`/1, `t_ms` 9 000                   |
+| 30 000                      | page 2 until 45 000                                                                      | slide `d-1`/2, `t_ms` 25 000                  |
+| 45 000 / 46 000             | page 3 for 1 s, back to page 2                                                           | page 3 under the 5 s minimum                  |
+| 50 000 / 52 000             | removed deck shared, `RemovePresentationEvent` after 2 s                                 | no slide (would be 10 s without the removal)  |
+| 70 000–80 000               | 4-page deck shared again in the pause, page 3, then page 2                               | nothing counts in a pause                     |
+| 85 000                      | second deck shared, page 1 until 96 000, across the start of period 2                    | slide `d-2`/1, `t_ms` 85 000 (period start)   |
+| 96 000                      | second deck page 2 for 4 999 ms                                                          | under the minimum                             |
+| 100 999                     | image deck shared again (until 120 000)                                                  | no slide (placeholder text)                   |
+| 120 000                     | 4-page deck shared again: back on page 2 for exactly 5 s                                 | already listed                                |
+| 125 000 / 135 000 / 139 000 | page 4 (empty text file) for 10 s, page 3 for 4 s, then page 1 again                     | no slide for 4; 1 s + 4 s of page 3 not added |
 
 Page texts are synthetic, shaped like `pdftotext -layout` output; page 2 also has CRLF, a tab and layout spacing for
-the cleaning rules. Golden: `testdata/meetings/F-13/expected/slides.json`, written by hand in the generator from this
-table. F-13 has no package golden (`manifest.json`); its slide behaviour is tested at raw-directory level with
-`recap tool normalize`.
+the cleaning rules. Deck refs count only decks with slides, so the second deck is `d-2` although the image and the
+removed deck were shared before it. Golden: `testdata/meetings/F-13/expected/slides.json`, written by hand in the
+generator from this table. F-13 has no package golden (`manifest.json`); its slide behaviour is tested at
+raw-directory level with `recap tool normalize`.
 
 ## 4. Synthetic audio
 
@@ -180,7 +184,8 @@ versions recorded in `testdata/generator/manifest.txt`, and only with eSpeak voi
 (f2, f3, f5 vary per run).
 
 Goldens are protected: they change only in a dedicated fixture change that says why, never together with the code
-they test. They are made by hand or by a script independent of the code under test.
+they test. A dedicated fixture change is its own commit; it may sit in the pull request of the code that needs it,
+before that code, and is reviewed on its own. They are made by hand or by a script independent of the code under test.
 
 ### 7.1 `transcript.vtt` golden for F-01 (by hand from §3.1 and `templates.md` §6; ends with one LF)
 
