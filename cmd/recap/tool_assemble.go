@@ -19,7 +19,7 @@ import (
 type assembleToolInput struct {
 	JobID      string              `json:"job_id"`
 	CreatedAt  string              `json:"created_at"`
-	Normalized *meeting.Meeting    `json:"normalized"`
+	Normalized json.RawMessage     `json:"normalized"`
 	ASR        []assemble.TrackASR `json:"asr"`
 }
 
@@ -69,12 +69,17 @@ func toolAssemble(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: stdin: want one JSON object with job_id, created_at, normalized and asr\n", prog)
 		return exitUsage
 	}
+	m, err := meeting.Decode(in.Normalized)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: normalized: %v\n", prog, err)
+		return exitUsage
+	}
 	created, err := time.Parse(time.RFC3339Nano, in.CreatedAt)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: created_at: want an RFC 3339 time\n", prog)
 		return exitUsage
 	}
-	out, err := assemble.Assemble(assemble.Input{JobID: in.JobID, CreatedAt: created, Meeting: in.Normalized,
+	out, err := assemble.Assemble(assemble.Input{JobID: in.JobID, CreatedAt: created, Meeting: m,
 		ASR: in.ASR})
 	if err != nil {
 		// Assemble errors name refs and counts, never content; schema
@@ -87,7 +92,7 @@ func toolAssemble(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: %s\n", prog, msg)
 		return exitFailure
 	}
-	log.Debug("assembled", "tracks", len(in.Normalized.Tracks), "asr_outcomes", len(in.ASR), "bytes", len(out))
+	log.Debug("assembled", "tracks", len(m.Tracks), "asr_outcomes", len(in.ASR), "bytes", len(out))
 	_, _ = stdout.Write(out)
 	return exitOK
 }

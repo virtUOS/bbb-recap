@@ -98,6 +98,9 @@ func Handler(d Deps) queue.Handler {
 		case errors.Is(err, errStored):
 			d.Log.Error("render: stored output unreadable", "job_id", run.JobID)
 			return internalError("stored_output_unreadable")
+		case errors.Is(err, meeting.ErrVersion):
+			d.Log.Error("render: unsupported normalized meeting version", "job_id", run.JobID)
+			return internalError("meeting_version")
 		case err != nil:
 			code := errorCode(err)
 			d.Log.Warn("render: cannot load the job", "job_id", run.JobID, "err", code)
@@ -189,9 +192,16 @@ func (d Deps) load(ctx context.Context, jobID string) (*job, error) {
 	if err != nil {
 		return nil, errFormat
 	}
-	var m meeting.Meeting
-	if err := d.readJSON(ctx, jobID, nout.NormalizedSHA256, &m); err != nil {
+	data, err := d.read(ctx, jobID, nout.NormalizedSHA256)
+	if err != nil {
 		return nil, err
+	}
+	m, err := meeting.Decode(data)
+	if errors.Is(err, meeting.ErrVersion) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, errStored
 	}
 	var tr assemble.Transcript
 	if err := d.readJSON(ctx, jobID, aout.TranscriptSHA256, &tr); err != nil {
@@ -209,13 +219,18 @@ func (d Deps) load(ctx context.Context, jobID string) (*job, error) {
 	return j, nil
 }
 
-func (d Deps) readJSON(ctx context.Context, jobID, key string, v any) error {
+// read reads a blob of the job.
+func (d Deps) read(ctx context.Context, jobID, key string) ([]byte, error) {
 	rc, err := d.Blobs.Get(ctx, jobID, key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = rc.Close() }()
-	b, err := io.ReadAll(rc)
+	return io.ReadAll(rc)
+}
+
+func (d Deps) readJSON(ctx context.Context, jobID, key string, v any) error {
+	b, err := d.read(ctx, jobID, key)
 	if err != nil {
 		return err
 	}

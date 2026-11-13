@@ -64,7 +64,7 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store, lang string, noSpe
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := meeting.Meeting{MeetingName: "Fixture Widget Meeting", Polls: []meeting.Poll{{
+	m := meeting.Meeting{Version: meeting.Version, MeetingName: "Fixture Widget Meeting", Polls: []meeting.Poll{{
 		Question: "Blue or green?", Options: []meeting.PollOption{{Text: "Blue", Votes: 2}, {Text: "Green"}},
 	}}}
 	mb, _ := json.Marshal(m)
