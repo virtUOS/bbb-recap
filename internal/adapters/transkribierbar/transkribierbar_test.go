@@ -135,7 +135,9 @@ func (f *fake) serve(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(s.body, &s.transcribeRaw); err != nil {
 			f.t.Errorf("transcribe body: %v", err)
 		}
+		f.mu.Lock()
 		rep = f.transcribe
+		f.mu.Unlock()
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/status/"):
 		f.mu.Lock()
 		rep = f.statuses[0]
@@ -514,5 +516,115 @@ func TestMaxFileBytes(t *testing.T) {
 	if c.Async || c.WordTimestamps || c.WordConfidence || c.Diarization || *c.MaxFileBytes != 1<<30 ||
 		len(c.MediaTypes) != 1 || c.MediaTypes[0] != "audio/webm" || c.RemoteRetention != "until_cleanup" {
 		t.Errorf("capabilities %+v", c)
+	}
+}
+
+// setTranscribe changes the reply of POST /api/transcribe between requests.
+func (f *fake) setTranscribe(r reply) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.transcribe = r
+}
+
+// startFileIDs lists the file_id of every POST /api/transcribe.
+func (f *fake) startFileIDs() []any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []any
+	for _, s := range f.seen {
+		if s.path == "/api/transcribe" {
+			out = append(out, s.transcribeRaw["file_id"])
+		}
+	}
+	return out
+}
+
+// When the start fails with a class the queue retries, the next attempt
+// starts the transcription on the file already uploaded; Cleanup of the
+// completed transcription then deletes that file too (§2a.4).
+func TestRetryReusesUpload(t *testing.T) {
+	f := newFake(t)
+	f.transcribe = reply{503, nil, `{"detail":"CANARY"}`}
+	a := adapter(t, f.server(), nil)
+	req := request()
+	req.Audio.SHA256 = strings.Repeat("a", 64)
+	var e *providers.Error
+	if _, err := run(t, a, req); !errors.As(err, &e) || e.Class != providers.Retryable {
+		t.Fatalf("first attempt: %v", err)
+	}
+	f.setTranscribe(reply{200, nil, `{"id":"tr-1","status":"pending"}`})
+	req.IdempotencyKey = "0190f5a0-0000-7000-8000-000000000001:trk-3:3"
+	if _, err := run(t, a, req); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	want := []string{"POST /api/upload", "POST /api/transcribe", "POST /api/transcribe", "GET /api/status/tr-1",
+		"GET /api/status/tr-1", "GET /api/status/tr-1", "GET /api/transcription/tr-1", "DELETE /api/transcription/tr-1"}
+	if got := f.calls(); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("calls\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if ids := f.startFileIDs(); len(ids) != 2 || ids[0] != "file-1" || ids[1] != "file-1" {
+		t.Errorf("file IDs %v", ids)
+	}
+	if len(a.uploads) != 0 {
+		t.Errorf("uploads kept after success: %v", a.uploads)
+	}
+}
+
+// A kept file the instance no longer has (404) is uploaded again within
+// the same attempt.
+func TestRetryUploadsAgainWhenFileGone(t *testing.T) {
+	f := newFake(t)
+	f.transcribe = reply{500, nil, ""}
+	a := adapter(t, f.server(), nil)
+	if _, err := run(t, a, request()); err == nil {
+		t.Fatal("first attempt succeeded")
+	}
+	f.setTranscribe(reply{404, nil, `{"detail":"File not found"}`})
+	h, _ := a.Submit(context.Background(), request())
+	if got := f.calls(); len(got) != 5 || got[2] != "POST /api/transcribe" || got[3] != "POST /api/upload" ||
+		got[4] != "POST /api/transcribe" {
+		t.Errorf("calls %v", got)
+	}
+	// The second start on a fresh upload answers 404 too: that is a
+	// configuration error, and the file is not kept.
+	var e *providers.Error
+	if err := h.(*handle).err; !errors.As(err, &e) || e.Class != providers.PermanentConfig || e.Code != "http_404" {
+		t.Errorf("error %+v", err)
+	}
+	if len(a.uploads) != 0 {
+		t.Errorf("uploads kept: %v", a.uploads)
+	}
+}
+
+// A file is not kept after a start error the queue does not retry, nor
+// reused for other audio or after keepUploadFor.
+func TestUploadNotReused(t *testing.T) {
+	f := newFake(t)
+	f.transcribe = reply{422, nil, `{"detail":"Could not prepare the audio for transcription."}`}
+	a := adapter(t, f.server(), nil)
+	if _, err := run(t, a, request()); err == nil {
+		t.Fatal("422 succeeded")
+	}
+	if len(a.uploads) != 0 {
+		t.Errorf("kept after permanent_input: %v", a.uploads)
+	}
+
+	f.setTranscribe(reply{500, nil, ""})
+	_, _ = run(t, a, request())
+	other := request()
+	other.Audio.SHA256 = strings.Repeat("b", 64)
+	if id := a.takeUpload(other); id != "" {
+		t.Errorf("reused for other audio: %q", id)
+	}
+
+	_, _ = run(t, a, request())
+	a.mu.Lock()
+	for k, u := range a.uploads {
+		u.at = time.Now().Add(-keepUploadFor - time.Minute)
+		a.uploads[k] = u
+	}
+	a.mu.Unlock()
+	if id := a.takeUpload(request()); id != "" {
+		t.Errorf("reused after keepUploadFor: %q", id)
 	}
 }

@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/virtUOS/bbb-recap/internal/adapters/whisperx"
@@ -41,6 +42,10 @@ const (
 	cleanupTimeout   = whisperx.ConnectTimeout
 	maxResponseBytes = 64 << 20 // assumption: far above any result of one track
 	maxErrorBytes    = 64 << 10 // an error body is read only to select a code
+	// keepUploadFor bounds how long the file ID of an upload whose
+	// transcription could not be started is kept for a retry (assumption:
+	// far longer than the queue's retry backoff).
+	keepUploadFor = 24 * time.Hour
 )
 
 var languageRE = regexp.MustCompile(`^[a-z]{2,3}$`)
@@ -52,6 +57,20 @@ type Adapter struct {
 	log     *slog.Logger
 	// interval is the poll interval; tests shorten it.
 	interval time.Duration
+
+	// uploads holds, per job and track, the file of an upload whose
+	// transcription could not be started, so that the retry in this
+	// process starts it on the same file instead of uploading the track
+	// again. transkribierBAR cannot delete a file on its own (§2a.4).
+	mu      sync.Mutex
+	uploads map[string]upload
+}
+
+// upload is a file on the instance that no transcription refers to yet.
+type upload struct {
+	fileID string
+	sha256 string
+	at     time.Time
 }
 
 // New returns the adapter for an ASR profile with dialect transkribierbar.
@@ -68,6 +87,7 @@ func New(p *providers.Profile, log *slog.Logger) *Adapter {
 		},
 		log:      log,
 		interval: PollInterval,
+		uploads:  map[string]upload{},
 	}
 }
 
@@ -126,42 +146,30 @@ func (a *Adapter) Submit(ctx context.Context, req providers.AsrRequest) (provide
 }
 
 // submit does steps 1–3 and records the IDs in h as soon as they exist. It
-// returns the HTTP status of the last request.
+// returns the HTTP status of the last request. A file kept from an earlier
+// attempt whose start failed is used instead of a new upload; if the
+// instance no longer has it (404), the track is uploaded again.
 func (a *Adapter) submit(ctx context.Context, req providers.AsrRequest, h *handle) (int, *providers.Error) {
-	audio, err := req.Audio.Open(ctx)
-	if err != nil {
-		return 0, &providers.Error{Class: providers.Retryable, Code: "audio_unavailable"}
-	}
-	form, contentType := multipartForm(req, audio)
-	defer func() { _ = form.Close() }()
-	var up struct {
-		ID string `json:"id"`
-	}
-	status, perr := a.call(ctx, h, http.MethodPost, "/api/upload", contentType, form, false, &up)
-	if perr != nil {
+	h.fileID = a.takeUpload(req)
+	reused := h.fileID != ""
+	if reused {
+		a.log.Debug("asr: reusing the uploaded file", "job_id", req.JobID, "track_ref", req.TrackRef)
+	} else if status, perr := a.upload(ctx, req, h); perr != nil {
 		return status, perr
 	}
-	if up.ID == "" {
-		return status, &providers.Error{Class: providers.InvalidResponse, Code: "no_file_id"}
+	status, perr := a.start(ctx, req, h)
+	if perr != nil && reused && perr.Code == "http_404" {
+		if status, perr = a.upload(ctx, req, h); perr != nil {
+			return status, perr
+		}
+		status, perr = a.start(ctx, req, h)
 	}
-	h.fileID = up.ID
-
-	start := map[string]string{"file_id": h.fileID, "model": a.profile.Model}
-	if req.LanguageHint != "" {
-		start["language"] = req.LanguageHint
-	}
-	body, _ := json.Marshal(start) // a map of strings always marshals
-	var tr struct {
-		ID string `json:"id"`
-	}
-	status, perr = a.call(ctx, h, http.MethodPost, "/api/transcribe", "application/json", bytes.NewReader(body), true, &tr)
 	if perr != nil {
+		if perr.Class == providers.Retryable || perr.Class == providers.InvalidResponse {
+			a.keepUpload(req, h.fileID) // the queue retries the track
+		}
 		return status, perr
 	}
-	if tr.ID == "" {
-		return status, &providers.Error{Class: providers.InvalidResponse, Code: "no_transcription_id"}
-	}
-	h.transcriptionID = tr.ID
 
 	timer := time.NewTimer(0)
 	defer timer.Stop()
@@ -190,6 +198,82 @@ func (a *Adapter) submit(ctx context.Context, req providers.AsrRequest, h *handl
 			return status, &providers.Error{Class: providers.InvalidResponse, Code: "unknown_status"}
 		}
 	}
+}
+
+// upload does step 1 and records the file ID in h.
+func (a *Adapter) upload(ctx context.Context, req providers.AsrRequest, h *handle) (int, *providers.Error) {
+	h.fileID = ""
+	audio, err := req.Audio.Open(ctx)
+	if err != nil {
+		return 0, &providers.Error{Class: providers.Retryable, Code: "audio_unavailable"}
+	}
+	form, contentType := multipartForm(req, audio)
+	defer func() { _ = form.Close() }()
+	var up struct {
+		ID string `json:"id"`
+	}
+	status, perr := a.call(ctx, h, http.MethodPost, "/api/upload", contentType, form, false, &up)
+	if perr != nil {
+		return status, perr
+	}
+	if up.ID == "" {
+		return status, &providers.Error{Class: providers.InvalidResponse, Code: "no_file_id"}
+	}
+	h.fileID = up.ID
+	return status, nil
+}
+
+// start does step 2 on h.fileID and records the transcription ID in h.
+func (a *Adapter) start(ctx context.Context, req providers.AsrRequest, h *handle) (int, *providers.Error) {
+	start := map[string]string{"file_id": h.fileID, "model": a.profile.Model}
+	if req.LanguageHint != "" {
+		start["language"] = req.LanguageHint
+	}
+	body, _ := json.Marshal(start) // a map of strings always marshals
+	var tr struct {
+		ID string `json:"id"`
+	}
+	status, perr := a.call(ctx, h, http.MethodPost, "/api/transcribe", "application/json", bytes.NewReader(body), true, &tr)
+	if perr != nil {
+		return status, perr
+	}
+	if tr.ID == "" {
+		return status, &providers.Error{Class: providers.InvalidResponse, Code: "no_transcription_id"}
+	}
+	h.transcriptionID = tr.ID
+	return status, nil
+}
+
+// uploadKey identifies a track's upload across attempts.
+func uploadKey(req providers.AsrRequest) string { return req.JobID + "/" + req.TrackRef }
+
+// takeUpload returns and forgets the file kept for the track, or "" if
+// there is none for the same audio.
+func (a *Adapter) takeUpload(req providers.AsrRequest) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	u, ok := a.uploads[uploadKey(req)]
+	delete(a.uploads, uploadKey(req))
+	if !ok || u.sha256 != req.Audio.SHA256 || time.Since(u.at) > keepUploadFor {
+		return ""
+	}
+	return u.fileID
+}
+
+// keepUpload keeps the file of a track whose transcription could not be
+// started, and forgets files kept longer than keepUploadFor.
+func (a *Adapter) keepUpload(req providers.AsrRequest, fileID string) {
+	if fileID == "" {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for k, u := range a.uploads {
+		if time.Since(u.at) > keepUploadFor {
+			delete(a.uploads, k)
+		}
+	}
+	a.uploads[uploadKey(req)] = upload{fileID: fileID, sha256: req.Audio.SHA256, at: time.Now()}
 }
 
 // Status makes no network call: the transcription is over when Submit
@@ -226,7 +310,7 @@ func (a *Adapter) Result(ctx context.Context, ah providers.AsrHandle) (*provider
 }
 
 // Cleanup deletes the transcription and its uploaded file (§2a.4). Without
-// a transcription ID there is nothing it can delete (providers.md §7). 404 counts as
+// a transcription ID there is nothing it can delete (§2a.4). 404 counts as
 // done. It runs also after the caller's context is cancelled, so that a
 // cancelled job leaves nothing behind, bounded by cleanupTimeout.
 func (a *Adapter) Cleanup(ctx context.Context, ah providers.AsrHandle) error {
