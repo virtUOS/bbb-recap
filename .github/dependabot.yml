@@ -1,0 +1,60 @@
+# Weekly version updates, at most 5 open pull requests per ecosystem. Minor and
+# patch updates merge themselves once CI is green
+# (workflows/dependabot-auto-merge.yml, docs/operations/release.md).
+#
+# Cooldown: a new release waits 14 days before Dependabot proposes it. Go modules
+# support per-SemVer cooldowns (minor and major 14 days, patch the default 3);
+# docker, docker-compose and github-actions only support default-days, so all
+# their updates wait 14 days. Security updates ignore the cooldown.
+version: 2
+updates:
+  # Go modules in go.mod (the go directive stays manual).
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 14
+    open-pull-requests-limit: 5
+    groups:
+      # Majors stay separate pull requests for a human to review.
+      go-modules:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # Base images in deploy/images/*.Containerfile (Dependabot matches
+  # "containerfile" in file names).
+  - package-ecosystem: docker
+    directory: "/deploy/images"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 5
+
+  # Pinned images in the operator's and the dev compose files. Images set from
+  # an environment variable (recap, recap-exporter, recap-mock) are skipped.
+  - package-ecosystem: docker-compose
+    directories:
+      - "/deploy"
+      - "/tools/dev"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 5
+
+  # Actions in .github/workflows, pinned by commit SHA with a version comment;
+  # Dependabot updates both.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]

@@ -1,0 +1,36 @@
+# Auto-merge for Dependabot pull requests with SemVer minor or patch updates.
+# Major updates wait for a human.
+#
+# `gh pr merge --auto` only queues the merge; GitHub merges once the required
+# status checks pass. This needs "Allow auto-merge" and branch protection on main
+# with the ci jobs as required checks (docs/operations/release.md). Without
+# required checks the pull request would merge at once.
+name: dependabot-auto-merge
+
+on: pull_request
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-24.04
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'virtUOS/bbb-recap'
+    permissions:
+      # gh pr merge --auto needs both.
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for minor and patch updates
+        if: >-
+          steps.meta.outputs.update-type == 'version-update:semver-minor' ||
+          steps.meta.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
