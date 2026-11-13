@@ -211,10 +211,6 @@ func TestTimeoutAndLimits(t *testing.T) {
 	if _, err := run(t, a, request()); !errors.As(err, &e) || e.Class != providers.PermanentInput || len(*got) != 0 {
 		t.Errorf("max_file_bytes: %v, %d requests", err, len(*got))
 	}
-
-	if AttemptTimeout(9000) != 600*time.Second || AttemptTimeout(3_600_000) != 1800*time.Second {
-		t.Error("AttemptTimeout does not follow max(600 s, 0.5 × duration)")
-	}
 }
 
 // The file part carries the request's media type and a matching file
@@ -275,15 +271,5 @@ func TestHandleWithoutNetwork(t *testing.T) {
 	}
 	if len(*got) != 1 {
 		t.Errorf("%d requests, want 1", len(*got))
-	}
-}
-
-func TestRetryAfterHTTPDate(t *testing.T) {
-	d := retryAfter(time.Now().Add(90 * time.Second).UTC().Format(http.TimeFormat))
-	if d < 85*time.Second || d > 91*time.Second {
-		t.Errorf("retryAfter(date) = %v", d)
-	}
-	if retryAfter("soon") != 0 || retryAfter("") != 0 {
-		t.Error("invalid Retry-After must give 0")
 	}
 }

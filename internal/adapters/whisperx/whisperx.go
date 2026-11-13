@@ -16,12 +16,10 @@ import (
 	"maps"
 	"math"
 	"mime/multipart"
-	"net"
 	"net/http"
 	"net/textproto"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,12 +29,8 @@ import (
 // Dialect is the dialect name in provider profiles.
 const Dialect = "whisperx-family"
 
-// Constants of providers.md §1.5.
 const (
-	ConnectTimeout     = 30 * time.Second
-	MinAttemptTimeout  = 600 * time.Second
-	MinTimeoutRetry    = 150 * time.Second // the request may still run on the GPU
-	maxResponseBytes   = 64 << 20          // assumption: far above any verbose_json of one track
+	maxResponseBytes   = 64 << 20 // assumption: far above any verbose_json of one track
 	transcriptionsPath = "/v1/audio/transcriptions"
 )
 
@@ -49,11 +43,6 @@ var fileExtensions = map[string]string{
 	"audio/webm": ".webm",
 }
 
-// AttemptTimeout is max(600 s, 0.5 × duration) (§1.5).
-func AttemptTimeout(durationMS int64) time.Duration {
-	return max(MinAttemptTimeout, time.Duration(durationMS)*time.Millisecond/2)
-}
-
 // Adapter talks to one whisperx-family profile.
 type Adapter struct {
 	profile *providers.Profile
@@ -63,18 +52,7 @@ type Adapter struct {
 
 // New returns the adapter for an ASR profile with dialect whisperx-family.
 func New(p *providers.Profile, log *slog.Logger) *Adapter {
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.DialContext = (&net.Dialer{Timeout: ConnectTimeout, KeepAlive: 30 * time.Second}).DialContext
-	tr.TLSHandshakeTimeout = ConnectTimeout
-	return &Adapter{
-		profile: p,
-		client: &http.Client{
-			Transport: tr,
-			// A redirect is answered as it is; it is a configuration problem.
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
-		log: log,
-	}
+	return &Adapter{profile: p, client: providers.NewHTTPClient(), log: log}
 }
 
 // Capabilities of the dialect (§2.4). The profile's max_file_bytes overrides
@@ -150,7 +128,7 @@ func (a *Adapter) send(ctx context.Context, req providers.AsrRequest) ([]byte, i
 	}
 	timeout := req.AttemptTimeout
 	if timeout <= 0 {
-		timeout = AttemptTimeout(req.DurationMS)
+		timeout = providers.AsrAttemptTimeout(req.DurationMS)
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -177,9 +155,9 @@ func (a *Adapter) send(ctx context.Context, req providers.AsrRequest) ([]byte, i
 	resp, err := a.client.Do(hr)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, 0, &providers.Error{Class: providers.Retryable, Code: "timeout", RetryAfter: MinTimeoutRetry}
+			return nil, 0, &providers.Error{Class: providers.Retryable, Code: "timeout", RetryAfter: providers.AsrTimeoutRetry}
 		}
-		return nil, 0, &providers.Error{Class: providers.Retryable, Code: transportCode(err)}
+		return nil, 0, &providers.Error{Class: providers.Retryable, Code: providers.TransportCode(err)}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -187,12 +165,12 @@ func (a *Adapter) send(ctx context.Context, req providers.AsrRequest) ([]byte, i
 		// The error body only selects a code; it is never read into memory,
 		// logged or stored (§1.4, privacy.md §6).
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
-		return nil, resp.StatusCode, statusError(resp)
+		return nil, resp.StatusCode, providers.AsrStatusError(resp)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return nil, resp.StatusCode, &providers.Error{Class: providers.Retryable, Code: "timeout", RetryAfter: MinTimeoutRetry}
+		return nil, resp.StatusCode, &providers.Error{Class: providers.Retryable, Code: "timeout", RetryAfter: providers.AsrTimeoutRetry}
 	case err != nil:
 		return nil, resp.StatusCode, &providers.Error{Class: providers.Retryable, Code: "connection_lost"}
 	case len(b) > maxResponseBytes:
@@ -245,59 +223,6 @@ func writeForm(mw *multipart.Writer, req providers.AsrRequest, model string, aud
 		return fmt.Errorf("audio has %d bytes, want %d", n, req.Audio.Size)
 	}
 	return mw.Close()
-}
-
-// statusError maps an HTTP status to an error class (§1.4).
-func statusError(resp *http.Response) *providers.Error {
-	code := "http_" + strconv.Itoa(resp.StatusCode)
-	switch resp.StatusCode {
-	case 408, 429, 500, 502, 503, 504:
-		return &providers.Error{Class: providers.Retryable, Code: code, RetryAfter: retryAfter(resp.Header.Get("Retry-After"))}
-	case 400, 413, 415, 422:
-		return &providers.Error{Class: providers.PermanentInput, Code: code}
-	case 401, 403, 404:
-		return &providers.Error{Class: providers.PermanentConfig, Code: code}
-	}
-	// Not in §1.4: other 5xx are treated as temporary, anything else
-	// (redirects, other 4xx) as a configuration problem (assumption).
-	if resp.StatusCode >= 500 {
-		return &providers.Error{Class: providers.Retryable, Code: code}
-	}
-	return &providers.Error{Class: providers.PermanentConfig, Code: code}
-}
-
-// retryAfter parses Retry-After (delta-seconds or HTTP date), capped at
-// providers.MaxRetryAfter. Absent or invalid: 0.
-func retryAfter(v string) time.Duration {
-	if v == "" {
-		return 0
-	}
-	var d time.Duration
-	if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {
-		if n > int64(providers.MaxRetryAfter/time.Second) {
-			return providers.MaxRetryAfter
-		}
-		d = time.Duration(n) * time.Second
-	} else if t, err := http.ParseTime(v); err == nil {
-		d = max(time.Until(t), 0).Round(time.Second)
-	}
-	return min(d, providers.MaxRetryAfter)
-}
-
-// transportCode names a transport failure without its message (which may
-// contain the URL).
-func transportCode(err error) string {
-	var opErr *net.OpError
-	var dnsErr *net.DNSError
-	switch {
-	case errors.As(err, &dnsErr):
-		return "dns"
-	case strings.Contains(err.Error(), "tls:") || strings.Contains(err.Error(), "x509:"):
-		return "tls"
-	case errors.As(err, &opErr) && opErr.Op == "dial":
-		return "connect"
-	}
-	return "transport"
 }
 
 // parse maps a verbose_json reply to an AsrResult (§2.3). model is the
