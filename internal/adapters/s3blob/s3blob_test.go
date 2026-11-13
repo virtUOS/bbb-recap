@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -109,6 +113,23 @@ func TestClassifyContext(t *testing.T) {
 	}
 }
 
+func TestConditionFailed(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want bool
+	}{
+		{minio.ErrorResponse{Code: "PreconditionFailed", StatusCode: 412}, true},
+		{minio.ErrorResponse{Code: "Conflict", StatusCode: 409}, true},
+		{minio.ErrorResponse{Code: "AccessDenied", StatusCode: 403}, false},
+		{errors.New("connection refused"), false},
+		{nil, false},
+	} {
+		if got := conditionFailed(c.err); got != c.want {
+			t.Errorf("conditionFailed(%v) = %v, want %v", c.err, got, c.want)
+		}
+	}
+}
+
 func TestClassify(t *testing.T) {
 	cases := []struct {
 		err  error
@@ -131,5 +152,93 @@ func TestClassify(t *testing.T) {
 		if msg := got.Error(); bytes.Contains([]byte(msg), []byte("SECRET")) || bytes.Contains([]byte(msg), []byte("raw body")) {
 			t.Errorf("classify leaks URL or message: %q", msg)
 		}
+	}
+}
+
+// gatedReader returns data, but before its first byte it signals reached
+// and waits for release.
+type gatedReader struct {
+	r        io.Reader
+	reached  chan struct{}
+	release  chan struct{}
+	signaled bool
+}
+
+func (g *gatedReader) Read(p []byte) (int, error) {
+	if !g.signaled {
+		g.signaled = true
+		close(g.reached)
+		<-g.release
+	}
+	return g.r.Read(p)
+}
+
+// Two concurrent Puts of the same key, one with bytes that do not match
+// the hash: the bad Put never removes or replaces the object the good one
+// wrote. The bad Put has seen no object and holds its upload open while the
+// good one runs; on MinIO the conditional write makes the good Put wait
+// for it.
+func TestS3ConcurrentPut(t *testing.T) {
+	_, newStore := minioStores(t)
+	s := newStore(t)
+	job := blobtest.NewJobID(t)
+	good := bytes.Repeat([]byte("good blob bytes "), 256)
+	bad := bytes.Repeat([]byte("BAD! blob bytes "), 256)
+	sum := sha256.Sum256(good)
+	sha := hex.EncodeToString(sum[:])
+
+	g := &gatedReader{r: bytes.NewReader(bad), reached: make(chan struct{}), release: make(chan struct{})}
+	badDone := make(chan error, 1)
+	go func() { badDone <- s.Put(t.Context(), job, sha, int64(len(good)), g) }()
+	select {
+	case <-g.reached:
+	case err := <-badDone:
+		t.Fatalf("bad Put ended before sending its body: %v", err)
+	}
+	goodDone := make(chan error, 1)
+	go func() { goodDone <- s.Put(t.Context(), job, sha, int64(len(good)), bytes.NewReader(good)) }()
+	time.Sleep(200 * time.Millisecond) // without conditional writes the good Put is done by now
+	close(g.release)
+
+	if err := <-badDone; !errors.Is(err, blob.ErrHashMismatch) {
+		t.Errorf("bad Put: %v, want ErrHashMismatch", err)
+	}
+	if err := <-goodDone; err != nil {
+		t.Fatalf("good Put: %v", err)
+	}
+	rc, err := s.Get(t.Context(), job, sha)
+	if err != nil {
+		t.Fatalf("Get after both Puts: %v", err)
+	}
+	defer func() { _ = rc.Close() }()
+	if got, err := io.ReadAll(rc); err != nil || !bytes.Equal(got, good) {
+		t.Fatalf("Get after both Puts: %d bytes, %v", len(got), err)
+	}
+}
+
+// removeOwn removes an object only while it has the given ETag, so a bad
+// upload never removes an object another Put wrote over it.
+func TestS3RemoveOwn(t *testing.T) {
+	admin, newStore := minioStores(t)
+	s := newStore(t).(*Store)
+	key := "jobs/" + blobtest.NewJobID(t) + "/sha256/" + strings.Repeat("0", 64)
+	up, err := admin.PutObject(t.Context(), s.bucket, key, strings.NewReader("other"), 5, minio.PutObjectOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.removeOwn(t.Context(), key, `"not-this-etag"`); err != nil {
+		t.Fatalf("removeOwn other ETag: %v", err)
+	}
+	if _, err := admin.StatObject(t.Context(), s.bucket, key, minio.StatObjectOptions{}); err != nil {
+		t.Fatalf("object removed with another ETag: %v", err)
+	}
+	if err := s.removeOwn(t.Context(), key, up.ETag); err != nil {
+		t.Fatalf("removeOwn: %v", err)
+	}
+	if _, err := admin.StatObject(t.Context(), s.bucket, key, minio.StatObjectOptions{}); err == nil {
+		t.Fatal("object still there after removeOwn with its ETag")
+	}
+	if err := s.removeOwn(t.Context(), key, up.ETag); err != nil {
+		t.Fatalf("removeOwn of a missing object: %v", err)
 	}
 }

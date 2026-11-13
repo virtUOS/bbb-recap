@@ -250,11 +250,17 @@ ADR-011. The interface lives in the domain package; vendor SDKs are imported onl
 code.
 
 - **Operations:** `Put(job_id, sha256, size, stream)` hashes while streaming (mismatch → delete, `ErrHashMismatch`;
-  existing key → verify, succeed). `Get(key)` **verifies the hash on read**. `Copy` (server-side, for `rerun`),
+  existing key → verify, succeed). A concurrent `Put` of the same key never removes or replaces an object another
+  `Put` wrote correctly. `Get(key)` **verifies the hash on read**. `Copy` (server-side, for `rerun`),
   `DeletePrefix(job_id)` (missing = success), `ListJobs` (orphan search). Errors: not found, hash mismatch, transient.
 - **Keys:** `jobs/<job_id>/sha256/<hex>`. A blob's role lives in the DB, never in the key. The `frontend` sink's summary uses `results/<job_id>/summary.md` (ADR-014); the orphan sweep (3) covers `jobs/` only.
 - **S3:** one bucket, path-style addressing, multipart above 64 MiB. Read-side verification is mandatory (see Known
-  limitations for `x-amz-checksum-sha256`). **Filesystem:** same layout under `RECAP_FS_ROOT`;
+  limitations for `x-amz-checksum-sha256`). Writes are conditional: a new key with `If-None-Match: *`, a corrupt object
+  is replaced with `If-Match` on its ETag
+  ([AWS S3 conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html); MinIO
+  honours both, tested with the dev MinIO). If the condition fails, the object another `Put` wrote is verified instead.
+  After a mismatch, `Put` removes the object only while it still has the ETag of its own upload. A server that ignores
+  the conditional headers gets plain writes. **Filesystem:** same layout under `RECAP_FS_ROOT`;
   temp file, fsync, rename; the compose default (one host, one shared volume), not for Kubernetes (ADR-011).
 - **Cleanup loop:** one loop in every worker, hourly, every delete guarded so parallel runs are safe. It removes
   (1) staging idle longer than `RECAP_INGEST_STAGING_TTL`; (2) unmatched registrations past `RECAP_REGISTRATION_TTL`

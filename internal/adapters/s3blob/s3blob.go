@@ -72,39 +72,79 @@ func New(cfg Config) (*Store, error) {
 	return &Store{client: client, bucket: cfg.Bucket}, nil
 }
 
-// Put uploads r unless the key already holds a blob that verifies. On a
-// mismatch the object is deleted.
+// Put uploads r unless the key already holds a blob that verifies.
+//
+// Writes are conditional, so that a concurrent Put of the same key never
+// replaces or removes an object another Put wrote: a new object is written
+// with If-None-Match: *, a corrupt one is replaced with If-Match on its
+// ETag. If the condition fails, another Put got there first, and the
+// object is checked like an existing one. On a hash mismatch the object
+// this Put wrote is removed only while it still has this upload's ETag.
 func (s *Store) Put(ctx context.Context, jobID, sha256 string, size int64, r io.Reader) error {
 	key, err := blob.Key(jobID, sha256)
 	if err != nil {
 		return err
 	}
-	_, err = s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
+	opts := minio.PutObjectOptions{PartSize: PartSize, ContentType: "application/octet-stream"}
+	info, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
 	switch err = classify("stat", err); {
 	case err == nil:
 		if s.intact(ctx, key, sha256) {
 			return nil
 		}
-	case !errors.Is(err, blob.ErrNotFound):
+		opts.SetMatchETag(info.ETag)
+	case errors.Is(err, blob.ErrNotFound):
+		opts.SetMatchETagExcept("*")
+	default:
 		return err
 	}
 
 	vr := blob.NewVerifyingReader(r, sha256, size)
-	_, err = s.client.PutObject(ctx, s.bucket, key, vr, size, minio.PutObjectOptions{
-		PartSize:    PartSize,
-		ContentType: "application/octet-stream",
-	})
+	up, err := s.client.PutObject(ctx, s.bucket, key, vr, size, opts)
+	if conditionFailed(err) {
+		// Another Put wrote the key since the stat.
+		if s.intact(ctx, key, sha256) {
+			return nil
+		}
+		return fmt.Errorf("%w: s3 put: the object changed during the upload", blob.ErrTransient)
+	}
 	if err == nil {
 		// The upload may stop after size bytes; check the end of the stream.
 		err = vr.Finish()
 	}
 	if vr.Mismatch() {
-		if rmErr := s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{}); rmErr != nil {
-			return fmt.Errorf("%w (removing the object failed: %w)", blob.ErrHashMismatch, classify("delete", rmErr))
+		if up.ETag != "" {
+			if rmErr := s.removeOwn(ctx, key, up.ETag); rmErr != nil {
+				return fmt.Errorf("%w (removing the object failed: %w)", blob.ErrHashMismatch, rmErr)
+			}
 		}
 		return fmt.Errorf("s3 put: %w", blob.ErrHashMismatch)
 	}
 	return classify("put", err)
+}
+
+// removeOwn removes the object at key if it still has the ETag etag, that
+// is if no other Put has replaced it.
+func (s *Store) removeOwn(ctx context.Context, key, etag string) error {
+	info, err := s.client.StatObject(ctx, s.bucket, key, minio.StatObjectOptions{})
+	switch err = classify("stat", err); {
+	case errors.Is(err, blob.ErrNotFound):
+		return nil
+	case err != nil:
+		return err
+	case info.ETag != etag:
+		return nil
+	}
+	return classify("delete", s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{}))
+}
+
+// conditionFailed reports whether a conditional write failed because the
+// object changed: 412 Precondition Failed, or 409 Conflict when a delete
+// finished during the write
+// (https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html).
+func conditionFailed(err error) bool {
+	var resp minio.ErrorResponse
+	return errors.As(err, &resp) && (resp.StatusCode == 412 || resp.StatusCode == 409)
 }
 
 // intact reports whether the object at key reads back with hash sha256.
