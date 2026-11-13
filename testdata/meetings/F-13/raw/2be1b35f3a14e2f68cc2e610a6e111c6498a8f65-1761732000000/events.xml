@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC fixture F-13 (docs/reference/fixtures.md). Not a real meeting; all names are fictional. -->
+<recording meeting_id="2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000" bbb_version="4.0.0">
+  <meeting id="2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000" externalId="fixture-meeting-13" name="Fixture Widget Meeting" breakout="false"/>
+  <metadata bbb-origin="PILOS" isBreakout="false" meetingId="fixture-meeting-13" meetingName="Fixture Widget Meeting" recap-enabled="true" recap-sink="docs-main" recap-type="meeting-summary" recap-v="1"/>
+  <event timestamp="5000000" module="PARTICIPANT" eventname="ParticipantJoinEvent">
+    <timestampUTC>1761732000000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <externalUserId>u1</externalUserId>
+    <name>Ada Testperson</name>
+    <role>MODERATOR</role>
+    <date>2025-10-29T10:00:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5000300" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732000300</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>63722595a1cc1c53c4861329496a0c51b23f5164-1761732000300</presentationName>
+    <originalFilename>default.pdf</originalFilename>
+    <date>2025-10-29T10:00:00.300Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5000301" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732000301</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>63722595a1cc1c53c4861329496a0c51b23f5164-1761732000300</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:00.301Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5000302" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732000302</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>63722595a1cc1c53c4861329496a0c51b23f5164-1761732000300</presentationName>
+    <id>63722595a1cc1c53c4861329496a0c51b23f5164-1761732000300/1</id>
+    <slide>0</slide>
+    <date>2025-10-29T10:00:00.302Z</date>
+  </event>
+  <event timestamp="5001000" module="PARTICIPANT" eventname="ParticipantJoinEvent">
+    <timestampUTC>1761732001000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <externalUserId>u2</externalUserId>
+    <name>Ben Testperson</name>
+    <role>VIEWER</role>
+    <date>2025-10-29T10:00:01.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5002000" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732002000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <originalFilename>Fixture Plan Original Name.pdf</originalFilename>
+    <date>2025-10-29T10:00:02.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5002500" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732002500</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>9d3775b9b9959dea6604df34e9cd55aa7ff39928-1761732002500</presentationName>
+    <originalFilename>fixture-original-photo-name.png</originalFilename>
+    <date>2025-10-29T10:00:02.500Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5003000" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732003000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000</presentationName>
+    <originalFilename>fixture-second-deck-original-name.pdf</originalFilename>
+    <date>2025-10-29T10:00:03.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5003500" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732003500</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>79a489143e23d160892b88ab0bf6da8923829019-1761732003500</presentationName>
+    <originalFilename>fixture-removed-deck-original-name.pdf</originalFilename>
+    <date>2025-10-29T10:00:03.500Z</date>
+  </event>
+  <event timestamp="5005000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732005000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>true</status>
+    <date>2025-10-29T10:00:05.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5005200" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732005200</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000/microphone-w_fixada0001-TR_fixA1-1761732005200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5005300" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732005300</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000/microphone-w_fixben0002-TR_fixB1-1761732005300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5012000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732012000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>9d3775b9b9959dea6604df34e9cd55aa7ff39928-1761732002500</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:12.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5014000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732014000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:14.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5014001" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732014001</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/1</id>
+    <slide>0</slide>
+    <date>2025-10-29T10:00:14.001Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5030000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732030000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/2</id>
+    <slide>1</slide>
+    <date>2025-10-29T10:00:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5045000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732045000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/3</id>
+    <slide>2</slide>
+    <date>2025-10-29T10:00:45.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5046000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732046000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/2</id>
+    <slide>1</slide>
+    <date>2025-10-29T10:00:46.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5050000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732050000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>79a489143e23d160892b88ab0bf6da8923829019-1761732003500</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:50.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5052000" module="PRESENTATION" eventname="RemovePresentationEvent">
+    <timestampUTC>1761732052000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>79a489143e23d160892b88ab0bf6da8923829019-1761732003500</presentationName>
+    <date>2025-10-29T10:00:52.000Z</date>
+  </event>
+  <event timestamp="5060000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732060000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>false</status>
+    <date>2025-10-29T10:01:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5060000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732060000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000/microphone-w_fixada0001-TR_fixA1-1761732005200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5060000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732060000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000/microphone-w_fixben0002-TR_fixB1-1761732005300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5070000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732070000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:01:10.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5070001" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732070001</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/3</id>
+    <slide>2</slide>
+    <date>2025-10-29T10:01:10.001Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5080000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732080000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/2</id>
+    <slide>1</slide>
+    <date>2025-10-29T10:01:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5085000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732085000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:01:25.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5085001" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732085001</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000</presentationName>
+    <id>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000/1</id>
+    <slide>0</slide>
+    <date>2025-10-29T10:01:25.001Z</date>
+  </event>
+  <event timestamp="5090000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732090000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>true</status>
+    <date>2025-10-29T10:01:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5090200" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732090200</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000/microphone-w_fixada0001-TR_fixA2-1761732090200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5090300" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732090300</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000/microphone-w_fixben0002-TR_fixB2-1761732090300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5096000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732096000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000</presentationName>
+    <id>3254062101ec3d7c114ed0b82d782b3127b20d9d-1761732003000/2</id>
+    <slide>1</slide>
+    <date>2025-10-29T10:01:36.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5100999" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732100999</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>9d3775b9b9959dea6604df34e9cd55aa7ff39928-1761732002500</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:01:40.999Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5120000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732120000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:02:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5125000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732125000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/4</id>
+    <slide>3</slide>
+    <date>2025-10-29T10:02:05.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5135000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732135000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/3</id>
+    <slide>2</slide>
+    <date>2025-10-29T10:02:15.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5139000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732139000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>d6221ab79041b73f59b824134769374587d179d9-1761732002000</presentationName>
+    <id>d6221ab79041b73f59b824134769374587d179d9-1761732002000/1</id>
+    <slide>0</slide>
+    <date>2025-10-29T10:02:19.000Z</date>
+  </event>
+  <event timestamp="5150000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732150000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>false</status>
+    <date>2025-10-29T10:02:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5150000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732150000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000/microphone-w_fixada0001-TR_fixA2-1761732090200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5150000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732150000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/2be1b35f3a14e2f68cc2e610a6e111c6498a8f65-1761732000000/microphone-w_fixben0002-TR_fixB2-1761732090300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <event timestamp="5155000" module="PARTICIPANT" eventname="ParticipantLeftEvent">
+    <timestampUTC>1761732155000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <date>2025-10-29T10:02:35.000Z</date>
+  </event>
+  <event timestamp="5155000" module="PARTICIPANT" eventname="ParticipantLeftEvent">
+    <timestampUTC>1761732155000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <date>2025-10-29T10:02:35.000Z</date>
+  </event>
+</recording>

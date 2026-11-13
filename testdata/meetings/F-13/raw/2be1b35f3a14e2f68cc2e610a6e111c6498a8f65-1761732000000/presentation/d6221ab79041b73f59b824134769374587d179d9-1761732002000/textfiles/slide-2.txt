@@ -1,0 +1,6 @@
+Widget budget
+
+   Item          Amount
+   Blue paint    120 EUR (fixture figure)
+	Total		  120 EUR
+

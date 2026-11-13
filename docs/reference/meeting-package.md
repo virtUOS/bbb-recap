@@ -38,8 +38,10 @@ Sources:
   (`bigbluebutton/bbb-webrtc-recorder`, `internal/webrtc/recorder/webm.go:24,136 @ 3d581ad`).
 - Notes: `notes/notes.<fmt>`, default `html` and `pdf`; `notes/export_failed` marks a failed export
   (`archive.rb:48-83`, `bigbluebutton.yml:10-15 @ 7d27e7e`).
-- `presentation/` is an rsync of `/var/bigbluebutton/<id>/<id>` (`archive.rb:247`). It is treated as an opaque
-  subtree.
+- `presentation/` is an rsync of `/var/bigbluebutton/<id>/<id>` (`archive.rb:247`). Validation and the manifest treat
+  it as an opaque subtree. Only `normalize` looks inside, for the per-page text files
+  `presentation/<pres-id>/textfiles/slide-<page>.txt` that BBB writes at upload
+  ([`upstream-facts.md`](upstream-facts.md) "BBB presentations", [`templates.md`](templates.md) §3.1).
 
 ## 3. Tar (not supported yet)
 
@@ -174,8 +176,8 @@ A re-export of an ingested record is refused (V-I06); new output comes from an a
 - If a LiveKit server can also write a VOICE `StartRecordingEvent`, V-S03 would reject a valid recording. Not
   observed so far.
 - Not checked against the BBB source: the channel count of the microphone WebM files, the exact rendering of
-  `AudioTrackPublishedEvent`, the encoding of `<meeting breakout>`, the layout of `presentation/`, and the
-  `events.xml` attributes used by V-S01.
+  `AudioTrackPublishedEvent`, the encoding of `<meeting breakout>`, and the `events.xml` attributes used by V-S01.
+- The layout of `presentation/` (including `textfiles/`) is known from BBB's code, not from a real BBB 4.0 recording.
 - The size limits (§8) are assumptions; realistic package and `presentation/` sizes were not measured.
 - Whether `notes/` attributes text to authors was not checked.
 - The package has no signature. A pull API would need one.
