@@ -207,8 +207,11 @@ and rename: `routers/upload.py:20,105,121,139`). A file whose transcription coul
 reused: when step 2 fails with `retryable` or `invalid_response`, the adapter keeps the file ID in memory for 24 h,
 per job, track and audio SHA-256, and the track's next attempt in the same worker process starts the transcription on
 that file instead of uploading it again. If the instance answers 404 for the kept file
-(`routers/transcription.py:53`), the track is uploaded again. Once the transcription exists, `Cleanup` deletes it with
-the file. Otherwise transkribierBAR's own expiry removes the file: `expires_at` is set at upload to
+(`routers/transcription.py:53`), the track is uploaded again. Once the transcription exists, `Cleanup` deletes it,
+and with it the file unless another transcription still refers to the file (`routers/transcription.py:461-469`). That
+happens when a start timed out on our side but succeeded on the instance: the retry starts a second transcription on
+the kept file, the first one is unknown to the adapter, and the file stays after `Cleanup`. Otherwise
+transkribierBAR's own expiry removes the file: `expires_at` is set at upload to
 `DEFAULT_EXPIRY_HOURS` later (default 72 h; `routers/upload.py:79`, `config.py:102`), and an hourly task deletes
 expired files that no pending or processing transcription uses (`main.py:150-163`). See Known limitations.
 
