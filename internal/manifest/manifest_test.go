@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/virtUOS/bbb-recap/internal/jcs"
 )
 
 const (
@@ -41,7 +43,7 @@ func mutate(t *testing.T, fn func(m map[string]any)) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := Canonicalize(raw)
+	b, err := jcs.Canonicalize(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

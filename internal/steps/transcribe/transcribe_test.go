@@ -261,7 +261,7 @@ func (e *env) job(t *testing.T, unreadable ...int) (string, *meeting.Meeting) {
 		if e.mutate != nil {
 			e.mutate(&m)
 		}
-		if data, err = normalize.Marshal(&m); err != nil {
+		if data, err = meeting.Marshal(&m); err != nil {
 			t.Fatal(err)
 		}
 		sum := sha256Hex(data)

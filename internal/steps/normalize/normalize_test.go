@@ -91,7 +91,7 @@ func normalizeDir(t *testing.T, dir string) (*meeting.Meeting, []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := Marshal(m)
+	b, err := meeting.Marshal(m)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +337,7 @@ func TestRole(t *testing.T) {
 // span is a source diagnostic: it is left out of the JSON when empty.
 func TestSpanOmittedWhenEmpty(t *testing.T) {
 	m := &meeting.Meeting{Tracks: []meeting.Track{{Path: "a.webm"}}}
-	b, err := Marshal(m)
+	b, err := meeting.Marshal(m)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +345,7 @@ func TestSpanOmittedWhenEmpty(t *testing.T) {
 		t.Errorf("empty span in JSON: %s", b)
 	}
 	m.Tracks[0].Span = meeting.SpanEvents
-	if b, _ = Marshal(m); !bytes.Contains(b, []byte(`"span":"events"`)) {
+	if b, _ = meeting.Marshal(m); !bytes.Contains(b, []byte(`"span":"events"`)) {
 		t.Errorf("span missing: %s", b)
 	}
 }

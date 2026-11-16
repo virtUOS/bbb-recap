@@ -57,7 +57,7 @@ func (d Deps) run(ctx context.Context, jobID string) (meeting.Output, error) {
 	if err != nil {
 		return meeting.Output{}, err
 	}
-	data, err := Marshal(m)
+	data, err := meeting.Marshal(m)
 	if err != nil {
 		return meeting.Output{}, err
 	}

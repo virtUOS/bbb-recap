@@ -16,8 +16,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,20 +23,13 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
+	"github.com/virtUOS/bbb-recap/internal/llmplan"
 	"github.com/virtUOS/bbb-recap/internal/metrics"
 	"github.com/virtUOS/bbb-recap/internal/providers"
 )
 
 // Dialect is the dialect name in provider profiles.
 const Dialect = "openai-chat"
-
-// Constants of providers.md §1.5.
-const (
-	ConnectTimeout = 30 * time.Second
-	RequestTimeout = 600 * time.Second
-	RepairAttempts = 2
-	CharsPerToken  = 3.0
-)
 
 const (
 	completionsPath  = "/chat/completions"
@@ -69,19 +60,8 @@ type Adapter struct {
 
 // New returns the adapter for an LLM profile with dialect openai-chat.
 func New(p *providers.Profile, log *slog.Logger) *Adapter {
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.DialContext = (&net.Dialer{Timeout: ConnectTimeout, KeepAlive: 30 * time.Second}).DialContext
-	tr.TLSHandshakeTimeout = ConnectTimeout
 	metrics.InitExternal(p.Name, metrics.KindLLM, Outcomes...)
-	return &Adapter{
-		profile: p,
-		client: &http.Client{
-			Transport: tr,
-			// A redirect is answered as it is; it is a configuration problem.
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
-		log: log,
-	}
+	return &Adapter{profile: p, client: providers.NewHTTPClient(), log: log}
 }
 
 // SchemaInstruction is the text the adapter appends to the system message
@@ -89,8 +69,8 @@ func New(p *providers.Profile, log *slog.Logger) *Adapter {
 const SchemaInstruction = "\n\nReply with one JSON value only, no other text. " +
 	"It must validate against this JSON Schema:\n"
 
-// Complete runs one call (§3.1), with up to RepairAttempts JSON repair calls
-// (§3.4).
+// Complete runs one call (§3.1), with up to providers.RepairAttempts JSON
+// repair calls (§3.4).
 func (a *Adapter) Complete(ctx context.Context, req providers.LlmRequest) (*providers.LlmResponse, error) {
 	var schema *jsonschema.Schema
 	jsonOut := req.Output.Type == providers.OutputJSON
@@ -125,7 +105,7 @@ func (a *Adapter) Complete(ctx context.Context, req providers.LlmRequest) (*prov
 		metrics.ExternalRequest(a.profile.Name, metrics.KindLLM, string(providers.InvalidResponse))
 		a.log.Info("llm reply rejected", "call_ref", req.CallRef, "profile", a.profile.Name, "repair", repair,
 			"problem", logged)
-		if repair == RepairAttempts {
+		if repair == providers.RepairAttempts {
 			return nil, &providers.Error{Class: providers.InvalidResponse, Code: "repair_exhausted"}
 		}
 		// The original messages, then the previous reply and a fixed
@@ -222,7 +202,7 @@ func (a *Adapter) send(ctx context.Context, req providers.LlmRequest, messages [
 	if err != nil {
 		return nil, 0, &providers.Error{Class: providers.PermanentConfig, Code: "bad_request_body"}
 	}
-	ctx, cancel := context.WithTimeout(ctx, RequestTimeout)
+	ctx, cancel := context.WithTimeout(ctx, providers.LlmRequestTimeout)
 	defer cancel()
 	hr, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		strings.TrimSuffix(a.profile.BaseURL, "/")+completionsPath, bytes.NewReader(body))
@@ -240,7 +220,7 @@ func (a *Adapter) send(ctx context.Context, req providers.LlmRequest, messages [
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, 0, &providers.Error{Class: providers.Retryable, Code: "timeout"}
 		}
-		return nil, 0, &providers.Error{Class: providers.Retryable, Code: transportCode(err)}
+		return nil, 0, &providers.Error{Class: providers.Retryable, Code: providers.TransportCode(err)}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -302,23 +282,7 @@ func EstimateTokens(messages []providers.Message) int {
 	for _, m := range messages {
 		n += len([]rune(m.Content))
 	}
-	return int(math.Ceil(float64(n) / CharsPerToken))
-}
-
-// transportCode names a transport failure without its message (which may
-// contain the URL).
-func transportCode(err error) string {
-	var opErr *net.OpError
-	var dnsErr *net.DNSError
-	switch {
-	case errors.As(err, &dnsErr):
-		return "dns"
-	case strings.Contains(err.Error(), "tls:") || strings.Contains(err.Error(), "x509:"):
-		return "tls"
-	case errors.As(err, &opErr) && opErr.Op == "dial":
-		return "connect"
-	}
-	return "transport"
+	return llmplan.Tokens(n)
 }
 
 // check strips one surrounding code fence, parses the content and validates
