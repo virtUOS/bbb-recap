@@ -86,6 +86,9 @@ As root on the BBB server (`sudo -i`):
    archived it, `cd /opt/recap-exporter && docker compose exec exporter /usr/local/bin/recap-exporter status` shows
    the recording as `acked`.
 
+Optional: the BBB plugin adds an "AI summary" button that starts and pauses the recording
+([install-plugin.md](install-plugin.md)).
+
 ## Reference
 
 | Path on the host                           | Owner, mode                         | Content                                                                                        |

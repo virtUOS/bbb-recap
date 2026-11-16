@@ -14,13 +14,14 @@ make hook-test    # Ruby hook tests (local ruby, else podman)
 make images       # podman images localhost/recap:dev, recap-exporter, recap-mock
 tools/e2e/m1.sh   # end-to-end with deploy/compose.yaml, the dev overlay tools/dev/ and mocks (after make images)
 tools/e2e/m2.sh   # end-to-end including hook and exporter
+cd plugin && npm ci && npm run lint && npm run typecheck && npm test && npm run build   # BBB plugin, dist/
 ```
 
-CI (`.github/workflows/ci.yaml`) runs lint, the prettier check, test, images and the hook tests.
+CI (`.github/workflows/ci.yaml`) runs lint, the prettier check, test, images, the plugin checks and the hook tests.
 
 ## Layout
 
-`cmd/` binaries, `internal/` code, `hook/` BBB hook (Ruby), `formats/` output formats, `contracts/` contract tests,
+`cmd/` binaries, `internal/` code, `hook/` BBB hook (Ruby), `plugin/` BBB plugin (TypeScript, npm), `formats/` output formats, `contracts/` contract tests,
 `testdata/` fixtures and goldens, `deploy/` images and the operator's compose files and config examples, `tools/` generators, the dev compose overlay
 (`tools/dev/`) and test scripts, `docs/`.
 

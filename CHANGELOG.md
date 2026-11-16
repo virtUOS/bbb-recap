@@ -26,6 +26,8 @@ First release.
   provider data declarations.
 - Prometheus metrics and health endpoints; docker compose deployment with optional Caddy TLS; filesystem and S3 blob
   backends; images on ghcr.io, built with Go 1.27.
+- BBB plugin (`plugin/`) with an "AI summary" button next to the recording indicator that starts and pauses the
+  recording, for users who may record and only in meetings with `meta_recap-enabled=true`; English and German.
 
 ### Changed
 

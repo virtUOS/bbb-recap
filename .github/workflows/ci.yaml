@@ -1,5 +1,5 @@
-# CI: lint, prettier check, unit tests against Postgres, build and the post_archive hook tests
-# for every push and pull request. Publishes nothing (image.yaml does).
+# CI: lint, prettier check, unit tests against Postgres, build, the BBB plugin and the post_archive
+# hook tests for every push and pull request. Publishes nothing (image.yaml does).
 name: ci
 
 on:
@@ -92,6 +92,26 @@ jobs:
       - name: Pull base image
         run: podman pull "$(awk '/^FROM .* AS certs/ { print $2; exit }' deploy/images/recap.Containerfile)"
       - run: make images
+
+  plugin:
+    # The BBB plugin in plugin/: lint (eslint, prettier), typecheck, unit tests and the build.
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: plugin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Same as the fmt job.
+          node-version: "26"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
 
   hook-test:
     # The hook runs on BBB servers: Ruby 3.2 (BBB) and the current Ruby line,
