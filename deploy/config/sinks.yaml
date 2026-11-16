@@ -24,10 +24,6 @@ sinks:
       location: on_prem
       retention: "Document owned by the user in Docs; Docs retention policy"
       deletion: manual
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: "REPLACE: role of the person who checked this"
-      reviewed_at: "2026-11-12"
   # The front end that registered the meeting fetches the summary itself.
   # No URL and no key; needs RECAP_RESULT_TTL above 0.
   - name: frontend-main
@@ -39,10 +35,6 @@ sinks:
       location: on_prem
       retention: "Until the front end fetches it, at most RECAP_RESULT_TTL after delivery"
       deletion: "ttl:7d" # keep equal to RECAP_RESULT_TTL
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: "REPLACE: role of the person who checked this"
-      reviewed_at: "2026-11-12"
   # Signed webhook (Standard Webhooks) to a fixed URL, e.g. an LMS. Sends the
   # title and the links of the other sinks; content: summary also sends the
   # text. The declaration is required for this type.
@@ -60,10 +52,6 @@ sinks:
   #     location: on_prem
   #     retention: "REPLACE: the receiver's retention"
   #     deletion: manual
-  #     used_for_training: "no"
-  #     contract_ref: none
-  #     reviewed_by: "REPLACE: role of the person who checked this"
-  #     reviewed_at: "2026-11-13"
   # Matrix: a bot account posts a short notice (title and links, never the
   # summary) to the room the room owner chose (meta_recap-matrix-room). It
   # posts to any room it is in or invited to: keep it out of rooms that must
@@ -81,7 +69,3 @@ sinks:
   #     location: on_prem
   #     retention: "Room history; every member of the room can read the post"
   #     deletion: manual
-  #     used_for_training: "no"
-  #     contract_ref: none
-  #     reviewed_by: "REPLACE: role of the person who checked this"
-  #     reviewed_at: "2026-11-13"

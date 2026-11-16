@@ -310,10 +310,6 @@ profiles:
         location: on_prem, # optional,
         retention: "No persistence; RESULT_STORE__ENABLED=false",
         deletion: manual, # see privacy.md
-        used_for_training: "no",
-        contract_ref: none,
-        reviewed_by: fixture-reviewer,
-        reviewed_at: "2026-10-29",
       }
   - name: vllm-lab
     kind: llm
@@ -333,10 +329,6 @@ profiles:
         location: on_prem,
         retention: "No request logging (operator to confirm)",
         deletion: none,
-        used_for_training: "no",
-        contract_ref: none,
-        reviewed_by: fixture-reviewer,
-        reviewed_at: "2026-10-29",
       }
 ```
 

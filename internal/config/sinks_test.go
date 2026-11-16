@@ -121,8 +121,6 @@ func TestLoadSinksBadKeys(t *testing.T) {
 		{"operator", "-", "sinks[0].declaration.operator: required"},
 		{"location", "mars", "sinks[0].declaration.location"},
 		{"deletion", "-", "sinks[0].declaration.deletion: required"},
-		{"used_for_training", "maybe", "sinks[0].declaration.used_for_training"},
-		{"reviewed_at", "yesterday", "sinks[0].declaration.reviewed_at"},
 		{"data_categories", "[]", "sinks[0].declaration.data_categories"},
 	} {
 		t.Run(c.key+"="+c.value, func(t *testing.T) {
@@ -134,6 +132,14 @@ func TestLoadSinksBadKeys(t *testing.T) {
 				t.Error("error contains the key")
 			}
 		})
+	}
+}
+
+// A key outside the fields of privacy.md §7 is refused, naming the key.
+func TestLoadSinksDeclarationUnknownKey(t *testing.T) {
+	_, err := LoadSinks(sinksFixture(t, "deletion", "manual\n      fixture_unknown: x"))
+	if err == nil || !strings.Contains(err.Error(), "fixture_unknown") {
+		t.Errorf("err = %v, want an error naming the key", err)
 	}
 }
 
@@ -171,12 +177,10 @@ func TestLogSinkWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sinks[0].Declaration.UsedForTraining = "yes"
 	var buf bytes.Buffer
 	LogSinkWarnings(slog.New(slog.NewJSONHandler(&buf, nil)), sinks)
 	out := buf.String()
-	if strings.Count(out, `"level":"WARN"`) != 2 || !strings.Contains(out, "third-country") ||
-		!strings.Contains(out, "training") {
+	if strings.Count(out, `"level":"WARN"`) != 1 || !strings.Contains(out, "third-country") {
 		t.Errorf("warnings: %s", out)
 	}
 	buf.Reset()

@@ -16,7 +16,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -50,21 +49,16 @@ var (
 	commonKeys      = []string{"name", "kind", "dialect", "base_url", "model", "credentials_file", "max_inflight", "declaration"}
 	asrKeys         = []string{"max_file_bytes"}
 	llmKeys         = []string{"context_tokens", "max_output_tokens", "structured_output", "extra_body"}
-	declarationKeys = []string{"data_categories", "operator", "location", "retention", "deletion",
-		"used_for_training", "contract_ref", "reviewed_by", "reviewed_at"}
+	declarationKeys = []string{"data_categories", "operator", "location", "retention", "deletion"}
 )
 
 // Declaration is the privacy declaration of a profile (privacy.md §7).
 type Declaration struct {
-	DataCategories  []string
-	Operator        string
-	Location        string // on_prem, eu, eea, third_country:<code>
-	Retention       string
-	Deletion        string // adapter_cleanup, ttl:<duration>, none, manual
-	UsedForTraining string // no, yes, unknown
-	ContractRef     string
-	ReviewedBy      string
-	ReviewedAt      string
+	DataCategories []string
+	Operator       string
+	Location       string // on_prem, eu, eea, third_country:<code>
+	Retention      string
+	Deletion       string // adapter_cleanup, ttl:<duration>, none, manual
 }
 
 // Profile is one validated provider profile.
@@ -126,8 +120,7 @@ func (s *Set) defaultName(kind string) string {
 }
 
 // LogWarnings logs a WARN for each profile without a declaration and for
-// each profile that declares a third-country location or training on the
-// data (privacy.md §7).
+// each profile that declares a third-country location (privacy.md §7).
 func (s *Set) LogWarnings(log *slog.Logger) {
 	for _, p := range s.Profiles {
 		if p.Declaration == nil {
@@ -137,9 +130,6 @@ func (s *Set) LogWarnings(log *slog.Logger) {
 		if strings.HasPrefix(p.Declaration.Location, "third_country:") {
 			log.Warn("provider profile declares a third-country location", "profile", p.Name,
 				"location", p.Declaration.Location)
-		}
-		if p.Declaration.UsedForTraining == "yes" {
-			log.Warn("provider profile declares that data is used for training", "profile", p.Name)
 		}
 	}
 }
@@ -405,14 +395,10 @@ func (c *checker) declaration(at string, n *yaml.Node) *Declaration {
 		return nil
 	}
 	d := &Declaration{
-		Operator:        c.str(at, m, "operator"),
-		Location:        c.str(at, m, "location"),
-		Retention:       c.str(at, m, "retention"),
-		Deletion:        c.str(at, m, "deletion"),
-		UsedForTraining: c.str(at, m, "used_for_training"),
-		ContractRef:     c.str(at, m, "contract_ref"),
-		ReviewedBy:      c.str(at, m, "reviewed_by"),
-		ReviewedAt:      c.str(at, m, "reviewed_at"),
+		Operator:  c.str(at, m, "operator"),
+		Location:  c.str(at, m, "location"),
+		Retention: c.str(at, m, "retention"),
+		Deletion:  c.str(at, m, "deletion"),
 	}
 	if n, ok := m["data_categories"]; !ok {
 		c.errorf("%s.data_categories: required", at)
@@ -431,14 +417,6 @@ func (c *checker) declaration(at string, n *yaml.Node) *Declaration {
 	case strings.HasPrefix(del, "ttl:") && len(del) > len("ttl:"):
 	default:
 		c.errorf("%s.deletion: want adapter_cleanup, ttl:<duration>, none or manual, got %q", at, del)
-	}
-	if v := d.UsedForTraining; v != "" && v != "no" && v != "yes" && v != "unknown" {
-		c.errorf("%s.used_for_training: want no, yes or unknown, got %q", at, v)
-	}
-	if v := d.ReviewedAt; v != "" {
-		if _, err := time.Parse(time.DateOnly, v); err != nil {
-			c.errorf("%s.reviewed_at: want a date YYYY-MM-DD, got %q", at, v)
-		}
 	}
 	return d
 }

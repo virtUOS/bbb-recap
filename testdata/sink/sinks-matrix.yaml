@@ -17,7 +17,3 @@ sinks:
       location: on_prem
       retention: "Room history; every member of the room can read the post"
       deletion: manual
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: fixture-reviewer
-      reviewed_at: "2026-11-13"

@@ -33,8 +33,7 @@ profiles:
     credentials_file: %s
     max_inflight: 1
     declaration: { data_categories: [voice], operator: "operator's computing centre", location: on_prem,
-                   retention: "No persistence; RESULT_STORE__ENABLED=false", deletion: manual,
-                   used_for_training: "no", contract_ref: none, reviewed_by: fixture-reviewer, reviewed_at: "2026-10-29" }
+                   retention: "No persistence; RESULT_STORE__ENABLED=false", deletion: manual }
   - name: vllm-lab
     kind: llm
     dialect: openai-chat
@@ -47,8 +46,7 @@ profiles:
     extra_body: { chat_template_kwargs: { enable_thinking: false } }
     max_inflight: 4
     declaration: { data_categories: [transcript, chat, summary], operator: "operator's computing centre",
-                   location: on_prem, retention: "No request logging (operator to confirm)", deletion: none,
-                   used_for_training: "no", contract_ref: none, reviewed_by: fixture-reviewer, reviewed_at: "2026-10-29" }
+                   location: on_prem, retention: "No request logging (operator to confirm)", deletion: none }
 `
 
 // llmCall is one request the fake LLM received.

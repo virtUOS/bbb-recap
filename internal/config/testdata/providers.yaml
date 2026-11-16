@@ -10,8 +10,7 @@ profiles:
     base_url: https://asr.recap.test
     model: large-v3
     declaration: { data_categories: [voice], operator: "operator's computing centre", location: on_prem,
-                   retention: "No persistence; RESULT_STORE__ENABLED=false", deletion: manual,
-                   used_for_training: "no", contract_ref: none, reviewed_by: fixture-reviewer, reviewed_at: "2026-10-29" }
+                   retention: "No persistence; RESULT_STORE__ENABLED=false", deletion: manual }
   - name: vllm-lab
     kind: llm
     dialect: openai-chat
@@ -20,5 +19,4 @@ profiles:
     context_tokens: 32768
     max_output_tokens: 4096
     declaration: { data_categories: [transcript, chat, summary], operator: "operator's computing centre",
-                   location: on_prem, retention: "No request logging (operator to confirm)", deletion: none,
-                   used_for_training: "no", contract_ref: none, reviewed_by: fixture-reviewer, reviewed_at: "2026-10-29" }
+                   location: on_prem, retention: "No request logging (operator to confirm)", deletion: none }

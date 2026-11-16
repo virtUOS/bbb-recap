@@ -78,6 +78,15 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
+// A key outside the fields of privacy.md §7 is refused, naming the key.
+func TestDeclarationUnknownKey(t *testing.T) {
+	text := strings.Replace(fixture(t), "      deletion: manual\n", "      deletion: manual\n      fixture_unknown: x\n", 1)
+	_, err := Parse([]byte(text))
+	if want := "profiles[0].declaration.fixture_unknown: unknown key"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("err = %v, want %q", err, want)
+	}
+}
+
 func TestParseTopLevel(t *testing.T) {
 	for _, c := range []struct{ name, text, want string }{
 		{"empty", "", "empty file"},
@@ -104,7 +113,7 @@ func TestDuplicateName(t *testing.T) {
 	}
 }
 
-// privacy.md §7: third-country and training-using profiles warn at start;
+// privacy.md §7: third-country profiles warn at start;
 // the warning never carries the credential.
 func TestLogWarnings(t *testing.T) {
 	s, err := Load("testdata/providers.yaml")
@@ -114,7 +123,7 @@ func TestLogWarnings(t *testing.T) {
 	var buf bytes.Buffer
 	s.LogWarnings(logging.New(&buf, 0))
 	out := buf.String()
-	if strings.Count(out, `"level":"WARN"`) != 2 || !strings.Contains(out, `"profile":"vllm-lab"`) {
+	if strings.Count(out, `"level":"WARN"`) != 1 || !strings.Contains(out, `"profile":"vllm-lab"`) {
 		t.Errorf("warnings:\n%s", out)
 	}
 	if strings.Contains(out, "whisperx-lab") || strings.Contains(out, "FIXTURE-NOT-A-SECRET") {

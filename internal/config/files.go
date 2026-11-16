@@ -36,15 +36,11 @@ type meetingTypesFile struct {
 // Declaration is the privacy declaration of a provider or sink profile
 // (privacy.md §7).
 type Declaration struct {
-	DataCategories  []string `yaml:"data_categories"`
-	Operator        string   `yaml:"operator"`
-	Location        string   `yaml:"location"`
-	Retention       string   `yaml:"retention"`
-	Deletion        string   `yaml:"deletion"`
-	UsedForTraining string   `yaml:"used_for_training"`
-	ContractRef     string   `yaml:"contract_ref"`
-	ReviewedBy      string   `yaml:"reviewed_by"`
-	ReviewedAt      string   `yaml:"reviewed_at"`
+	DataCategories []string `yaml:"data_categories"`
+	Operator       string   `yaml:"operator"`
+	Location       string   `yaml:"location"`
+	Retention      string   `yaml:"retention"`
+	Deletion       string   `yaml:"deletion"`
 }
 
 // SinkProfile is one entry of RECAP_SINKS_FILE (sinks.md §3.1), checked
@@ -247,8 +243,7 @@ func checkDocsSink(l *loader, at, name string, s *SinkProfile, readKeys bool) {
 func checkDeclaration(l *loader, at string, d *Declaration) {
 	for _, f := range []struct{ key, value string }{
 		{"operator", d.Operator}, {"location", d.Location}, {"retention", d.Retention},
-		{"deletion", d.Deletion}, {"used_for_training", d.UsedForTraining}, {"contract_ref", d.ContractRef},
-		{"reviewed_by", d.ReviewedBy}, {"reviewed_at", d.ReviewedAt},
+		{"deletion", d.Deletion},
 	} {
 		if strings.TrimSpace(f.value) == "" {
 			l.errorf("%s.%s: required", at, f.key)
@@ -269,14 +264,6 @@ func checkDeclaration(l *loader, at string, d *Declaration) {
 	default:
 		l.errorf("%s.deletion: want adapter_cleanup, ttl:<duration>, none or manual, got %q", at, del)
 	}
-	if v := d.UsedForTraining; v != "" && v != "no" && v != "yes" && v != "unknown" {
-		l.errorf("%s.used_for_training: want no, yes or unknown, got %q", at, v)
-	}
-	if v := d.ReviewedAt; v != "" {
-		if _, err := time.Parse(time.DateOnly, v); err != nil {
-			l.errorf("%s.reviewed_at: want a date YYYY-MM-DD, got %q", at, v)
-		}
-	}
 }
 
 // LoadSinks reads and checks the sinks file at path with the rules of the
@@ -294,7 +281,7 @@ func LoadSinks(path string) ([]SinkProfile, error) {
 // LogSinkWarnings logs a WARN for each sink profile whose docs_base_url is
 // not https (sinks.md §3.4: TLS in production; http stays allowed for dev
 // and tests), that has no declaration, or that declares a third-country
-// location or training on the data (privacy.md §7).
+// location (privacy.md §7).
 func LogSinkWarnings(log *slog.Logger, sinks []SinkProfile) {
 	for _, s := range sinks {
 		if s.Type == SinkTypeDocs && !strings.HasPrefix(s.DocsBaseURL, "https://") {
@@ -307,9 +294,6 @@ func LogSinkWarnings(log *slog.Logger, sinks []SinkProfile) {
 		if strings.HasPrefix(s.Declaration.Location, "third_country:") {
 			log.Warn("sink profile declares a third-country location", "profile", s.Name,
 				"location", s.Declaration.Location)
-		}
-		if s.Declaration.UsedForTraining == "yes" {
-			log.Warn("sink profile declares that data is used for training", "profile", s.Name)
 		}
 	}
 }

@@ -11,10 +11,7 @@ import (
 )
 
 // declarationKeys are the fields of a profile declaration (privacy.md §7).
-var declarationKeys = []string{
-	"data_categories", "operator", "location", "retention", "deletion",
-	"used_for_training", "contract_ref", "reviewed_by", "reviewed_at",
-}
+var declarationKeys = []string{"data_categories", "operator", "location", "retention", "deletion"}
 
 // loadOnly runs `recap tool asr` with no operations, which only loads and
 // validates the providers file (README.md "Start").

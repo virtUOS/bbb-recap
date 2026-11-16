@@ -190,22 +190,21 @@ README "Logging" applies. In addition, for service, exporter and hook:
 An ASR, LLM or sink profile **may** have a `declaration` block (optional, so pilots and staging can run without one;
 required for `webhook` and `matrix` sink profiles, §11).
 A profile without one logs one WARN at start-up and in `check-config` ("profile <name> has no
-declaration"). A declaration that is present must be complete and valid as below, or the service refuses to start.
+declaration"). A declaration that is present must be complete and valid as below, or the service refuses to start;
+any other key in it is refused as an unknown key.
 
-| Field                        | Values                                                                                        |
-| ---------------------------- | --------------------------------------------------------------------------------------------- |
-| `data_categories`            | from §3, e.g. `[voice]`, `[summary, email]`; `slides` for an LLM profile that gets slide text |
-| `operator`                   | who runs it                                                                                   |
-| `location`                   | `on_prem`, `eu`, `eea`, `third_country:<code>`                                                |
-| `retention`                  | free text + duration                                                                          |
-| `deletion`                   | `adapter_cleanup`, `ttl:<duration>`, `none`, `manual`                                         |
-| `used_for_training`          | `no`, `yes`, `unknown`                                                                        |
-| `contract_ref`               | DPA reference or `none`                                                                       |
-| `reviewed_by`, `reviewed_at` | role, date                                                                                    |
+| Field             | Values                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| `data_categories` | from §3, e.g. `[voice]`, `[summary, email]`; `slides` for an LLM profile that gets slide text |
+| `operator`        | who runs it                                                                                   |
+| `location`        | `on_prem`, `eu`, `eea`, `third_country:<code>`                                                |
+| `retention`       | free text + duration                                                                          |
+| `deletion`        | `adapter_cleanup`, `ttl:<duration>`, `none`, `manual`                                         |
 
-Third-country and training-using providers should not be used in pilots. A declared profile with such values logs a
-WARN at start-up. The declarations feed the DPIA processor list; a deployment without them has to
-document its processors elsewhere.
+Third-country providers should not be used in pilots; a declared profile with a `third_country:` location logs a WARN
+at start-up. Pilots should not use providers that train on the data either; the admin checks this in the provider's
+terms, as the declaration has no field for it. The declarations feed the DPIA processor list; a deployment without
+them has to document its processors elsewhere.
 
 ## 8. Cross-reference
 
