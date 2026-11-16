@@ -1,0 +1,25 @@
+# Sink profile fixture for the webhook sink (docs/reference/sinks.md §4b). Tests
+# replace url with a local mock receiver and the key directory
+# /run/secrets/recap/sinks/ with testdata/secrets/. One key per line; the
+# declaration comes last, so a test can cut it off.
+schema_version: "1.0.0"
+sinks:
+  -
+    name: webhook-main
+    type: webhook
+    url: https://hooks.recap.test/recap
+    signing_secret_file: /run/secrets/recap/sinks/webhook-signing.key
+    content: notice
+    request_timeout: 30s
+    max_inflight: 2
+    max_document_bytes: 2097152
+    declaration:
+      data_categories: [title, summary] # tests use both contents
+      operator: "operator's webhook receiver"
+      location: on_prem
+      retention: "Receiver's policy"
+      deletion: manual
+      used_for_training: "no"
+      contract_ref: none
+      reviewed_by: fixture-reviewer
+      reviewed_at: "2026-11-13"

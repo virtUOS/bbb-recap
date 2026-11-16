@@ -1,6 +1,6 @@
 # ADR-005 Metadata interface: meta_ keys plus a registration API
 
-Status: accepted (2026-10-29)
+Status: accepted (2026-10-29), amended 2026-11-13 by [ADR-016](ADR-016-multiple-sinks-webhook-matrix.md)
 
 ## Context
 
@@ -26,3 +26,10 @@ present but other keys missing or invalid, an unknown type, or no registration: 
 
 - Front ends (PILOS, others) need a small change to set the keys and call the registration API.
 - `<p>-sink` names a sink profile configured in the service, not a raw target ID.
+
+## Amendment 2026-11-13
+
+`<p>-sink` is a list of 1–4 profile names, and the optional key `<p>-matrix-room` names the Matrix room for a
+`matrix` profile ([ADR-016](ADR-016-multiple-sinks-webhook-matrix.md)). The room is a target chosen by the room
+owner; it carries no credential, and the bot posts only where it was invited. It is not an
+authorisation (ADR-016, Consequences).
