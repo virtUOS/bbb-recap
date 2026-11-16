@@ -220,17 +220,17 @@ Before sending (before step 1 of §1.4), the sink checks UTF-8, the size and sca
 The file has `schema_version` (`1.x.y`) and a `sinks:` list of profiles. Relative file paths in a profile (e.g. the
 key file) are resolved against the sinks file's directory.
 
-| Setting                 | Meaning                                                                                                                            |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                  | README name grammar; a name in `meta_recap-sink`. Fixture: `docs-main`.                                                            |
-| `type`                  | `docs`.                                                                                                                            |
-| `docs_base_url`         | Base URL of Docs.                                                                                                                  |
-| `api_key_file`          | Mounted file with the server-to-server key.                                                                                        |
-| `document_url_template` | Link for humans, e.g. `https://docs.recap.test/docs/{id}/`. The pattern `/docs/{id}/` opened the document in a test with Docs 6.0. |
-| `request_timeout`       | Default 60 s (above Docs' 30 s conversion timeout). Expiry → `uncertain`.                                                          |
-| `max_inflight`          | Concurrent requests per worker process (`architecture.md` §7). Default 2.                                                          |
-| `max_document_bytes`    | §2.4.                                                                                                                              |
-| `declaration`           | Privacy declaration (`privacy.md` §7). Optional; complete when present.                                                            |
+| Setting                 | Meaning                                                                                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                  | README name grammar; a name in `meta_recap-sink`. Fixture: `docs-main`.                                                                                                             |
+| `type`                  | `docs`.                                                                                                                                                                             |
+| `docs_base_url`         | Base URL of Docs.                                                                                                                                                                   |
+| `api_key_file`          | Mounted file with the server-to-server key.                                                                                                                                         |
+| `document_url_template` | Link for humans with `{id}`. Default `<docs_base_url>/docs/{id}/` (opened the document with Docs 6.0). Set it only if people open Docs under another address than the service uses. |
+| `request_timeout`       | Default 60 s (above Docs' 30 s conversion timeout). Expiry → `uncertain`.                                                                                                           |
+| `max_inflight`          | Concurrent requests per worker process (`architecture.md` §7). Default 2.                                                                                                           |
+| `max_document_bytes`    | §2.4.                                                                                                                                                                               |
+| `declaration`           | Privacy declaration (`privacy.md` §7). Optional; complete when present.                                                                                                             |
 
 ### 3.2 Request
 

@@ -262,9 +262,9 @@ The front end learns the result by polling `GET /api/v1/registrations/{record_id
 - **Result record.** `cleanup` deletes the owner identity (`sub`, email) but keeps the registration row with IDs,
   `delivered_at`, the outcome and `document_url` until `delivered_at + RECAP_RESULT_TTL` (default `7d`); then the
   cleanup loop deletes it and `GET` returns 404. With `RECAP_RESULT_TTL=0` the row goes at `cleanup`.
-- **`document_url`**: the sink profile's `document_url_template` with the delivery's document ID
-  ([`sinks.md`](sinks.md) §3.1); `null` for sinks without one, for `release` without a document ID, and for the
-  `frontend` sink.
+- **`document_url`**: the sink profile's `document_url_template` (default `<docs_base_url>/docs/{id}/`) with the
+  delivery's document ID ([`sinks.md`](sinks.md) §3.1); `null` for sinks without one, for `release` without a
+  document ID, and for the `frontend` sink.
 - **`summary_available`**: `true` only for the `frontend` sink ([`sinks.md`](sinks.md) §4a) while the summary waits
   for pickup.
 - **`deliveries`** (1.3.0): one entry per sink of the job, in delivery order ([`sinks.md`](sinks.md) §1.1):
