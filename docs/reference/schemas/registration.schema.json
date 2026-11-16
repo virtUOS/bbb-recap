@@ -126,7 +126,7 @@
                   "format": "date-time"
                 },
                 "document_url": {
-                  "description": "Link to the delivered document from the sink profile's document_url_template; null without a template, without a document ID and for the frontend sink.",
+                  "description": "Link to the delivered document from the sink profile's document_url_template (docs sinks: default <docs_base_url>/docs/{id}/); null for sink types without a template, without a document ID and for the frontend sink.",
                   "type": ["string", "null"],
                   "format": "uri"
                 },
