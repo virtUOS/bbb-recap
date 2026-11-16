@@ -189,7 +189,7 @@ Response (201 or 200; also `GET`), never containing `owner`:
 
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.3.0",
   "record_id": "536c0e9585fba3ee1c984b5af671f5be7ec5cf96-1761732000000",
   "meeting_id": "fixture-meeting-01",
   "frontend_id": "pilos-fixture",
@@ -197,6 +197,7 @@ Response (201 or 200; also `GET`), never containing `owner`:
   "created_at": "2026-10-29T10:00:00Z",
   "updated_at": "2026-10-29T10:00:00Z",
   "expires_at": "2026-11-12T10:00:00Z",
+  "result_url": "https://pilos.recap.test/rooms/abc-def-123/summaries",
   "job": null
 }
 ```
@@ -211,16 +212,19 @@ from the request or `null`, §2.7).
 
 ### 2.4 `PUT` matrix
 
-| Existing registration                         | Request                 | Result                                                                                                                                                                                                      |
-| --------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| none                                          | valid                   | 201                                                                                                                                                                                                         |
-| same front end, identical body                | valid                   | 200, unchanged                                                                                                                                                                                              |
-| same front end, other `owner` or `result_url` | valid                   | 200, owner and `result_url` replaced while no job exists or `deliver` is still `pending` (same transaction); else 409 `registration-locked`. Resumes a job held as `owner_unresolved` or `no_registration`. |
-| same front end, other `meeting_id`            | —                       | 409 `immutable-field`                                                                                                                                                                                       |
-| `cancelled`, no job                           | valid                   | 200, `registered` again                                                                                                                                                                                     |
-| `cancelled`, job exists                       | —                       | 409 `registration-cancelled`                                                                                                                                                                                |
-| other front end                               | —                       | 409 `conflict`                                                                                                                                                                                              |
-| any                                           | path ≠ body `record_id` | 400 `invalid-request`                                                                                                                                                                                       |
+| Existing registration                         | Request                 | Result                                                                                                                                                                                                                                                  |
+| --------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| none                                          | valid                   | 201                                                                                                                                                                                                                                                     |
+| same front end, identical body                | valid                   | 200, unchanged                                                                                                                                                                                                                                          |
+| same front end, other `owner` or `result_url` | valid                   | 200, owner and `result_url` replaced (a request without `result_url` removes it) while no job exists or `deliver` is still `pending` (same transaction); else 409 `registration-locked`. Resumes a job held as `owner_unresolved` or `no_registration`. |
+| same front end, other `meeting_id`            | —                       | 409 `immutable-field`                                                                                                                                                                                                                                   |
+| `cancelled`, no job                           | valid                   | 200, `registered` again                                                                                                                                                                                                                                 |
+| `cancelled`, job exists                       | —                       | 409 `registration-cancelled`                                                                                                                                                                                                                            |
+| other front end                               | —                       | 409 `conflict`                                                                                                                                                                                                                                          |
+| any                                           | path ≠ body `record_id` | 400 `invalid-request`                                                                                                                                                                                                                                   |
+
+A `PUT` replaces the whole registration body: a later `PUT` without `result_url` removes it (the response then shows
+`null`), under the same lock as `owner`.
 
 ### 2.5 `DELETE` (cancel)
 
@@ -285,9 +289,12 @@ summary-not-available`, nothing deleted. Every 404 on `…/summary` uses the slu
 - A `rerun` (admin) replaces `job` with the new job; the new delivery sets new result fields.
 - Polling: a front end polls with back-off (suggested 2, 5, 10, 30 minutes, then hourly) and stops at `delivered`, a
   `failed` job, `cancelled`, or 404. It fetches and confirms the summary as soon as `summary_available` is `true`,
-  without waiting for `delivered`: with a `result_url`, the job is `delivered` only after that pickup. A front end
-  that never fetches leaves the notice sinks `failed` after the step's attempts (about two hours,
-  [`sinks.md`](sinks.md) §1.8). Every poll counts against the rate limit of §2.6.
+  without waiting for `delivered`: with a `result_url`, a `frontend` sink and a `webhook` or `matrix` sink, the job
+  is `delivered` only after that pickup, and the notice follows at the next attempt (at most 30 minutes later). A
+  front end that sends a `result_url` polls at least every few minutes while such a job is open, at least for the
+  first two hours. A front end that never fetches leaves the notice sinks `failed` after the step's attempts (about
+  two hours, [`sinks.md`](sinks.md) §1.8); a pickup after that does not resume the job, an admin `retry` does. Every
+  poll counts against the rate limit of §2.6.
 
 ## 3. Validation and held reasons
 
@@ -338,15 +345,15 @@ Values the manifest schema already rejects (for example control characters) fail
 
 ## 5. Data flows
 
-| Flow                                       | Personal data                                                         | Stored where                                                          | Retention                                                                                                                       | Deleted by                                                                            |
-| ------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `create` meta                              | none; reveals opt-in, type, sink profiles and the Matrix room (§1.2)  | BBB memory, Redis, `events.xml`, `metadata.xml`, API, webhooks (§1.1) | with the BBB recording                                                                                                          | BBB cleanup / exporter ([ADR-002](../decisions/ADR-002-trigger-post-archive-push.md)) |
-| Manifest `recap-*` copy                    | none                                                                  | service blob store, job tables                                        | job content until `cleanup`; type and sink may stay in job metadata                                                             | `cleanup` step                                                                        |
-| Registration                               | owner `sub`, email; `result_url` (a front-end link, no personal data) | service Postgres                                                      | unmatched: `RECAP_REGISTRATION_TTL` (`14d`); matched: until `cleanup` (default right after delivery); held: until an admin acts | cleanup loop, `cleanup`, admin `purge`                                                |
-| Tombstone                                  | none (IDs)                                                            | service Postgres                                                      | 30 days (constant)                                                                                                              | cleanup loop                                                                          |
-| Result record (§2.7)                       | none (IDs, times, `document_url`)                                     | service Postgres                                                      | `RECAP_RESULT_TTL` (`7d`) after delivery                                                                                        | cleanup loop                                                                          |
-| Summary for pickup (§2.7, `frontend` sink) | summary text (names, meeting content)                                 | service blob store                                                    | until the front end's `DELETE …/summary`, at most `RECAP_RESULT_TTL`                                                            | front end, cleanup loop, admin `erase`                                                |
-| Summary in the front end                   | summary text or document link                                         | front-end database                                                    | the front end's policy (PILOS: recording retention, access per summary)                                                         | front end                                                                             |
+| Flow                                       | Personal data                                                        | Stored where                                                          | Retention                                                                                                                                            | Deleted by                                                                            |
+| ------------------------------------------ | -------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `create` meta                              | none; reveals opt-in, type, sink profiles and the Matrix room (§1.2) | BBB memory, Redis, `events.xml`, `metadata.xml`, API, webhooks (§1.1) | with the BBB recording                                                                                                                               | BBB cleanup / exporter ([ADR-002](../decisions/ADR-002-trigger-post-archive-push.md)) |
+| Manifest `recap-*` copy                    | none                                                                 | service blob store, job tables                                        | job content until `cleanup`; type and sink may stay in job metadata                                                                                  | `cleanup` step                                                                        |
+| Registration                               | owner `sub`, email                                                   | service Postgres                                                      | unmatched: `RECAP_REGISTRATION_TTL` (`14d`); matched: until `cleanup` (default right after delivery); held: until an admin acts                      | cleanup loop, `cleanup`, admin `purge`                                                |
+| Tombstone                                  | none (IDs)                                                           | service Postgres                                                      | 30 days (constant)                                                                                                                                   | cleanup loop                                                                          |
+| Result record (§2.7)                       | none (IDs, times, `document_url`, `result_url`)                      | service Postgres                                                      | `RECAP_RESULT_TTL` (`7d`) after delivery                                                                                                             | cleanup loop, admin `erase`                                                           |
+| Summary for pickup (§2.7, `frontend` sink) | summary text (names, meeting content)                                | service blob store                                                    | until the front end's `DELETE …/summary`, at most `RECAP_RESULT_TTL` after delivery; a job that is never delivered keeps it until `purge` or `erase` | front end, cleanup loop, admin `purge`, admin `erase`                                 |
+| Summary in the front end                   | summary text or document link                                        | front-end database                                                    | the front end's policy (PILOS: recording retention, access per summary)                                                                              | front end                                                                             |
 
 IDs may be logged at INFO; `owner.sub`, `owner.email` and request bodies never ([`README.md`](README.md) "Logging").
 

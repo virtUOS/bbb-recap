@@ -14,7 +14,7 @@ sinks:
     max_inflight: 2
     max_document_bytes: 2097152
     declaration:
-      data_categories: [summary]
+      data_categories: [title, summary] # tests use both contents
       operator: "operator's webhook receiver"
       location: on_prem
       retention: "Receiver's policy"

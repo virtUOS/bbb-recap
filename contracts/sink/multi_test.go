@@ -368,6 +368,8 @@ func testOrderAndLinks(t *testing.T) {
 		}
 		time.Sleep(pollInterval)
 	}
+	// Five seconds catch an implementation that ignores the wait within the
+	// same attempt; the next attempt would come only after about 30 seconds.
 	time.Sleep(5 * time.Second)
 	if n, ev := len(recv.received()), len(hs.posted()); n != 0 || ev != 0 {
 		t.Fatalf("before the pickup: %d webhook requests, %d Matrix events; want none (sinks.md §1.8)", n, ev)

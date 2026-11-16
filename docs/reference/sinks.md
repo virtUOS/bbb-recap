@@ -29,17 +29,17 @@ arrives. This order is the "delivery order" used everywhere below.
 
 ### 1.2 Input: delivery request
 
-| Field                      | Notes                                                                                                                                                                                                                                                                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `job_id`                   | UUIDv7 (README).                                                                                                                                                                                                                                                                                                           |
-| `sink_profile`             | Profile name.                                                                                                                                                                                                                                                                                                              |
-| `title`                    | Plain text, one line, rules in §2.3. Built by `render`.                                                                                                                                                                                                                                                                    |
-| `summary_md`               | `summary.md` from `render`, UTF-8, dialect of §2.                                                                                                                                                                                                                                                                          |
-| `summary_sha256`           | Lowercase hex of the bytes of `summary_md`.                                                                                                                                                                                                                                                                                |
-| `owner.sub`, `owner.email` | From the registration (ADR-006, `identity-mapping.md`).                                                                                                                                                                                                                                                                    |
-| `links`                    | Where the summary can be read, `[{sink_profile, url}]`, `[]` when none. First the registration's `result_url` under the name of the job's `frontend` sink, if both exist; then the `document_url` of every other done sink that has one (`metadata-interface.md` §2.7), in delivery order. Used by `webhook` and `matrix`. |
-| `rendered_at`              | RFC 3339 UTC time at which `render` produced `summary.md` for the job; the same on every attempt. Used by `webhook` (§4b.2).                                                                                                                                                                                               |
-| `matrix_room`              | The job's Matrix room (`metadata-interface.md` §1.2), stored by `validate`; `null` unless the job lists a `matrix` profile.                                                                                                                                                                                                |
+| Field                      | Notes                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `job_id`                   | UUIDv7 (README).                                                                                                                                                                                                                                                                                                                           |
+| `sink_profile`             | Profile name.                                                                                                                                                                                                                                                                                                                              |
+| `title`                    | Plain text, one line, rules in §2.3. Built by `render`.                                                                                                                                                                                                                                                                                    |
+| `summary_md`               | `summary.md` from `render`, UTF-8, dialect of §2.                                                                                                                                                                                                                                                                                          |
+| `summary_sha256`           | Lowercase hex of the bytes of `summary_md`.                                                                                                                                                                                                                                                                                                |
+| `owner.sub`, `owner.email` | From the registration (ADR-006, `identity-mapping.md`).                                                                                                                                                                                                                                                                                    |
+| `links`                    | Where the summary can be read, `[{sink_profile, url}]`, `[]` when none. First the registration's `result_url` under the name of the job's `frontend` sink, only when that sink is `sent`; then the `document_url` of every other done sink that has one (`metadata-interface.md` §2.7), in delivery order. Used by `webhook` and `matrix`. |
+| `rendered_at`              | RFC 3339 UTC time at which `render` produced `summary.md` for the job; the same on every attempt. Used by `webhook` (§4b.2).                                                                                                                                                                                                               |
+| `matrix_room`              | The job's Matrix room (`metadata-interface.md` §1.2), stored by `validate`; `null` unless the job lists a `matrix` profile.                                                                                                                                                                                                                |
 
 `docs` uses only the first six fields; `webhook` and `matrix` never use `owner`, and `matrix` never uses `summary_md`.
 
@@ -143,15 +143,20 @@ applies:
 4. a sink is `pending` (a `not_sent` result; group 2 waits for group 1 or for the pickup) → `transient`;
 5. every sink done → `ok`, job `delivered`, `delivered_at` set, `cleanup` scheduled.
 
-**Waiting for the pickup.** With a `result_url` and a `frontend` sink, the `frontend` sink counts as done for group 2
-only after the front end confirmed the pickup with `DELETE …/summary` (`metadata-interface.md` §2.7); its status stays
-`sent`. The summary can be fetched as soon as the `frontend` sink is `sent`, before the job is `delivered`. While the
-front end has not fetched it, an attempt ends `transient` and the step retries with its backoff.
+**Waiting for the pickup.** With a `result_url`, group 2 also waits while the job's `frontend` sink is `sent` and its
+summary still waits for pickup (`summary_available` true, `metadata-interface.md` §2.7). The condition is a state, not
+a call: a `DELETE …/summary` before the sink is `sent` changes nothing, and a `frontend` sink that is
+`skipped_by_admin` or `confirmed_by_admin` does not block (nothing waits for pickup, and its `result_url` is not in
+`links`). The summary can be fetched as soon as the `frontend` sink is `sent`, before the job is `delivered`. While it
+waits, an attempt ends `transient` and the step retries with its backoff, so the notice follows the pickup at the
+next attempt, at most 30 minutes later.
 
 The attempts and backoff are those of the step (`architecture.md` §5.3: 10 for `deliver`, about two hours in total).
 When they run out, every sink that is still `pending` becomes `failed` with failure reason `retries_exhausted`, and
 the job fails with `retries_exhausted`. An admin can then `retry` or skip each of them. A front end that never fetches
-the summary therefore leaves the group 2 sinks `failed`; the summary stays for pickup, as for any failed job (ADR-009).
+the summary therefore leaves the group 2 sinks `failed`. A pickup after that does not resume the step: the sinks stay
+`failed` until an admin `retry`s or skips them. The summary stays for pickup until the job is delivered and its
+`RECAP_RESULT_TTL` has passed, or until `purge` or `erase` deletes it (`privacy.md` §11.3).
 
 **Admin actions** (`architecture.md` §5.4) take an optional `"sink": "<profile>"`. A name that is not a sink of the job
 is `400 invalid-request`; a sink in a status the action does not accept is `409 invalid-job-state`.
@@ -312,8 +317,8 @@ The summary is kept for the front end that registered the meeting, which fetches
   the job prefix that `cleanup` deletes) and records `state = sent` with an empty `document_id`, in one transaction
   with the step outcome. Repeating it overwrites the same object: idempotent, no `uncertain` case.
 - The owner `sub` and email are not used; the registration still needs them (`validate` and the join are unchanged).
-- Retention: until the front end's `DELETE …/summary`, or `RECAP_RESULT_TTL` after delivery; admin `erase` deletes
-  it. `recap check-config` fails a `frontend` profile when `RECAP_RESULT_TTL` is `0`.
+- Retention: until the front end's `DELETE …/summary`, or `RECAP_RESULT_TTL` after delivery; admin `purge` (a job
+  that is never delivered) and `erase` delete it. `recap check-config` fails a `frontend` profile when `RECAP_RESULT_TTL` is `0`.
 - Contract tests: CT-SINK-12 (deliver stores the exact bytes, a second deliver overwrites, no network call, size
   limit → `rejected_by_sink`); CT-REG-09 for the API.
 

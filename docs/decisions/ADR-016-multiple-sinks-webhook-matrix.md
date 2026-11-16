@@ -79,8 +79,9 @@ secret per channel and the dialects render Markdown differently; Matrix covers t
   is a notice (a title of at most 200 characters and links that open only for those the front end or Docs lets in).
   This is accepted for now; front ends let only the room owner set the key, and operators keep the bot out of rooms
   that must not receive such notices.
-- With a `result_url`, the job is `delivered` only after the front end fetched the summary. A front end that never
-  fetches leaves the notice sinks `failed` after the step's attempts; an admin skips or retries them.
+- With a `result_url`, a `frontend` sink and a `webhook` or `matrix` sink, the job is `delivered` only after the front
+  end fetched the summary. A front end that never fetches (about two hours) leaves the notice sinks `failed`; a later
+  pickup does not resume them, an admin skips or retries them.
 - A failing sink delays cleanup of the whole job until an admin acts; the held and failed alerts cover it.
 - A new migration changes the delivery record key to `(job_id, sink_profile)`.
 - An older service holds a job with a list as `invalid_metadata`; front ends send lists only to services that

@@ -156,7 +156,7 @@ add_hooks_contract() {
     max_inflight: 2
     max_document_bytes: 2097152
     declaration:
-      data_categories: [summary]
+      data_categories: [title]
       operator: "operator's webhook receiver"
       location: on_prem
       retention: "Receiver's policy"
@@ -173,7 +173,7 @@ add_hooks_contract() {
     request_timeout: 30s
     max_inflight: 2
     declaration:
-      data_categories: [summary]
+      data_categories: [title]
       operator: "operator's Matrix homeserver"
       location: on_prem
       retention: "Room history; every member of the room can read the post"

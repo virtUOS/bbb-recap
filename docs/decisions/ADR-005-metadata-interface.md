@@ -31,4 +31,5 @@ present but other keys missing or invalid, an unknown type, or no registration: 
 
 `<p>-sink` is a list of 1–4 profile names, and the optional key `<p>-matrix-room` names the Matrix room for a
 `matrix` profile ([ADR-016](ADR-016-multiple-sinks-webhook-matrix.md)). The room is a target chosen by the room
-owner; it carries no credential, and the bot posts only where it was invited.
+owner; it carries no credential, and the bot posts only where it was invited. It is not an
+authorisation (ADR-016, Consequences).

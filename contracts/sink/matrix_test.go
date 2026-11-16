@@ -584,6 +584,8 @@ func testMatrixPreChecks(t *testing.T) {
 		}
 	})
 	t.Run("content key refused", func(t *testing.T) {
+		m.reset()
+		e.runHook(t, hookInput{Request: matrixReq(t, roomJoined)}) // control: the same profile without the key works
 		code, stdout, _ := e.withExtraKey(t, "content: summary").runHookRaw(t, hookInput{Request: matrixReq(t, roomJoined)})
 		if code != 2 || len(stdout) != 0 {
 			t.Errorf("matrix profile with content: exit %d, stdout %q; want exit 2 (sinks.md §4c.5)", code, stdout)

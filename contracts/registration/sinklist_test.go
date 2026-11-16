@@ -108,6 +108,30 @@ func testResultURLService(t *testing.T) {
 			t.Errorf("response violates the schema: %v", err)
 		}
 	})
+	t.Run("replaced-by-a-later-put", func(t *testing.T) {
+		// §2.4: an other result_url replaces it while no job exists.
+		rid, mid := freshRecordID(), freshMeetingID()
+		expectStatus(t, e.putReg(t, token, rid, regBodyURL(t, rid, mid, ada, fixtureResultURL)), http.StatusCreated, "PUT with result_url")
+		other := fixtureResultURL + "-other"
+		r := e.putReg(t, token, rid, regBodyURL(t, rid, mid, ada, other))
+		expectStatus(t, r, http.StatusOK, "PUT with another result_url")
+		if v := readURL(t, r); v != other {
+			t.Errorf("result_url %v after a PUT with another one, want %s", v, other)
+		}
+	})
+	t.Run("removed-by-a-put-without-it", func(t *testing.T) {
+		// §2.4: a PUT replaces the whole body, so omitting result_url removes it.
+		rid, mid := freshRecordID(), freshMeetingID()
+		expectStatus(t, e.putReg(t, token, rid, regBodyURL(t, rid, mid, ada, fixtureResultURL)), http.StatusCreated, "PUT with result_url")
+		r := e.putReg(t, token, rid, regBody(t, rid, mid, ada))
+		expectStatus(t, r, http.StatusOK, "PUT without result_url")
+		if v := readURL(t, r); v != nil {
+			t.Errorf("result_url %v after a PUT without it, want null", v)
+		}
+		if v := readURL(t, e.getReg(t, token, rid)); v != nil {
+			t.Errorf("GET result_url %v after a PUT without it, want null", v)
+		}
+	})
 	t.Run("null-without-one", func(t *testing.T) {
 		rid, mid := freshRecordID(), freshMeetingID()
 		e.register(t, rid, mid, ada)
