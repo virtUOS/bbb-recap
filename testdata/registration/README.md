@@ -10,4 +10,7 @@ Registration response fixtures for CT-REG-01 and CT-REG-10 (`docs/reference/meta
 | `responses/valid.<case>.json`, `schema_version` 1.3.0 (ADR-016) | `delivered-multi` (Docs, `frontend` and Matrix sinks, top-level fields derived from `deliveries`), `delivered-skipped` (one sink `skipped_by_admin`), `failed-partial` (one sink `sent`, one `failed`), `held-no-sinks-yet` (`deliveries` `[]`) |
 | `responses/invalid.deliveries-<case>.json` | `valid.delivered-multi.json` with exactly one violation: `deliveries` missing at 1.3.0, an unknown `state`, an extra entry field, a missing `summary_available`, five entries |
 
-The request fixtures stay in `meetings/F-NN/registration.json`.
+| `responses/valid.registered-1.3.0.json`, `responses/invalid.result_url-<case>.json` | 1.3.0 top-level `result_url`: set on a registered response; missing at 1.3.0, `http://`, user info, whitespace, relative, over 2048 characters |
+| `requests/valid.<case>.json`, `requests/invalid.<case>.json` | request 1.1.0 with `result_url` (CT-REG-10): valid with path, port, query, fragment; invalid `http://`, user info, whitespace, relative, over 2048 characters, a number, `null` |
+
+The 1.0.0 request fixtures stay in `meetings/F-NN/registration.json`.

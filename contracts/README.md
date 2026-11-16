@@ -39,9 +39,10 @@ The harness's own unit tests also run under `make test`.
   stays on `recap-mock`. Unset: those tests skip.
 - Several sinks, webhook and Matrix (ADR-016): the multi-sink tests use `docs-contract` and `frontend-contract`. With
   `RECAP_CONTRACT_HOOKS_ADDR` (`host:port`, set at `up` and for the tests) the contract environment adds the profiles
-  `webhook-contract` (`http://<addr>/webhook`) and `matrix-contract` (`http://<addr>`, `allowed_servers`
-  `matrix.recap.test`), and the tests serve a webhook receiver and a Matrix homeserver there. Unset: CT-SINK-18 and
+  `webhook-contract` (`http://<addr>/webhook`) and `matrix-contract` (`http://<addr>`), and the tests serve a webhook receiver and a Matrix homeserver there. Unset: CT-SINK-18 and
   CT-META-08 skip. A service without the webhook and Matrix sink types does not start with these profiles.
+- `RECAP_CONTRACT_SLOW` (any value) runs tests that wait for every attempt of a step, about two hours (CT-SINK-19);
+  unset, they skip. Use `go test -timeout 4h`.
 - Tests written before their implementation fail until it lands; their package README says which
   (`contracts/sink/README.md` "Not implemented yet").
 - Tests that render pass `RECAP_FORMATS_DIR` through; unset, they set it to the repo's `formats/`.

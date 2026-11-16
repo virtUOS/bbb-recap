@@ -1,22 +1,25 @@
 package registration
 
 import (
+	"encoding/json"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 // Several sinks and the Matrix room in meta (metadata-interface.md §1.2, §3
-// rows 5, 6, 6a, 6b; ADR-016): CT-META-07 and CT-META-08. Written before the
-// implementation: the valid lists and rooms fail until validate reads lists.
+// rows 5, 6, 6a, 6b; ADR-016): CT-META-07 and CT-META-08; the registration's
+// result_url (§2.3, §2.7): CT-REG-10. Written before the implementation: the
+// valid lists, rooms and result_url fail until the service has them.
 //
 // The contract environment has the sink profiles docs-main and
 // frontend-contract. CT-META-08 also needs the Matrix profile
-// matrix-contract (allowed_servers [matrix.recap.test]), which the contract
-// environment adds when RECAP_CONTRACT_HOOKS_ADDR is set (contracts/README.md);
+// matrix-contract, which the contract environment adds when RECAP_CONTRACT_HOOKS_ADDR is set (contracts/README.md);
 // without it CT-META-08 skips. RECAP_FRONTEND_SINKS is not set there, so the
-// per-name allow-list (row 9a) and row 6a (two frontend profiles) are left to
-// unit tests.
+// per-name allow-list (row 9a) and row 6a (two frontend or two matrix
+// profiles) are left to unit tests.
 
 const (
 	hooksAddrVar       = "RECAP_CONTRACT_HOOKS_ADDR"
@@ -27,6 +30,103 @@ const (
 func TestSinkList(t *testing.T) {
 	t.Run("CT-META-07 sink lists", testSinkLists)
 	t.Run("CT-META-08 Matrix room", testMatrixRoom)
+}
+
+// TestResultURL pins result_url of the registration (metadata-interface.md
+// §2.3, §2.7; CT-REG-10). The schema part needs no service.
+func TestResultURL(t *testing.T) {
+	t.Run("CT-REG-10 request schema", testResultURLSchema)
+	t.Run("CT-REG-10 result_url echoed", testResultURLService)
+}
+
+const fixtureResultURL = "https://pilos.recap.test/rooms/abc-def-123/summaries"
+
+func testResultURLSchema(t *testing.T) {
+	req := compileSchema(t, "")
+	for _, kind := range []string{"valid", "invalid"} {
+		files, err := filepath.Glob(filepath.Join(testdataDir, "registration", "requests", kind+".*.json"))
+		if err != nil || len(files) == 0 {
+			t.Fatalf("no %s request fixtures: %v", kind, err)
+		}
+		for _, f := range files {
+			t.Run(filepath.Base(f), func(t *testing.T) {
+				b, err := os.ReadFile(f)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = validate(req, b)
+				if kind == "valid" && err != nil {
+					t.Fatalf("schema rejects a valid request: %v", err)
+				}
+				if kind == "invalid" && err == nil {
+					t.Fatal("schema accepts an invalid request")
+				}
+			})
+		}
+	}
+}
+
+// regBodyURL is regBody with schema_version 1.1.0 and result_url.
+func regBodyURL(t *testing.T, recordID, meetingID string, o owner, resultURL any) []byte {
+	t.Helper()
+	m := map[string]any{}
+	if err := json.Unmarshal(regBody(t, recordID, meetingID, o), &m); err != nil {
+		t.Fatal(err)
+	}
+	m["schema_version"], m["result_url"] = "1.1.0", resultURL
+	return mustJSON(t, m)
+}
+
+func testResultURLService(t *testing.T) {
+	e := newEnv(t)
+	token := frontendToken(t)
+	readURL := func(t *testing.T, r reply) any {
+		t.Helper()
+		var m map[string]any
+		if err := json.Unmarshal(r.body, &m); err != nil {
+			t.Fatalf("response is not a JSON object: %v", err)
+		}
+		v, ok := m["result_url"]
+		if !ok {
+			t.Fatalf("response has no result_url (schema_version 1.3.0, metadata-interface.md §2.3): %s", r.body)
+		}
+		return v
+	}
+	t.Run("set-and-echoed", func(t *testing.T) {
+		rid, mid := freshRecordID(), freshMeetingID()
+		r := e.putReg(t, token, rid, regBodyURL(t, rid, mid, ada, fixtureResultURL))
+		expectStatus(t, r, http.StatusCreated, "PUT with result_url")
+		if v := readURL(t, r); v != fixtureResultURL {
+			t.Errorf("PUT answer result_url %v, want %s", v, fixtureResultURL)
+		}
+		g := e.getReg(t, token, rid)
+		expectStatus(t, g, http.StatusOK, "GET")
+		if v := readURL(t, g); v != fixtureResultURL {
+			t.Errorf("GET result_url %v, want %s", v, fixtureResultURL)
+		}
+		if err := validate(compileSchema(t, "#/$defs/registration_response"), g.body); err != nil {
+			t.Errorf("response violates the schema: %v", err)
+		}
+	})
+	t.Run("null-without-one", func(t *testing.T) {
+		rid, mid := freshRecordID(), freshMeetingID()
+		e.register(t, rid, mid, ada)
+		if v := readURL(t, e.getReg(t, token, rid)); v != nil {
+			t.Errorf("result_url %v without one in the request, want null", v)
+		}
+	})
+	for name, v := range map[string]any{
+		"http":       "http://pilos.recap.test/rooms/abc",
+		"user-info":  "https://user@pilos.recap.test/rooms/abc",
+		"whitespace": "https://pilos.recap.test/rooms/a b",
+		"too-long":   "https://pilos.recap.test/" + strings.Repeat("a", 2030),
+		"null":       nil,
+	} {
+		t.Run("invalid/"+name, func(t *testing.T) {
+			rid, mid := freshRecordID(), freshMeetingID()
+			expectProblem(t, e.putReg(t, token, rid, regBodyURL(t, rid, mid, ada, v)), http.StatusBadRequest, "invalid-request", "PUT with a bad result_url")
+		})
+	}
 }
 
 // heldAs ingests a package with meta and waits for the held reason; detail is
@@ -82,7 +182,6 @@ func testMatrixRoom(t *testing.T) {
 	}
 	for name, v := range map[string]string{
 		"room-id":               "!fixturejoined01:matrix.recap.test",
-		"room-id-with-port":     "!fixturejoined01:matrix.recap.test:8448",
 		"alias":                 "#fixture-team:matrix.recap.test",
 		"room-id-base64-opaque": "!AbC_d-E=f+g/h~i.j:matrix.recap.test",
 	} {
@@ -102,12 +201,14 @@ func testMatrixRoom(t *testing.T) {
 	} {
 		t.Run("invalid/"+name, func(t *testing.T) { e.heldAs(t, room(v), "invalid_metadata", "matrix-room-invalid") })
 	}
+	// No server allow-list (sinks.md §4c.1): any server, and room IDs without
+	// a server part (room version 12), pass.
 	for name, v := range map[string]string{
 		"other-server-room-id": "!fixtureother01:other.recap.test",
 		"other-server-alias":   "#fixture-team:other.recap.test",
 		"room-id-no-server":    "!fixtureRoomV12abcdefghijklmnopqrstuvwxyz0123456789_-",
 	} {
-		t.Run("not-allowed/"+name, func(t *testing.T) { e.heldAs(t, room(v), "invalid_metadata", "matrix-room-not-allowed") })
+		t.Run("valid/"+name, func(t *testing.T) { e.heldAs(t, room(v), "no_registration", "") })
 	}
 	t.Run("ignored-without-matrix-sink", func(t *testing.T) {
 		e.heldAs(t, with(optedIn(), "recap-matrix-room", "not a room"), "no_registration", "")

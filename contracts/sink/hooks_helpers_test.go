@@ -24,14 +24,15 @@ import (
 // link is one entry of the delivery request's links (sinks.md §1.2).
 type link struct {
 	SinkProfile string `json:"sink_profile"`
-	DocumentURL string `json:"document_url"`
+	URL         string `json:"url"`
 }
 
 // hookRequest is the delivery request of sinks.md §1.2 with the fields that
-// ADR-016 adds: links and matrix_room.
+// ADR-016 adds: links, rendered_at and matrix_room.
 type hookRequest struct {
 	deliveryRequest
 	Links      []link  `json:"links"`
+	RenderedAt string  `json:"rendered_at"`
 	MatrixRoom *string `json:"matrix_room"`
 }
 
@@ -42,17 +43,24 @@ type hookInput struct {
 	RequestTimeoutMS *int64      `json:"request_timeout_ms,omitempty"`
 }
 
-// docsLink is the link the webhook and Matrix tests pass in links: a Docs
-// document of the same job (fixtures.md §5 host).
-var docsLink = link{SinkProfile: "docs-main", DocumentURL: "https://docs.recap.test/docs/0b8f2a3e-5c41-4d7a-9e26-3f1c7a9d2b10/"}
+// The links the webhook and Matrix tests pass, in the order of sinks.md §1.2:
+// the front end's result_url under the frontend profile, then a Docs
+// document of the same job (fixtures.md §5 hosts).
+var (
+	resultLink = link{SinkProfile: "frontend-main", URL: "https://pilos.recap.test/rooms/abc-def-123/summaries"}
+	docsLink   = link{SinkProfile: "docs-main", URL: "https://docs.recap.test/docs/0b8f2a3e-5c41-4d7a-9e26-3f1c7a9d2b10/"}
+)
+
+// fixtureRenderedAt is the rendered_at of the hook requests.
+const fixtureRenderedAt = "2025-10-29T10:19:00Z"
 
 // hookReq is testdata/sink/request.json with summary.md for the profile name,
-// one Docs link and the room (nil for none).
+// both links, rendered_at and the room (nil for none).
 func hookReq(t *testing.T, profile string, room *string) hookRequest {
 	t.Helper()
 	r := baseRequest(t)
 	r.SinkProfile = profile
-	return hookRequest{deliveryRequest: r, Links: []link{docsLink}, MatrixRoom: room}
+	return hookRequest{deliveryRequest: r, Links: []link{resultLink, docsLink}, RenderedAt: fixtureRenderedAt, MatrixRoom: room}
 }
 
 func strp(s string) *string { return &s }

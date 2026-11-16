@@ -201,8 +201,10 @@ func expectWebhookBody(t *testing.T, h receivedHook, req hookRequest, content st
 	if typ != "recap.summary.delivered" {
 		t.Errorf("type %q, want recap.summary.delivered", typ)
 	}
-	if at, err := time.Parse(time.RFC3339Nano, ts); err != nil || !strings.HasSuffix(ts, "Z") || time.Since(at) > 5*time.Minute {
-		t.Errorf("timestamp %q is not the attempt's time in RFC 3339 UTC", ts)
+	// Standard Webhooks "Payload structure": the event's time, not the
+	// attempt's (sinks.md §4b.2).
+	if at, err := time.Parse(time.RFC3339Nano, ts); err != nil || !at.Equal(mustTime(t, req.RenderedAt)) {
+		t.Errorf("timestamp %q, want the request's rendered_at %s", ts, req.RenderedAt)
 	}
 	var data map[string]json.RawMessage
 	if err := json.Unmarshal(top["data"], &data); err != nil {
@@ -225,6 +227,15 @@ func expectWebhookBody(t *testing.T, h receivedHook, req hookRequest, content st
 		}
 	}
 	return data
+}
+
+func mustTime(t *testing.T, s string) time.Time {
+	t.Helper()
+	at, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return at
 }
 
 func expectKeys(t *testing.T, what string, m map[string]json.RawMessage, keys ...string) {
@@ -349,6 +360,9 @@ func testWebhookReentry(t *testing.T) {
 	if a, b := got[0].header.Get("webhook-id"), got[1].header.Get("webhook-id"); a == "" || a != b {
 		t.Errorf("webhook-id %q then %q: want the same id on every attempt (sinks.md §4b.2)", a, b)
 	}
+	if string(got[0].body) != string(got[1].body) {
+		t.Error("the body differs between attempts; it must be the same (timestamp = rendered_at, sinks.md §4b.2)")
+	}
 }
 
 func testWebhookConfigAndLogs(t *testing.T) {
@@ -358,7 +372,7 @@ func testWebhookConfigAndLogs(t *testing.T) {
 		expectDeclarationRequired(t, e, hookInput{Request: req})
 	})
 	t.Run("no content in logs", func(t *testing.T) {
-		canaries := append(append([]string{webhookQuery, fixtureSigningSecret(t), oldSigningSecret, req.Title},
+		canaries := append(append([]string{webhookQuery, fixtureSigningSecret(t), oldSigningSecret, req.Title, resultLink.URL},
 			contentCanaries...), identityCanaries...)
 		scanHookLogs(t, canaries)
 	})

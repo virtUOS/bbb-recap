@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,18 +18,20 @@ import (
 	"time"
 )
 
-// Several sinks per job (sinks.md §1.8, ADR-016): CT-SINK-13 to CT-SINK-18
+// Several sinks per job (sinks.md §1.8, ADR-016): CT-SINK-13 to CT-SINK-19
 // and the service half of CT-REG-10 (metadata-interface.md §2.7). They drive
 // the running service with the contract environment's profiles docs-contract
 // (the mock Docs of this package on RECAP_CONTRACT_DOCS_ADDR) and
 // frontend-contract. CT-SINK-18 also needs RECAP_CONTRACT_HOOKS_ADDR: the test
 // serves a webhook receiver and a Matrix homeserver there, and the contract
 // environment adds the profiles webhook-contract and matrix-contract
-// (contracts/README.md). Written before the implementation: they fail until
-// the service delivers to several sinks.
+// (contracts/README.md). CT-SINK-19 runs only with RECAP_CONTRACT_SLOW (about
+// two hours). Written before the implementation: they fail until the service
+// delivers to several sinks.
 
 const (
 	hooksAddrVar         = "RECAP_CONTRACT_HOOKS_ADDR"
+	slowVar              = "RECAP_CONTRACT_SLOW"
 	webhookContractSink  = "webhook-contract"
 	matrixContractSink   = "matrix-contract"
 	webhookContractPath  = "/webhook"
@@ -43,7 +46,8 @@ func TestSeveralSinks(t *testing.T) {
 	t.Run("CT-SINK-15 uncertain sink and per-sink retry", testUncertainSink)
 	t.Run("CT-SINK-16 not sent, then delivered once", testNotSentSink)
 	t.Run("CT-SINK-17 admin actions with sink", testSinkActionErrors)
-	t.Run("CT-SINK-18 fixed order and links to webhook and Matrix", testOrderAndLinks)
+	t.Run("CT-SINK-18 fixed order, pickup, links to webhook and Matrix", testOrderAndLinks)
+	t.Run("CT-SINK-19 retries exhausted, then skip", testRetriesExhausted)
 }
 
 // --- job body and registration with deliveries ---
@@ -52,7 +56,9 @@ type sinkStatus struct {
 	SinkProfile   string  `json:"sink_profile"`
 	State         string  `json:"state"`
 	DocumentID    *string `json:"document_id"`
+	Target        *string `json:"target"`
 	FailureReason *string `json:"failure_reason"`
+	Detail        *string `json:"detail"`
 }
 
 type multiJob struct {
@@ -60,6 +66,7 @@ type multiJob struct {
 	State         string       `json:"state"`
 	HeldReason    string       `json:"held_reason"`
 	FailureReason string       `json:"failure_reason"`
+	MatrixRoom    *string      `json:"matrix_room"`
 	Deliveries    []sinkStatus `json:"deliveries"`
 }
 
@@ -71,7 +78,8 @@ type regDelivery struct {
 }
 
 type regWithDeliveries struct {
-	SchemaVersion string `json:"schema_version"`
+	SchemaVersion string  `json:"schema_version"`
+	ResultURL     *string `json:"result_url"`
 	Job           *struct {
 		JobID            string        `json:"job_id"`
 		DocumentURL      *string       `json:"document_url"`
@@ -123,7 +131,13 @@ func (s *service) registration(t *testing.T, rid, jobID string) regWithDeliverie
 // waitState polls the job until it is in state (and reason, if not empty).
 func (s *service) waitState(t *testing.T, jobID, state, reason string) multiJob {
 	t.Helper()
-	deadline := time.Now().Add(pipelineTimeout)
+	return s.waitStateFor(t, jobID, state, reason, pipelineTimeout)
+}
+
+// waitStateFor is waitState with its own timeout.
+func (s *service) waitStateFor(t *testing.T, jobID, state, reason string, timeout time.Duration) multiJob {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
 	for {
 		j := s.multiJob(t, jobID)
 		if j.State == state && (reason == "" || j.HeldReason == reason || j.FailureReason == reason) {
@@ -318,33 +332,64 @@ func startHooks(t *testing.T, s *service) (*mockReceiver, *mockHomeserver) {
 	return hooksServer.recv, hooksServer.hs
 }
 
-// startJobRoom registers Ada and ingests F-01 with recap-sink sinks and
-// recap-matrix-room room.
-func (s *service) startJobRoom(t *testing.T, sinks, room string) (rid, jobID string) {
+// putRegistrationURL registers o with a result_url (request 1.1.0,
+// metadata-interface.md §2.3).
+func (s *service) putRegistrationURL(t *testing.T, rid, mid string, o owner, resultURL string) reply {
 	t.Helper()
-	rid, mid := freshRecordID(), freshMeetingID()
-	expectStatus(t, s.putRegistration(t, rid, mid, ada), http.StatusCreated, "PUT registration")
-	return rid, s.ingest(t, buildPackageMeta(t, rid, mid, sinks, map[string]string{"recap-matrix-room": room}))
+	b, _ := json.Marshal(map[string]any{"schema_version": "1.1.0", "meeting_id": mid, "record_id": rid, "owner": o, "result_url": resultURL})
+	return s.do(t, http.MethodPut, "/api/v1/registrations/"+url.PathEscape(rid), credential(t, "frontend."+frontendID), "application/json", b)
 }
+
+// contractResultURL is the result_url of CT-SINK-18 (fixtures.md §5 host).
+const contractResultURL = "https://pilos.recap.test/rooms/ct-sink-18/summaries"
 
 func testOrderAndLinks(t *testing.T) {
 	s := newService(t)
 	recv, hs := startHooks(t, s)
 	s.docs.reset()
 	// List order puts Matrix and the webhook first; group order wins (sinks.md §1.1).
-	list := matrixContractSink + "," + webhookContractSink + "," + contractSink
-	rid, jobID := s.startJobRoom(t, list, roomJoined)
-	j := s.waitState(t, jobID, "delivered", "")
-	expectStatuses(t, j, contractSink+"=sent", matrixContractSink+"=sent", webhookContractSink+"=sent")
+	list := matrixContractSink + "," + webhookContractSink + "," + frontendContractSink + "," + contractSink
+	rid, mid := freshRecordID(), freshMeetingID()
+	expectStatus(t, s.putRegistrationURL(t, rid, mid, ada, contractResultURL), http.StatusCreated, "PUT registration with result_url")
+	jobID := s.ingest(t, buildPackageMeta(t, rid, mid, list, map[string]string{"recap-matrix-room": roomJoined}))
+
+	// Group 1 is sent; group 2 waits until the front end fetched the summary (sinks.md §1.8).
+	deadline := time.Now().Add(pipelineTimeout)
+	for {
+		res := s.registration(t, rid, jobID)
+		if d := res.Job.Deliveries; len(d) == 4 && d[0].State == "sent" && d[1].State == "sent" {
+			if res.ResultURL == nil || *res.ResultURL != contractResultURL {
+				t.Errorf("registration result_url %v, want %s echoed (metadata-interface.md §2.7)", res.ResultURL, contractResultURL)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("job %s: group 1 not sent: %+v", jobID, res.Job.Deliveries)
+		}
+		time.Sleep(pollInterval)
+	}
+	time.Sleep(5 * time.Second)
+	if n, ev := len(recv.received()), len(hs.posted()); n != 0 || ev != 0 {
+		t.Fatalf("before the pickup: %d webhook requests, %d Matrix events; want none (sinks.md §1.8)", n, ev)
+	}
+	if j := s.multiJob(t, jobID); j.State == "delivered" {
+		t.Fatal("job delivered before the front end fetched the summary")
+	}
+	expectStatus(t, s.summary(t, http.MethodGet, rid), http.StatusOK, "GET summary before delivered")
+	expectStatus(t, s.summary(t, http.MethodDelete, rid), http.StatusNoContent, "DELETE summary (pickup)")
+
+	j := s.waitStateFor(t, jobID, "delivered", "", 6*time.Minute)
+	expectStatuses(t, j, frontendContractSink+"=sent", contractSink+"=sent", matrixContractSink+"=sent", webhookContractSink+"=sent")
 	doc := expectOneDocument(t, s.docs)
 	res := s.registration(t, rid, jobID)
 	docsURL := ""
-	if res.Job.Deliveries[0].DocumentURL != nil {
-		docsURL = *res.Job.Deliveries[0].DocumentURL
+	if res.Job.Deliveries[1].DocumentURL != nil {
+		docsURL = *res.Job.Deliveries[1].DocumentURL
 	}
 	if !strings.HasSuffix(docsURL, "/docs/"+doc.id+"/") {
 		t.Fatalf("docs-contract link %q, want the document %s", docsURL, doc.id)
 	}
+	wantLinks := []link{{SinkProfile: frontendContractSink, URL: contractResultURL}, {SinkProfile: contractSink, URL: docsURL}}
 	hooksServer.mu.Lock()
 	before := hooksServer.docsBefore
 	hooksServer.mu.Unlock()
@@ -353,7 +398,7 @@ func testOrderAndLinks(t *testing.T) {
 			t.Errorf("%s requests saw %v Docs requests before them, want one request after the Docs POST", what, n)
 		}
 	}
-	// Webhook: signed with the fixture secret, links carry the Docs link.
+	// Webhook: signed with the fixture secret; links: result_url, then Docs.
 	got := recv.received()
 	if len(got) != 1 {
 		t.Fatalf("webhook receiver got %d requests, want 1", len(got))
@@ -375,11 +420,10 @@ func testOrderAndLinks(t *testing.T) {
 			Links []link `json:"links"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(got[0].body, &body); err != nil || body.Data.JobID != jobID ||
-		!slices.Equal(body.Data.Links, []link{{SinkProfile: contractSink, DocumentURL: docsURL}}) {
-		t.Errorf("webhook data job_id %q links %v, want %s and the docs-contract link", body.Data.JobID, body.Data.Links, jobID)
+	if err := json.Unmarshal(got[0].body, &body); err != nil || body.Data.JobID != jobID || !slices.Equal(body.Data.Links, wantLinks) {
+		t.Errorf("webhook data job_id %q links %v, want %s and %v", body.Data.JobID, body.Data.Links, jobID, wantLinks)
 	}
-	// Matrix: one notice in the joined room with the Docs link.
+	// Matrix: one notice in the joined room: title, result_url, Docs link.
 	ev := hs.posted()
 	if len(ev) != 1 || ev[0].room != roomJoined || ev[0].txn != "recap-"+jobID+"-"+matrixContractSink {
 		t.Fatalf("homeserver events %+v, want one in %s with txnId recap-%s-%s", ev, roomJoined, jobID, matrixContractSink)
@@ -388,13 +432,41 @@ func testOrderAndLinks(t *testing.T) {
 		MsgType string `json:"msgtype"`
 		Body    string `json:"body"`
 	}
-	if err := json.Unmarshal(ev[0].content, &c); err != nil || c.MsgType != "m.notice" || !strings.HasSuffix(c.Body, "\n"+docsURL) {
-		t.Errorf("Matrix event %s, want an m.notice whose last line is the Docs link", ev[0].content)
+	if err := json.Unmarshal(ev[0].content, &c); err != nil || c.MsgType != "m.notice" || !strings.HasSuffix(c.Body, "\n"+contractResultURL+"\n"+docsURL) {
+		t.Errorf("Matrix event %s, want an m.notice ending with the result_url and the Docs link", ev[0].content)
 	}
-	if str(j.Deliveries[1].DocumentID) != ev[0].eventID {
-		t.Errorf("matrix-contract document_id %q, want the event ID %s", str(j.Deliveries[1].DocumentID), ev[0].eventID)
+	// Admin job body: the room and the target (architecture.md §4).
+	if j.MatrixRoom == nil || *j.MatrixRoom != roomJoined {
+		t.Errorf("admin job matrix_room %v, want %s", j.MatrixRoom, roomJoined)
 	}
-	scanServiceLog(t, append(append([]string{roomJoined, fixtureMatrixToken(t), fixtureSigningSecret(t)}, contentCanaries...), identityCanaries...))
+	if d := j.Deliveries[2]; str(d.DocumentID) != ev[0].eventID || str(d.Target) != roomJoined {
+		t.Errorf("matrix-contract delivery document_id %q target %q, want %s in %s", str(d.DocumentID), str(d.Target), ev[0].eventID, roomJoined)
+	}
+	scanServiceLog(t, append(append([]string{roomJoined, contractResultURL, fixtureMatrixToken(t), fixtureSigningSecret(t)}, contentCanaries...), identityCanaries...))
+}
+
+// testRetriesExhausted (CT-SINK-19, sinks.md §1.8): a sink that is never
+// reachable becomes failed with retries_exhausted when the step runs out of
+// attempts, so an admin can skip it. It waits for every attempt of deliver
+// (about two hours) and runs only with RECAP_CONTRACT_SLOW.
+func testRetriesExhausted(t *testing.T) {
+	if os.Getenv(slowVar) == "" {
+		t.Skipf("skipped: %s not set (about two hours; contracts/README.md)", slowVar)
+	}
+	s := newService(t)
+	s.docs.reset()
+	for range 20 {
+		s.docs.queue(statusFault(http.StatusTooManyRequests, bodyThrottled))
+	}
+	_, jobID := s.startJobVia(t, ada, frontendContractSink+","+contractSink)
+	j := s.waitStateFor(t, jobID, "failed", "retries_exhausted", 3*time.Hour)
+	expectStatuses(t, j, frontendContractSink+"=sent", contractSink+"=failed")
+	if str(j.Deliveries[1].FailureReason) != "retries_exhausted" {
+		t.Errorf("docs-contract failure_reason %q, want retries_exhausted", str(j.Deliveries[1].FailureReason))
+	}
+	expectStatus(t, s.postAction(t, jobID, "release", `{"sink":"`+contractSink+`"}`), http.StatusOK, "skip the exhausted sink")
+	j = s.waitState(t, jobID, "delivered", "")
+	expectStatuses(t, j, frontendContractSink+"=sent", contractSink+"="+skippedByAdminStatus)
 }
 
 // buildPackageMeta is buildPackageFor with more recap-* metadata in

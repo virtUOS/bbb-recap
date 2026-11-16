@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -32,8 +33,7 @@ const (
 	roomPublic   = "!fixturepublic01:matrix.recap.test"                    // joinable, but the bot was not invited
 	aliasTeam    = "#fixture-team:matrix.recap.test"                       // → roomJoined
 	aliasUnknown = "#fixture-unknown:matrix.recap.test"                    // not mapped: 404
-	roomOther    = "!fixtureother01:other.recap.test"                      // server not in allowed_servers
-	roomNoServer = "!fixtureRoomV12abcdefghijklmnopqrstuvwxyz0123456789_-" // room version 12 form
+	roomNoServer = "!fixtureRoomV12abcdefghijklmnopqrstuvwxyz0123456789_-" // room version 12 form, joined
 )
 
 // TestMatrixSink holds the Matrix sink tests of sinks.md §4c.7.
@@ -43,7 +43,7 @@ func TestMatrixSink(t *testing.T) {
 	t.Run("CT-SINK-32 pending invitation only", testMatrixInvite)
 	t.Run("CT-SINK-33 error classes", testMatrixClasses)
 	t.Run("CT-SINK-34 re-entry and transaction ID", testMatrixReentry)
-	t.Run("CT-SINK-35 pre-checks, declaration, logs", testMatrixPreChecks)
+	t.Run("CT-SINK-35 pre-checks, title only, config, logs", testMatrixPreChecks)
 }
 
 // --- mock homeserver ---
@@ -62,6 +62,7 @@ type mxRequest struct {
 type mxFault struct {
 	status        int
 	errcode       string
+	location      string // Location header, for 3xx
 	hangAfterPost bool
 	dropAfterPost bool
 }
@@ -103,7 +104,7 @@ func fixtureMatrixToken(t *testing.T) string {
 func (m *mockHomeserver) reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.joined = map[string]bool{roomJoined: true}
+	m.joined = map[string]bool{roomJoined: true, roomNoServer: true}
 	m.invited = map[string]bool{roomInvited: true}
 	m.public = map[string]bool{roomPublic: true}
 	m.aliases = map[string]string{aliasTeam: roomJoined}
@@ -201,6 +202,9 @@ func (m *mockHomeserver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if f.status == http.StatusTooManyRequests {
 			w.Header().Set("Retry-After", "1")
 		}
+		if f.location != "" {
+			w.Header().Set("Location", f.location)
+		}
 		mxError(w, f.status, f.errcode)
 		return
 	}
@@ -280,16 +284,28 @@ func (m *mockHomeserver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// syncFilter is the part of an inline sync filter the tests check
+// (sinks.md §4c.2).
+type syncFilter struct {
+	Room struct {
+		Rooms    []string `json:"rooms"`
+		Timeline struct {
+			Limit *int `json:"limit"`
+		} `json:"timeline"`
+	} `json:"room"`
+}
+
+func parseSyncFilter(filter string) (syncFilter, bool) {
+	var f syncFilter
+	if !strings.HasPrefix(filter, "{") || json.Unmarshal([]byte(filter), &f) != nil {
+		return f, false
+	}
+	return f, true
+}
+
 // syncFilterRooms returns room.rooms of an inline sync filter, or nil.
 func syncFilterRooms(filter string) []string {
-	var f struct {
-		Room struct {
-			Rooms []string `json:"rooms"`
-		} `json:"room"`
-	}
-	if !strings.HasPrefix(filter, "{") || json.Unmarshal([]byte(filter), &f) != nil {
-		return nil
-	}
+	f, _ := parseSyncFilter(filter)
 	return f.Room.Rooms
 }
 
@@ -297,12 +313,32 @@ func syncFilterRooms(filter string) []string {
 // homeserver_url points at it.
 func matrixSetup(t *testing.T) (*mockHomeserver, sinkEnv) {
 	t.Helper()
+	m, _, e := matrixSetupSrv(t)
+	return m, e
+}
+
+func matrixSetupSrv(t *testing.T) (*mockHomeserver, *httptest.Server, sinkEnv) {
+	t.Helper()
 	m := newMockHomeserver(t)
 	srv := httptest.NewUnstartedServer(m)
 	srv.Config.ErrorLog = log.New(io.Discard, "", 0)
 	srv.StartTLS()
 	t.Cleanup(srv.Close)
-	return m, newProfileEnv(t, "sinks-matrix.yaml", srv, "homeserver_url", srv.URL)
+	return m, srv, newProfileEnv(t, "sinks-matrix.yaml", srv, "homeserver_url", srv.URL)
+}
+
+// withExtraKey returns a copy of e whose profile has one more line after its
+// type line (sinks.md §4c.5: unknown keys are configuration errors).
+func (e sinkEnv) withExtraKey(t *testing.T, line string) sinkEnv {
+	t.Helper()
+	c := e
+	c.text = strings.Replace(e.text, "    type: matrix\n", "    type: matrix\n    "+line+"\n", 1)
+	if c.text == e.text {
+		t.Fatal("sinks file has no type: matrix line")
+	}
+	c.sinksFile = filepath.Join(t.TempDir(), "sinks.yaml")
+	writeFile(t, c.sinksFile, []byte(c.text))
+	return c
 }
 
 func matrixReq(t *testing.T, room string) hookRequest { return hookReq(t, matrixProfile, strp(room)) }
@@ -313,7 +349,7 @@ func txnID(req hookRequest) string { return "recap-" + req.JobID + "-" + req.Sin
 func noticeBody(req hookRequest) string {
 	lines := []string{req.Title}
 	for _, l := range req.Links {
-		lines = append(lines, l.DocumentURL)
+		lines = append(lines, l.URL)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -401,15 +437,25 @@ func testMatrixJoined(t *testing.T) {
 }
 
 func testMatrixAlias(t *testing.T) {
-	m, e := matrixSetup(t)
-	req := matrixReq(t, aliasTeam)
-	o := e.runHook(t, hookInput{Request: req})
-	got := expectEndpoints(t, m, "directory", "joined_rooms", "send")
-	if got[0].alias != aliasTeam {
-		t.Errorf("directory lookup of %q, want %q", got[0].alias, aliasTeam)
-	}
-	expectSend(t, m, got[2], roomJoined, req, noticeBody(req))
-	expectSentEvent(t, o, req, expectOneEvent(t, m).eventID)
+	t.Run("alias", func(t *testing.T) {
+		m, e := matrixSetup(t)
+		req := matrixReq(t, aliasTeam)
+		o := e.runHook(t, hookInput{Request: req})
+		got := expectEndpoints(t, m, "directory", "joined_rooms", "send")
+		if got[0].alias != aliasTeam {
+			t.Errorf("directory lookup of %q, want %q", got[0].alias, aliasTeam)
+		}
+		expectSend(t, m, got[2], roomJoined, req, noticeBody(req))
+		expectSentEvent(t, o, req, expectOneEvent(t, m).eventID)
+	})
+	t.Run("room-id-without-server", func(t *testing.T) {
+		m, e := matrixSetup(t)
+		req := matrixReq(t, roomNoServer)
+		o := e.runHook(t, hookInput{Request: req})
+		got := expectEndpoints(t, m, "joined_rooms", "send")
+		expectSend(t, m, got[1], roomNoServer, req, noticeBody(req))
+		expectSentEvent(t, o, req, expectOneEvent(t, m).eventID)
+	})
 }
 
 func testMatrixInvite(t *testing.T) {
@@ -418,8 +464,12 @@ func testMatrixInvite(t *testing.T) {
 		req := matrixReq(t, roomInvited)
 		o := e.runHook(t, hookInput{Request: req})
 		got := expectEndpoints(t, m, "joined_rooms", "sync", "join", "send")
-		if rooms := syncFilterRooms(got[1].query.Get("filter")); !slices.Equal(rooms, []string{roomInvited}) {
-			t.Errorf("sync filter room.rooms %v, want only the target room", rooms)
+		f, ok := parseSyncFilter(got[1].query.Get("filter"))
+		if !ok || !slices.Equal(f.Room.Rooms, []string{roomInvited}) {
+			t.Errorf("sync filter room.rooms %v, want only the target room (sinks.md §4c.2)", f.Room.Rooms)
+		}
+		if f.Room.Timeline.Limit == nil || *f.Room.Timeline.Limit != 0 {
+			t.Error("sync filter room.timeline.limit is not 0 (sinks.md §4c.2)")
 		}
 		if got[1].query.Get("timeout") != "0" {
 			t.Errorf("sync timeout %q, want 0", got[1].query.Get("timeout"))
@@ -440,6 +490,12 @@ func testMatrixInvite(t *testing.T) {
 }
 
 func testMatrixClasses(t *testing.T) {
+	t.Run("joined-301-not-followed", func(t *testing.T) {
+		m, srv, e := matrixSetupSrv(t)
+		m.queue("joined_rooms", mxFault{status: 301, errcode: "M_UNKNOWN", location: srv.URL + "/redirected/_matrix/client/v3/joined_rooms"})
+		expectClassRecord(t, e.runHook(t, hookInput{Request: matrixReq(t, roomJoined)}), "config")
+		expectEndpoints(t, m, "joined_rooms") // the redirect target is never called
+	})
 	cases := []struct {
 		name     string
 		room     string
@@ -454,7 +510,6 @@ func testMatrixClasses(t *testing.T) {
 		{"send-drop", roomJoined, "send", mxFault{dropAfterPost: true}, "uncertain", []string{"joined_rooms", "send"}},
 		{"joined-401", roomJoined, "joined_rooms", mxFault{status: 401, errcode: "M_UNKNOWN_TOKEN"}, "config", []string{"joined_rooms"}},
 		{"send-403", roomJoined, "send", mxFault{status: 403, errcode: "M_FORBIDDEN"}, "rejected", []string{"joined_rooms", "send"}},
-		{"send-413", roomJoined, "send", mxFault{status: 413, errcode: "M_TOO_LARGE"}, "rejected", []string{"joined_rooms", "send"}},
 		{"alias-unknown", aliasUnknown, "", mxFault{}, "rejected", []string{"directory"}},
 		{"joined-500", roomJoined, "joined_rooms", mxFault{status: 500, errcode: "M_UNKNOWN"}, "not_sent", []string{"joined_rooms"}},
 		{"sync-500", roomInvited, "sync", mxFault{status: 500, errcode: "M_UNKNOWN"}, "not_sent", []string{"joined_rooms", "sync"}},
@@ -501,32 +556,38 @@ func testMatrixReentry(t *testing.T) {
 func testMatrixPreChecks(t *testing.T) {
 	m, e := matrixSetup(t)
 	t.Run("rejected without a request", func(t *testing.T) {
-		big := matrixReq(t, roomJoined)
-		big.deliveryRequest = big.withContent(big.SummaryMD + strings.Repeat("- padding line for the size limit\n", 1000))
-		for name, c := range map[string]struct {
-			env sinkEnv
-			req hookRequest
-		}{
-			"summary-over-30000-bytes": {e.withValue(t, "content", "summary"), big},
-			"room-without-sigil":       {e, matrixReq(t, strings.TrimPrefix(roomJoined, "!"))},
-			"alias-without-server":     {e, matrixReq(t, "#fixture-team")},
-			"server-not-allowed":       {e, matrixReq(t, roomOther)},
-			"room-id-without-server":   {e, matrixReq(t, roomNoServer)},
+		for name, room := range map[string]string{
+			"room-without-sigil":   strings.TrimPrefix(roomJoined, "!"),
+			"alias-without-server": "#fixture-team",
 		} {
 			t.Run(name, func(t *testing.T) {
 				m.reset()
-				expectClassRecord(t, c.env.runHook(t, hookInput{Request: c.req}), "rejected")
+				expectClassRecord(t, e.runHook(t, hookInput{Request: matrixReq(t, room)}), "rejected")
 				expectEndpoints(t, m)
 			})
 		}
 	})
-	t.Run("summary content", func(t *testing.T) {
+	t.Run("title only without links", func(t *testing.T) {
 		m.reset()
 		req := matrixReq(t, roomJoined)
-		o := e.withValue(t, "content", "summary").runHook(t, hookInput{Request: req})
+		req.Links = []link{}
+		o := e.runHook(t, hookInput{Request: req})
 		got := expectEndpoints(t, m, "joined_rooms", "send")
-		expectSend(t, m, got[1], roomJoined, req, noticeBody(req)+"\n\n"+req.SummaryMD)
+		expectSend(t, m, got[1], roomJoined, req, req.Title)
 		expectSentEvent(t, o, req, expectOneEvent(t, m).eventID)
+	})
+	t.Run("no summary in the notice", func(t *testing.T) {
+		for _, ev := range m.posted() {
+			if strings.Contains(string(ev.content), contentCanaries[0]) {
+				t.Error("a Matrix event carries summary text (sinks.md §4c: notice only)")
+			}
+		}
+	})
+	t.Run("content key refused", func(t *testing.T) {
+		code, stdout, _ := e.withExtraKey(t, "content: summary").runHookRaw(t, hookInput{Request: matrixReq(t, roomJoined)})
+		if code != 2 || len(stdout) != 0 {
+			t.Errorf("matrix profile with content: exit %d, stdout %q; want exit 2 (sinks.md §4c.5)", code, stdout)
+		}
 	})
 	t.Run("declaration required", func(t *testing.T) {
 		m.reset()
@@ -534,7 +595,7 @@ func testMatrixPreChecks(t *testing.T) {
 	})
 	t.Run("no content in logs", func(t *testing.T) {
 		req := matrixReq(t, roomJoined)
-		canaries := append(append([]string{m.token, roomJoined, roomInvited, roomPublic, aliasTeam, req.Title},
+		canaries := append(append([]string{m.token, roomJoined, roomInvited, roomPublic, roomNoServer, aliasTeam, req.Title, resultLink.URL},
 			contentCanaries...), identityCanaries...)
 		scanHookLogs(t, canaries)
 	})

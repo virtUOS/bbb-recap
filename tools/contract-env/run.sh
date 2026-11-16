@@ -26,10 +26,9 @@
 #
 # RECAP_CONTRACT_HOOKS_ADDR (host:port, set at up and for the tests): adds the
 # sink profiles webhook-contract (url http://ADDR/webhook) and matrix-contract
-# (homeserver_url http://ADDR, allowed_servers matrix.recap.test), where the
-# multi-sink tests serve a webhook receiver and a Matrix homeserver
-# (contracts/README.md; docs/reference/sinks.md §4b, §4c). Reachable from the
-# containers as for RECAP_CONTRACT_DOCS_ADDR.
+# (homeserver_url http://ADDR), where the multi-sink tests serve a webhook
+# receiver and a Matrix homeserver (contracts/README.md; docs/reference/sinks.md
+# §4b, §4c). Reachable from the containers as for RECAP_CONTRACT_DOCS_ADDR.
 #
 # RECAP_CONTRACT_RESULT_TTL (duration, set at up and for the tests): the
 # RECAP_RESULT_TTL of api and worker, default 7d. The slow lifetime tests of
@@ -171,11 +170,8 @@ add_hooks_contract() {
     type: matrix
     homeserver_url: http://$1
     access_token_file: /run/secrets/recap/sinks/matrix-bot.token
-    allowed_servers: [matrix.recap.test]
-    content: notice
     request_timeout: 30s
     max_inflight: 2
-    max_document_bytes: 30000
     declaration:
       data_categories: [summary]
       operator: "operator's Matrix homeserver"
