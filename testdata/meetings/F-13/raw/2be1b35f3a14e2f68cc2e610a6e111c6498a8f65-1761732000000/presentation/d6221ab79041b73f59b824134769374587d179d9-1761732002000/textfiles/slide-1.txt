@@ -1,0 +1,5 @@
+Fixture Widget Agenda
+
+  1.  Widget colour
+  2.  Widget budget
+  3.  Next steps

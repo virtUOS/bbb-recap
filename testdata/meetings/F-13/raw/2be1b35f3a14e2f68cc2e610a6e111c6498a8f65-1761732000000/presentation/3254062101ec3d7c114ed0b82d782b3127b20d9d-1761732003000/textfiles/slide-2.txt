@@ -1,0 +1,2 @@
+Short-shown slide
+  Shown for 4999 ms only

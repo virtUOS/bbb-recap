@@ -14,8 +14,8 @@ recap tool normalize DIR
 - `DIR`: a raw recording directory `raw/<record_id>/` as `archive.rb` leaves it, or a package directory (files at
   their manifest paths). Files are selected by the allow-list of `meeting-package.md` §5. The tool only reads below
   `DIR` and writes nothing.
-- Output: the normalized meeting as **one JSON object** on stdout, exit 0. Its fields are not pinned here: the tests
-  pass it unchanged to `assemble`. It must hold everything `assemble` needs (events, track hashes, decode results),
+- Output: the normalized meeting as **one JSON object** on stdout, exit 0. Its fields are not pinned here (except
+  `slides`, which `contracts/render` pins, CT-TPL-12): the tests pass it unchanged to `assemble`. It must hold everything `assemble` needs (events, track hashes, decode results),
   because `assemble` reads nothing but stdin.
 - A microphone file that cannot be decoded is not an error: it becomes a gap `track_unreadable`
   (`architecture.md` §5.2), which shows up in the transcript.

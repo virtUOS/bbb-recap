@@ -278,7 +278,8 @@ transcript on every call, which does not scale to long meetings. bbb-recap uses 
    `ceil(chars / 3.0)`. `context_tokens` is declared in the profile, not asked from the provider. **Single call** if
    the input fits.
 2. **Map:** otherwise cut the transcript lines into consecutive chunks ≤ budget, only between segments (a longer
-   segment is cut at the last sentence end or space). No overlap. Chat, notes and polls go only to the reduce call.
+   segment is cut at the last sentence end or space). No overlap. Chat, notes, polls and slides (`templates.md` §3.1)
+   go only to the reduce call.
 3. **Reduce:** the map outputs, in chunk order, go into one reduce call; if they exceed the budget, reduce in groups,
    at most 3 levels, else the step fails with `input_too_large`.
 4. **Re-split:** on `output_truncated` or `input_too_large` in a map call, split that chunk in half once. Map calls
