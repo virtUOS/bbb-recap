@@ -1,49 +1,53 @@
-// UI strings, bundled into the script so the build stays one file. BBB "pauses" a recording: a stopped recording
-// can be started again in the same meeting, like with its own record button.
+// UI strings, bundled into the script so the build stays one file. English is the base language; the user's BBB
+// locale picks German for "de" and its regions. The AI minutes are BBB's recording of the meeting: a paused one can be
+// resumed in the same meeting, like with BBB's own record button.
 
 export interface Messages {
-  labelOff: string;
-  labelOn: string;
-  tooltipStart: string;
-  tooltipPause: string;
+  pillStart: string;
+  pillRunning: string;
+  pillPaused: string;
+  tooltipOff: string;
+  tooltipRunning: string;
+  tooltipPaused: string;
   startTitle: string;
   startText: string;
   pauseTitle: string;
   pauseText: string;
-  start: string;
-  pause: string;
+  startButton: string;
+  pauseButton: string;
   cancel: string;
 }
 
 const en: Messages = {
-  labelOff: "AI summary: off",
-  labelOn: "AI summary: on",
-  tooltipStart: "Start the AI summary. This starts the recording of the meeting.",
-  tooltipPause: "Pause the AI summary. This pauses the recording of the meeting.",
-  startTitle: "Start the AI summary?",
-  startText:
-    "This starts the recording of the meeting. Everyone in the meeting is notified. " +
-    "After the meeting, the recorded parts are transcribed and summarized.",
-  pauseTitle: "Pause the AI summary?",
-  pauseText: "This pauses the recording of the meeting. You can start it again later.",
-  start: "Start",
-  pause: "Pause",
+  pillStart: "Start AI minutes",
+  pillRunning: "AI minutes",
+  pillPaused: "AI minutes paused",
+  tooltipOff: "AI minutes are off. Click to start.",
+  tooltipRunning: "AI minutes are running. Click to pause.",
+  tooltipPaused: "AI minutes are paused. Click to resume.",
+  startTitle: "Start AI minutes?",
+  startText: "Everything said is transcribed, with names and timestamps. Everyone sees a notice while it runs.",
+  pauseTitle: "Pause AI minutes?",
+  pauseText: "Nothing is transcribed until you resume.",
+  startButton: "Start",
+  pauseButton: "Pause",
   cancel: "Cancel",
 };
 
 const de: Messages = {
-  labelOff: "KI-Zusammenfassung: aus",
-  labelOn: "KI-Zusammenfassung: an",
-  tooltipStart: "KI-Zusammenfassung starten. Dadurch startet die Aufzeichnung der Konferenz.",
-  tooltipPause: "KI-Zusammenfassung pausieren. Dadurch pausiert die Aufzeichnung der Konferenz.",
-  startTitle: "KI-Zusammenfassung starten?",
+  pillStart: "KI-Protokoll starten",
+  pillRunning: "KI-Protokoll",
+  pillPaused: "KI-Protokoll pausiert",
+  tooltipOff: "KI-Protokoll ist aus. Klicken zum Starten.",
+  tooltipRunning: "KI-Protokoll läuft. Klicken zum Pausieren.",
+  tooltipPaused: "KI-Protokoll pausiert. Klicken zum Fortsetzen.",
+  startTitle: "KI-Protokoll starten?",
   startText:
-    "Dadurch startet die Aufzeichnung der Konferenz. Alle Teilnehmenden werden benachrichtigt. " +
-    "Nach der Konferenz werden die aufgezeichneten Teile transkribiert und zusammengefasst.",
-  pauseTitle: "KI-Zusammenfassung pausieren?",
-  pauseText: "Dadurch pausiert die Aufzeichnung der Konferenz. Sie können sie später wieder starten.",
-  start: "Starten",
-  pause: "Pausieren",
+    "Alles Gesagte wird transkribiert, mit Namen und Zeitstempeln. Alle sehen einen Hinweis, solange es läuft.",
+  pauseTitle: "KI-Protokoll pausieren?",
+  pauseText: "Bis zum Fortsetzen wird nichts transkribiert.",
+  startButton: "Starten",
+  pauseButton: "Pausieren",
   cancel: "Abbrechen",
 };
 
