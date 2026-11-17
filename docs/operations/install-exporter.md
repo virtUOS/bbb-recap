@@ -109,7 +109,7 @@ Optional: the BBB plugin adds an "AI summary" button that starts and pauses the 
 | Status            | `docker compose exec exporter /usr/local/bin/recap-exporter status [RECORD_ID]`                                          |
 | Retry a recording | `docker compose stop exporter`, `docker compose run --rm exporter requeue "$RECORD_ID"`, `docker compose start exporter` |
 | Logs              | `docker compose logs --tail 50 exporter`                                                                                 |
-| Metrics, health   | `http://127.0.0.1:9466/metrics`, `/healthz`, `/readyz` (host only; do not expose publicly)                               |
+| Metrics, health   | `http://127.0.0.1:9466/metrics`, `/healthz`, `/readyz` (host only; for Prometheus see [below](#metrics-for-prometheus))  |
 | All settings      | [`exporter.env`](../../deploy/exporter/exporter.env), [deployment.md](../reference/deployment.md) §5.4                   |
 
 ### Upgrade and rollback
@@ -189,6 +189,37 @@ services:
 EOF
 cd /opt/recap-exporter && docker compose up -d
 ```
+
+### Metrics for Prometheus
+
+The metrics listener is on `127.0.0.1:9466` without a login. To scrape it from another host, forward only `/metrics`
+through the web server that already serves BBB and limit it to the Prometheus server. For nginx, add this to the
+`server` block that serves BBB over HTTPS (`PROM_IP` is the Prometheus server's address):
+
+```nginx
+location = /recap-exporter/metrics {
+    allow PROM_IP;
+    deny  all;
+    proxy_pass http://127.0.0.1:9466/metrics;
+}
+```
+
+Find the file that holds that `server` block with `sudo nginx -T | grep -n -e '# configuration file' -e 'server_name'`.
+Packaged BBB can overwrite its own site file on upgrade; check the block after each BBB upgrade. Then
+`sudo nginx -t && sudo systemctl reload nginx`, and on the Prometheus server:
+
+```yaml
+- job_name: recap-exporter
+  scheme: https
+  metrics_path: /recap-exporter/metrics
+  static_configs:
+    - targets: ["bbb1.example.org"]
+```
+
+`/healthz` and `/readyz` are for the local healthcheck and need not be forwarded.
+
+This is for packaged BBB. On docker BBB the web server runs in a container and cannot reach the host's `127.0.0.1`
+(not tested there).
 
 ### Sources
 
