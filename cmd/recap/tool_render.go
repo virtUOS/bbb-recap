@@ -59,6 +59,12 @@ type renderToolInput struct {
 			Option int `json:"option"`
 		} `json:"responses"`
 	} `json:"polls"`
+	Slides []struct {
+		AtMS int64  `json:"at_ms"`
+		Deck string `json:"deck"`
+		Page int    `json:"page"`
+		Text string `json:"text"`
+	} `json:"slides"`
 	LLMModel    string             `json:"llm_model"`
 	GeneratedAt string             `json:"generated_at"`
 	Summary     *summarize.Summary `json:"summary"`
@@ -135,7 +141,7 @@ func renderOnce(prog, formatsDir, outDir string, withSummarize bool, data []byte
 		fmt.Fprintf(stderr, "%s: RECAP_DEFAULT_LANGUAGE: want an ISO 639-1 code\n", prog)
 		return exitUsage
 	}
-	types, err := readMeetingTypes(envOr("RECAP_MEETING_TYPES_FILE", defaultMeetingTypesFile))
+	types, err := readMeetingTypes(envOr("RECAP_MEETING_TYPES_FILE", defaultMeetingTypesFile), formatsDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: RECAP_MEETING_TYPES_FILE: %v\n", prog, err)
 		return exitUsage
@@ -162,7 +168,8 @@ func renderOnce(prog, formatsDir, outDir string, withSummarize bool, data []byte
 	}
 
 	// Format selection before any provider call (templates.md §1).
-	id, ok := types[in.MeetingType]
+	mt, ok := types[in.MeetingType]
+	id := mt.Format
 	if !ok {
 		log.Info("meeting type has no format", "outcome", "hold")
 		return writeJSON(stdout, map[string]string{"outcome": string(queue.Hold), "reason": summarize.ReasonUnknownType})
@@ -180,7 +187,8 @@ func renderOnce(prog, formatsDir, outDir string, withSummarize bool, data []byte
 
 	sum, model := in.Summary, in.LLMModel
 	if withSummarize {
-		res, code := runSummarize(prog, f, in, polls, lang, log, stderr)
+		slides := mt.Inputs[config.InputSlides] && f.HasInput(summarize.InputSlides)
+		res, code := runSummarize(prog, f, in, polls, slides, lang, log, stderr)
 		if code >= 0 {
 			return code
 		}
@@ -225,7 +233,9 @@ type summarized struct {
 
 // runSummarize runs the summarize call plan against the default LLM
 // profile. code is an exit code when the tool must stop, else -1.
-func runSummarize(prog string, f *format.Format, in renderToolInput, polls []meeting.Poll, lang string,
+// Slides of the input are used only when slides is set (the meeting type
+// switches them on, templates.md §3.1).
+func runSummarize(prog string, f *format.Format, in renderToolInput, polls []meeting.Poll, slides bool, lang string,
 	log *slog.Logger, stderr io.Writer) (summarized, int) {
 	path := os.Getenv("RECAP_PROVIDERS_FILE")
 	if path == "" {
@@ -254,6 +264,11 @@ func runSummarize(prog string, f *format.Format, in renderToolInput, polls []mee
 	}
 	for _, c := range in.Chat {
 		sin.Chat = append(sin.Chat, summarize.ChatMessage{AtMS: c.AtMS, Name: c.Name, Text: c.Text})
+	}
+	if slides {
+		for _, s := range in.Slides {
+			sin.Slides = append(sin.Slides, meeting.Slide{TMS: s.AtMS, Deck: s.Deck, Page: s.Page, Text: s.Text})
+		}
 	}
 	s := &summarize.Summarizer{LLM: llm, Profile: profile, Format: f, Log: log}
 	res, err := s.Run(context.Background(), "tool", sin, lang)
@@ -297,8 +312,9 @@ func countPolls(in renderToolInput) ([]meeting.Poll, error) {
 }
 
 // readMeetingTypes reads the meeting-types file (templates.md §1) as a map
-// from meeting type to format ID.
-func readMeetingTypes(path string) (map[string]string, error) {
+// from meeting type to its entry; inputs are checked against the formats in
+// formatsDir as at service start.
+func readMeetingTypes(path, formatsDir string) (map[string]config.MeetingType, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.New("cannot read the file")
@@ -312,9 +328,12 @@ func readMeetingTypes(path string) (map[string]string, error) {
 	if err := dec.Decode(&file); err != nil {
 		return nil, err
 	}
-	types := map[string]string{}
+	if errs := config.InputErrors("meeting-types file", file.MeetingTypes, formatsDir); len(errs) > 0 {
+		return nil, errors.New(strings.Join(errs, "; "))
+	}
+	types := map[string]config.MeetingType{}
 	for _, mt := range file.MeetingTypes {
-		types[mt.Name] = mt.Format
+		types[mt.Name] = mt
 	}
 	return types, nil
 }

@@ -102,7 +102,7 @@ func TestHandlerF01(t *testing.T) {
 	}
 	if len(out.SummarySHA256) != 64 || out.NoSpeech || out.Profile != "vllm-lab" || out.Dialect != "openai-chat" ||
 		out.Model != "example-model-reported" || out.Language != "en" || out.FormatID != "meeting-summary" ||
-		out.FormatVersion != "1.0.0" || len(out.FormatSHA256) != 64 {
+		out.FormatVersion != "1.1.0" || len(out.FormatSHA256) != 64 {
 		t.Errorf("output %+v", out)
 	}
 	rc, err := store.Get(ctx, jobID, out.SummarySHA256)
@@ -199,6 +199,62 @@ func TestPlainNotes(t *testing.T) {
 	} {
 		if got := strings.TrimSpace(plainNotes(c.ref.MediaType, []byte(html))); got != c.want {
 			t.Errorf("%s (%s): %q, want %q", c.ref.Path, c.ref.MediaType, got, c.want)
+		}
+	}
+}
+
+// The handler sends the normalized meeting's slides only for a meeting type
+// that switches them on (templates.md §3.1).
+func TestHandlerSlides(t *testing.T) {
+	ctx := context.Background()
+	pool := dbtest.New(t)
+	store, err := blob.NewFS(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedJob(t, pool, store, true)
+	var nout meeting.Output
+	if err := pool.QueryRow(ctx, `SELECT output FROM steps WHERE job_id = $1 AND name = 'normalize'`,
+		jobID).Scan(&nout); err != nil {
+		t.Fatal(err)
+	}
+	rc, err := store.Get(ctx, jobID, nout.NormalizedSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(rc)
+	_ = rc.Close()
+	m, err := meeting.Decode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Slides = []meeting.Slide{{TMS: 7000, Deck: "d-1", Page: 1, Text: slideMark}}
+	if b, err = meeting.Marshal(m); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(b)
+	key := hex.EncodeToString(sum[:])
+	if err := store.Put(ctx, jobID, key, int64(len(b)), bytes.NewReader(b)); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := json.Marshal(meeting.Output{NormalizedSHA256: key})
+	if _, err := pool.Exec(ctx, `UPDATE steps SET output = $2 WHERE job_id = $1 AND name = 'normalize'`,
+		jobID, out); err != nil {
+		t.Fatal(err)
+	}
+	for _, on := range []bool{false, true} {
+		e := newEnv(t, 32768, 4096)
+		d := handlerDeps(e, pool, store)
+		d.SlideTypes = map[string]bool{"meeting-summary": on}
+		if r := Handler(d)(ctx, queue.Run{JobID: jobID, Step: Step, Attempt: 1}); r.Outcome != queue.OK {
+			t.Fatalf("slides %v: result %+v", on, r)
+		}
+		calls := e.fake.all()
+		if len(calls) != 1 || strings.Contains(calls[0].user, slideMark) != on {
+			t.Errorf("slides %v: %d calls, slide text sent = %v", on, len(calls), !on)
+		}
+		if strings.Contains(e.logs.String(), slideMark) {
+			t.Errorf("slides %v: log contains slide text", on)
 		}
 	}
 }

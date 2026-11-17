@@ -32,6 +32,14 @@
 //     SimpleVoteOutVO {id, key, numVotes, isCorrectAnswer})
 //     (PollPublishedRecordEvent.scala:28-62; Meeting2x.scala:127).
 //     The event names are cited; the values in the F-01 fixture are synthetic.
+//   - module PRESENTATION (RedisRecorderActor.scala:235-312;
+//     AbstractPresentationRecordEvent.scala:22-34): ConversionCompletedEvent
+//     with podId, presentationName, originalFilename; SharePresentationEvent
+//     with podId, presentationName, share; GotoSlideEvent with podId,
+//     presentationName, slide (zero-based); RemovePresentationEvent with
+//     podId, presentationName; RemovePresentationPodEvent with podId
+//     (docs/reference/upstream-facts.md "BBB presentations"; the child order
+//     in a real file was not checked).
 //
 // The document contains personal data (names, user IDs, chat). Callers must
 // not log what this package returns.
@@ -72,6 +80,13 @@ const (
 	EventPollStopped   = "PollStoppedRecordEvent"
 	EventPollPublished = "PollPublishedRecordEvent"
 
+	ModulePresentation      = "PRESENTATION"
+	EventConversionDone     = "ConversionCompletedEvent"
+	EventSharePresentation  = "SharePresentationEvent"
+	EventGotoSlide          = "GotoSlideEvent"
+	EventRemovePresentation = "RemovePresentationEvent"
+	EventRemovePod          = "RemovePresentationPodEvent"
+
 	SourceMicrophone = "microphone"
 )
 
@@ -88,6 +103,7 @@ type Events struct {
 	Joins       []Join  // ParticipantJoinEvent
 	Chat        []Chat  // public chat events (sent, edited, deleted, cleared)
 	Polls       []Poll  // events of module POLL
+	Slides      []Slide // presentation events of module PRESENTATION
 	VoiceStarts int     // StartRecordingEvent of module VOICE (legacy bridge)
 
 	// LastTS is the largest event timestamp in the document; HasEvents
@@ -150,6 +166,20 @@ type Poll struct {
 	UserID   string
 	AnswerID string
 	Answer   string
+}
+
+// Slide is one presentation event; Kind is its event name. Presentation is
+// the presentationName (the pres-id), OriginalFilename the uploader's file
+// name (personal data possible), Slide the zero-based page of a
+// GotoSlideEvent as written.
+type Slide struct {
+	TS               int64
+	Kind             string
+	PodID            string
+	Presentation     string
+	OriginalFilename string
+	Share            string
+	Slide            string
 }
 
 // rejoinSuffix is the suffix BBB adds to a userId on rejoin; BBB strips it
@@ -286,7 +316,7 @@ func readEvent(dec *xml.Decoder, t xml.StartElement, ev *Events) error {
 	}
 	known := name == EventRecordStatus || name == EventJoin || isChat(name) ||
 		(module == ModuleSFU && (name == EventTrackPublished || name == EventTrackUnpub)) ||
-		(module == ModulePoll && isPoll(name))
+		(module == ModulePoll && isPoll(name)) || (module == ModulePresentation && isPresentation(name))
 	if module == ModuleVoice && name == EventVoiceRecStart {
 		ev.VoiceStarts++
 	}
@@ -317,6 +347,10 @@ func readEvent(dec *xml.Decoder, t xml.StartElement, ev *Events) error {
 	case EventPublicChat, EventChatEdit, EventChatDelete, EventChatClear:
 		ev.Chat = append(ev.Chat, Chat{TS: ts, Kind: name, SenderID: raw.get("senderId"),
 			MessageID: raw.get("messageId"), ReplyToID: raw.get("replyToMessageId"), Message: raw.get("message")})
+	case EventConversionDone, EventSharePresentation, EventGotoSlide, EventRemovePresentation, EventRemovePod:
+		ev.Slides = append(ev.Slides, Slide{TS: ts, Kind: name, PodID: raw.get("podId"),
+			Presentation: raw.get("presentationName"), OriginalFilename: raw.get("originalFilename"),
+			Share: raw.get("share"), Slide: raw.get("slide")})
 	default: // poll events
 		ev.Polls = append(ev.Polls, Poll{TS: ts, Kind: name, PollID: raw.get("pollId"), Question: raw.get("question"),
 			Answers: raw.get("answers"), UserID: raw.get("userId"), AnswerID: raw.get("answerId"),
@@ -332,6 +366,11 @@ func isChat(name string) bool {
 func isPoll(name string) bool {
 	return name == EventPollStarted || name == EventPollResponded || name == EventPollStopped ||
 		name == EventPollPublished
+}
+
+func isPresentation(name string) bool {
+	return name == EventConversionDone || name == EventSharePresentation || name == EventGotoSlide ||
+		name == EventRemovePresentation || name == EventRemovePod
 }
 
 // MicPublished returns the first AudioTrackPublishedEvent with source

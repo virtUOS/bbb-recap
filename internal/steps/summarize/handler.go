@@ -41,8 +41,11 @@ type Deps struct {
 	Profile *providers.Profile // the LLM profile the adapter was built from
 	// FormatsDir is RECAP_FORMATS_DIR; MeetingTypes maps a meeting type to
 	// its format ID (RECAP_MEETING_TYPES_FILE).
-	FormatsDir      string
-	MeetingTypes    map[string]string
+	FormatsDir   string
+	MeetingTypes map[string]string
+	// SlideTypes are the meeting types that switch the slides input on
+	// (inputs.slides: true, templates.md §1, §3.1).
+	SlideTypes      map[string]bool
 	DefaultLanguage string // RECAP_DEFAULT_LANGUAGE
 }
 
@@ -145,7 +148,8 @@ func Outcome(err error) queue.Result {
 var errFormat = errors.New("summarize: invalid format")
 
 // load reads the job's meeting type and format, the normalized meeting, the
-// transcript and the shared notes, and builds the Input.
+// transcript and the shared notes, and builds the Input. The slides of the
+// normalized meeting are taken only when the meeting type switches them on.
 func (d Deps) load(ctx context.Context, jobID string) (*format.Format, Input, error) {
 	var meetingType *string
 	var nout meeting.Output
@@ -185,6 +189,10 @@ func (d Deps) load(ctx context.Context, jobID string) (*format.Format, Input, er
 		return nil, Input{}, err
 	}
 	in := Input{MeetingName: m.MeetingName, Transcript: &tr, Polls: m.Polls}
+	// Slides only for a type that switches them on and a format that declares them (templates.md §3.1).
+	if d.SlideTypes[*meetingType] && f.HasInput(InputSlides) {
+		in.Slides = m.Slides
+	}
 	names := map[string]string{}
 	for _, p := range m.Participants {
 		names[p.Ref] = p.DisplayName

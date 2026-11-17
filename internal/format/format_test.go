@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -18,8 +19,20 @@ func TestLoadMeetingSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.ID != "meeting-summary" || f.Version != "1.0.0" || !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(f.SHA256) {
+	if f.ID != "meeting-summary" || f.Version != "1.1.0" || !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(f.SHA256) {
 		t.Errorf("format %q %q %q", f.ID, f.Version, f.SHA256)
+	}
+	if !f.HasInput("slides") || f.HasInput("video") {
+		t.Errorf("inputs = %v, want [slides] (templates.md §2)", f.Inputs)
+	}
+	if p, ok := f.Prompt("slides"); !ok || !strings.Contains(p, "SLIDES") {
+		t.Errorf("prompt slides missing or without the section name")
+	}
+	if in, err := DeclaredInputs(formatsDir, "meeting-summary"); err != nil || !slices.Equal(in, []string{"slides"}) {
+		t.Errorf("DeclaredInputs = %v, %v", in, err)
+	}
+	if _, err := DeclaredInputs(formatsDir, "no-such-format"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("DeclaredInputs(no-such-format): err = %v, want ErrNotFound", err)
 	}
 	for _, call := range []string{"summarize", "extract", "merge", "consolidate"} {
 		if p, ok := f.Prompt(call); !ok || !strings.Contains(p, "{language}") {

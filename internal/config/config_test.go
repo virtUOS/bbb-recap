@@ -73,7 +73,8 @@ func TestLoadValid(t *testing.T) {
 	if len(c.FrontendServers) != 2 || c.FrontendServers[0] != want[0] || c.FrontendServers[1] != want[1] {
 		t.Errorf("FrontendServers = %v, want %v", c.FrontendServers, want)
 	}
-	if len(c.MeetingTypes) != 1 || c.MeetingTypes[0] != (MeetingType{"meeting-summary", "meeting-summary"}) {
+	if len(c.MeetingTypes) != 1 || c.MeetingTypes[0].Name != "meeting-summary" ||
+		c.MeetingTypes[0].Format != "meeting-summary" || c.MeetingTypes[0].Inputs != nil {
 		t.Errorf("MeetingTypes = %v", c.MeetingTypes)
 	}
 	if len(c.Sinks) != 1 || c.Sinks[0].Name != "docs-main" || c.Sinks[0].Declaration == nil {
@@ -206,6 +207,10 @@ func TestLoadErrors(t *testing.T) {
 			[]string{"RECAP_CLIENT_SECRETS_DIR"}},
 		{"unknown meeting type key", with(validEnv(), "RECAP_MEETING_TYPES_FILE=testdata/meeting-types-unknown-key.yaml"),
 			bothRoles, []string{"RECAP_MEETING_TYPES_FILE", "prompt"}},
+		{"bad meeting type inputs", with(validEnv(), "RECAP_MEETING_TYPES_FILE=testdata/meeting-types-bad-inputs.yaml",
+			"RECAP_FORMATS_DIR=testdata/formats"), bothRoles, []string{
+			"RECAP_MEETING_TYPES_FILE: meeting_types[0].inputs.video: unknown input",
+			"RECAP_MEETING_TYPES_FILE: meeting_types[1].inputs.slides: format \"plain\" does not declare this input"}},
 		{"unknown sink key", with(validEnv(), "RECAP_SINKS_FILE=testdata/sinks-unknown-key.yaml"), bothRoles,
 			[]string{"RECAP_SINKS_FILE", "retries"}},
 		{"bad sink name", with(validEnv(), "RECAP_SINKS_FILE=testdata/sinks-bad-name.yaml"), bothRoles,
@@ -234,6 +239,22 @@ func TestLoadErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// templates.md §1: inputs switch optional inputs on per type; an input the
+// format declares is accepted for true and false; a type whose format is
+// missing is not checked.
+func TestLoadMeetingTypeInputs(t *testing.T) {
+	env := with(validEnv(), "RECAP_MEETING_TYPES_FILE=testdata/meeting-types-inputs.yaml",
+		"RECAP_FORMATS_DIR=../../formats")
+	c, err := Load(env, bothRoles...)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(c.MeetingTypes) != 4 || c.MeetingTypes[0].Inputs[InputSlides] || !c.MeetingTypes[1].Inputs[InputSlides] ||
+		c.MeetingTypes[2].Inputs[InputSlides] {
+		t.Errorf("MeetingTypes = %+v", c.MeetingTypes)
 	}
 }
 

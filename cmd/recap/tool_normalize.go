@@ -70,7 +70,8 @@ func normalizeDir(dir string, log *slog.Logger) ([]byte, error) {
 		}
 	}
 	log.Debug("normalized", "tracks", len(m.Tracks), "gaps", gaps, "periods", len(m.RecordingPeriods),
-		"participants", len(m.Participants), "chat_messages", len(m.Chat), "skipped_files", sel.Skipped)
+		"participants", len(m.Participants), "chat_messages", len(m.Chat), "slides", len(m.Slides),
+		"skipped_files", sel.Skipped)
 	return meeting.Marshal(m)
 }
 

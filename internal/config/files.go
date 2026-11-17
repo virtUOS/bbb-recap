@@ -16,16 +16,71 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/virtUOS/bbb-recap/internal/format"
 	"github.com/virtUOS/bbb-recap/internal/providers"
 )
 
 var semverMajor1RE = regexp.MustCompile(`^1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 // MeetingType maps a meeting type (value of meta_recap-type) to a format
-// (templates.md §1).
+// (templates.md §1). Inputs switches optional inputs on; a missing name
+// means false.
 type MeetingType struct {
-	Name   string `yaml:"name"`
-	Format string `yaml:"format"`
+	Name   string          `yaml:"name"`
+	Format string          `yaml:"format"`
+	Inputs map[string]bool `yaml:"inputs,omitempty"`
+}
+
+// InputSlides is the optional input slides (templates.md §3.1, ADR-015).
+const InputSlides = "slides"
+
+// knownInputs are the optional inputs a meeting type can name (templates.md §1).
+var knownInputs = []string{InputSlides}
+
+// InputErrors checks the inputs of the meeting types (templates.md §1): an
+// unknown input name, or one the type's format does not declare in its
+// format.json, is an error, for true and false alike. A type whose format is
+// missing is skipped; its jobs are held unknown_type. name is the variable
+// or file the messages start with.
+func InputErrors(name string, types []MeetingType, formatsDir string) []string {
+	var errs []string
+	for i, mt := range types {
+		if len(mt.Inputs) == 0 {
+			continue
+		}
+		keys := make([]string, 0, len(mt.Inputs))
+		for k := range mt.Inputs {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		var known []string
+		for _, k := range keys {
+			if slices.Contains(knownInputs, k) {
+				known = append(known, k)
+				continue
+			}
+			errs = append(errs, fmt.Sprintf("%s: meeting_types[%d].inputs.%s: unknown input (known: %s)",
+				name, i, k, strings.Join(knownInputs, ", ")))
+		}
+		if len(known) == 0 {
+			continue
+		}
+		declared, err := format.DeclaredInputs(formatsDir, mt.Format)
+		if errors.Is(err, format.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: meeting_types[%d].inputs: %v", name, i, err))
+			continue
+		}
+		for _, k := range known {
+			if !slices.Contains(declared, k) {
+				errs = append(errs, fmt.Sprintf("%s: meeting_types[%d].inputs.%s: format %q does not declare this input",
+					name, i, k, mt.Format))
+			}
+		}
+	}
+	return errs
 }
 
 type meetingTypesFile struct {
@@ -136,6 +191,9 @@ func loadMeetingTypes(l *loader, c *Config, name string) []MeetingType {
 		if !nameRE.MatchString(mt.Format) {
 			l.errorf("%s: meeting_types[%d].format: %q must match %s", name, i, mt.Format, nameRE)
 		}
+	}
+	for _, e := range InputErrors(name, f.MeetingTypes, c.FormatsDir) {
+		l.errorf("%s", e)
 	}
 	return f.MeetingTypes
 }

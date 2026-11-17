@@ -8,8 +8,9 @@
 // returns summary.v1. Otherwise the transcript lines are cut into chunks
 // (internal/llmplan), one extract call per chunk returns chunk-notes.v1 (map
 // calls run concurrently up to max_inflight), and one consolidate call over
-// the chunk notes, the chat, the shared notes, the polls and the gap list
-// returns summary.v1. Chat, notes and polls never go to extract calls.
+// the chunk notes, the chat, the shared notes, the polls, the gap list and
+// the slides returns summary.v1. Chat, notes, polls and slides never go to
+// extract or merge calls.
 //
 // Reduce levels: the consolidate call is reduce level 1 when the chunk notes
 // fit its budget. If they do not, the notes are packed into groups that fit
@@ -33,8 +34,12 @@
 // Only the declared inputs of templates.md §3, taken from the normalized
 // meeting and the transcript: meeting name, transcript lines
 // "[hh:mm:ss] Name: text" in recorded time, the gap list (speaker and span),
-// public chat inside recording periods, shared notes as text and poll
-// aggregates. Input has no field for source user IDs, owner identity or
+// public chat inside recording periods, shared notes as text, poll
+// aggregates and, when the meeting type switches them on, the text of the
+// shown slides (templates.md §3.1: SLIDES section, capped; the format's
+// prompts/slides.md is appended to the system message only when the section
+// is sent, so with slides off every request is the same as without them).
+// Input has no field for source user IDs, owner identity or
 // per-user poll answers, so they cannot be sent. Content sits in delimited
 // sections of the user message; the system message (prompts/<call>.md of
 // the format) says they are data and names the output language.
@@ -85,6 +90,9 @@ type Input struct {
 	Chat        []ChatMessage  // public chat; messages outside recording periods are dropped here
 	Notes       string         // shared notes as plain text; "" when absent
 	Polls       []meeting.Poll // aggregates only
+	// Slides are the shown slides (templates.md §3.1); set only when the
+	// meeting type switches slides on and the format declares them.
+	Slides []meeting.Slide
 }
 
 // ChatMessage is one public chat message: time on the meeting axis, the
@@ -133,6 +141,9 @@ type run struct {
 	calls   int
 	model   string
 	prompts map[string]string
+	// slides are the slide blocks that may be sent, in slides[] order;
+	// empty: no SLIDES section and no slide rule in any call.
+	slides []slideBlock
 }
 
 // Run summarizes in for job jobID in the output language lang (templates.md
@@ -147,6 +158,7 @@ func (s *Summarizer) Run(ctx context.Context, jobID string, in Input, lang strin
 		s.Sem = make(chan struct{}, max(s.Profile.MaxInflight, 1))
 	}
 	r := &run{Summarizer: s, jobID: jobID, lang: lang, in: in, prompts: map[string]string{}}
+	r.slides = r.slideBlocks()
 	if err := r.loadPrompts(); err != nil {
 		return nil, err
 	}
@@ -174,6 +186,16 @@ func (r *run) loadPrompts() error {
 		}
 		r.prompts[call] = strings.ReplaceAll(p, "{language}", name)
 	}
+	if len(r.slides) > 0 {
+		p, ok := r.Format.Prompt(promptSlides)
+		if !ok {
+			return &providers.Error{Class: providers.PermanentConfig, Code: "format_prompt_missing"}
+		}
+		// Appended to the calls that carry the SLIDES section (templates.md §3.1 "Prompt").
+		for _, call := range []string{CallSummarize, CallConsolidate} {
+			r.prompts[call] += "\n" + strings.ReplaceAll(p, "{language}", name)
+		}
+	}
 	for _, sch := range []string{SchemaSummary, SchemaChunkNotes} {
 		if _, ok := r.Format.Schema(sch); !ok {
 			return &providers.Error{Class: providers.PermanentConfig, Code: "format_schema_missing"}
@@ -198,10 +220,12 @@ func (r *run) budget(call, schema string) int {
 // plan runs the call plan and returns the summary.v1 reply.
 func (r *run) plan(ctx context.Context) (json.RawMessage, error) {
 	lines := r.transcriptLines()
+	budget := r.budget(CallSummarize, SchemaSummary)
+	slides, sent := r.slidesSection(budget)
 	user := joinSections(section("MEETING NAME", r.in.MeetingName), section("TRANSCRIPT", strings.Join(lines, "\n")),
-		r.contextSections())
-	if llmplan.TextTokens(user) <= r.budget(CallSummarize, SchemaSummary) {
-		r.Log.Debug("summarize: single call", "job_id", r.jobID, "lines", len(lines))
+		r.contextSections(slides))
+	if llmplan.TextTokens(user) <= budget {
+		r.Log.Debug("summarize: single call", "job_id", r.jobID, "lines", len(lines), "slides", sent)
 		reply, err := r.complete(ctx, CallSummarize, "0", user, SchemaSummary)
 		if !resplittable(err) {
 			return reply, err
@@ -285,9 +309,12 @@ func (r *run) extract(ctx context.Context, chunk []string, i, n int, mayResplit 
 func (r *run) reduce(ctx context.Context, notes []json.RawMessage) (json.RawMessage, error) {
 	for level := 1; ; level++ {
 		wrapped := wrapNotes(notes)
-		user := r.consolidateUser(wrapped)
-		if llmplan.TextTokens(user) <= r.budget(CallConsolidate, SchemaSummary) {
-			r.Log.Debug("summarize: consolidate", "job_id", r.jobID, "level", level, "notes", len(notes))
+		budget := r.budget(CallConsolidate, SchemaSummary)
+		slides, sent := r.slidesSection(budget)
+		user := r.consolidateUser(wrapped, slides)
+		if llmplan.TextTokens(user) <= budget {
+			r.Log.Debug("summarize: consolidate", "job_id", r.jobID, "level", level, "notes", len(notes),
+				"slides", sent)
 			reply, err := r.complete(ctx, CallConsolidate, "0", user, SchemaSummary)
 			if resplittable(err) {
 				return nil, rejected(err)
@@ -339,9 +366,11 @@ func wrapNotes(notes []json.RawMessage) []string {
 	return wrapped
 }
 
-// consolidateUser is the user message of the consolidate call.
-func (r *run) consolidateUser(wrapped []string) string {
-	return joinSections(section("MEETING NAME", r.in.MeetingName), r.contextSections(), strings.Join(wrapped, "\n"))
+// consolidateUser is the user message of the consolidate call; slides is
+// the capped SLIDES data.
+func (r *run) consolidateUser(wrapped []string, slides string) string {
+	return joinSections(section("MEETING NAME", r.in.MeetingName), r.contextSections(slides),
+		strings.Join(wrapped, "\n"))
 }
 
 // complete makes one LLM call with the system prompt of call, waiting for a
@@ -422,9 +451,9 @@ func (r *run) speakerName(s assemble.Speaker) string {
 	return strings.ReplaceAll(label, "{n}", strings.TrimPrefix(s.Ref, "spk-"))
 }
 
-// contextSections renders gaps, chat, shared notes and polls; each is
-// omitted when empty.
-func (r *run) contextSections() string {
+// contextSections renders gaps, chat, shared notes, polls and the capped
+// slides data (slidesSection); each is omitted when empty.
+func (r *run) contextSections(slides string) string {
 	tr := r.in.Transcript
 	periods := tr.RecordingPeriods
 	names := map[string]string{}
@@ -456,6 +485,7 @@ func (r *run) contextSections() string {
 		section("CHAT", strings.Join(chat, "\n")),
 		section("SHARED NOTES", strings.TrimSpace(r.in.Notes)),
 		section("POLLS", strings.Join(polls, "\n\n")),
+		section("SLIDES", slides),
 	)
 }
 
