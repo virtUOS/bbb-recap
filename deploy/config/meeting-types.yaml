@@ -1,6 +1,12 @@
 # Meeting type → output format (docs/reference/templates.md §1). The format
 # meeting-summary is built into the image; nothing to change.
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 meeting_types:
   - name: meeting-summary
     format: meeting-summary
+  # Optional: a type that also sends the text of the slides shown during
+  # recording to the LLM (templates.md §3.1, default off). List the data
+  # category slides in the LLM profile's declaration (privacy.md §7).
+  # - name: lecture
+  #   format: meeting-summary
+  #   inputs: { slides: true }

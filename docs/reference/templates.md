@@ -26,7 +26,6 @@ and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is 
 
 - Optional inputs are switched on per type with `inputs` (a map of input name to boolean; missing means `false`).
   The only optional input is `slides` (§3.1); `schema_version` `1.1.0` adds the key, and `1.0.0` files stay valid.
-  **Status:** specified, not implemented yet; the current service rejects the `inputs` key and does not start.
 
   ```yaml
   schema_version: "1.1.0"
@@ -47,8 +46,6 @@ and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is 
   the exact format.
 
 ## 2. Format `meeting-summary` v1.1.0
-
-**Status:** version 1.1.0 is specified, not implemented yet; the shipped format is 1.0.0, without `inputs`.
 
 `format.json` names the format and the optional inputs it can use:
 `{ "id": "meeting-summary", "version": "1.1.0", "inputs": ["slides"] }`. Version 1.1.0 added the slide input (§3.1);
@@ -90,8 +87,7 @@ Data flow (inputs → LLM → render):
 
 ### 3.1 Slides
 
-**Status:** specified, not implemented yet. The current service does not read slides, and the `inputs` key of §1 is
-rejected. Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB presentations".
+Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB presentations".
 
 **Selection (`normalize`, BBB source).** `normalize` replays the presentation events of `events.xml` in file order:
 
@@ -337,12 +333,12 @@ transkribierBAR also falls back to the transcription language (`backend/app/rout
 
 CT-TPL-01, the golden files of CT-TPL-02 and CT-TPL-08, CT-TPL-04, CT-TPL-06 and CT-TPL-09 were written before the
 implementation and are not changed to fit it. CT-TPL-12 to CT-TPL-15 were written before the implementation of §3.1
-and fail until it exists. Format version 1.1.0 (§2) changes protected goldens: the footer `meeting-summary 1.0.0` of
-`testdata/render/F-01/summary.md`, `F-01/summary.de.md`, `gap/summary.md` and `gap/summary.de.md` (and
-`FORMAT_VERSION` in `testdata/render/make_goldens.py`, which writes them), and the version CT-TPL-06 expects
-(`contracts/render/summarize_test.go:373-374`). That golden change is a dedicated fixture change (`fixtures.md` §7):
-its own commit, made by the golden script and not by the code under test, which comes first in the pull request that
-implements §3.1 and is reviewed on its own.
+and are not changed to fit it either. Format version 1.1.0 (§2) changed protected goldens: the footer
+`meeting-summary 1.0.0` of `testdata/render/F-01/summary.md`, `F-01/summary.de.md`, `gap/summary.md` and
+`gap/summary.de.md` (and `FORMAT_VERSION` in `testdata/render/make_goldens.py`, which writes them), and the version
+CT-TPL-06 expects (`contracts/render/summarize_test.go:371-372`). That golden change was a dedicated fixture change
+(`fixtures.md` §7): its own commit, made by the golden script and not by the code under test, ahead of the
+implementation of §3.1.
 
 ## 9. Later: admin-defined templates (not supported yet)
 

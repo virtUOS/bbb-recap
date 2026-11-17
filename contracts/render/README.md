@@ -85,9 +85,8 @@ and `summary.v1` requests (schema with `overview`) with `testdata/render/F-01/su
 | `TestSlideFencing`     | CT-TPL-15: fence markers, instructions, a heading and a link in slide text stay data inside the `SLIDES` section                                                                                                                                                                                                      |
 | `TestVTTMapping`       | gap variant (failed-track gap, `en` and `de`) and `mapping` golden: pause, gap NOTEs incl. tie, after a pause NOTE and at the end, +1 ms, clamping, "Speaker n", escaping                                                                                                                                             |
 
-The `TestSlide*` tests (templates.md §3.1) were written before the implementation and fail until it exists: the
-current binary rejects the `inputs` key of the meeting-types file and its `normalize` output has no `slides`.
-`TestSlideCallPlan/…/off-no-inputs` passes already; it guards today's requests.
+The `TestSlide*` tests (templates.md §3.1) were written before the implementation and are not changed to fit it.
+`TestSlideCallPlan/…/off-no-inputs` and `…/off-slides-false` guard that requests without slides stay unchanged.
 
 ## Manual check: goldens through y-provider `/convert` (optional, also in CI)
 
