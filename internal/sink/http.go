@@ -53,8 +53,12 @@ func RetryAfter(v string) time.Duration {
 	if v == "" {
 		return 0
 	}
-	if n, err := strconv.Atoi(v); err == nil && n > 0 {
-		return min(time.Duration(n)*time.Second, MaxRetryAfter)
+	if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {
+		// Compared before the multiplication, which could overflow.
+		if n > int64(MaxRetryAfter/time.Second) {
+			return MaxRetryAfter
+		}
+		return time.Duration(n) * time.Second
 	}
 	if t, err := http.ParseTime(v); err == nil {
 		return min(max(time.Until(t), 0), MaxRetryAfter)

@@ -346,7 +346,7 @@ func parseSigningSecrets(text string) ([][]byte, string) {
 		}
 		key, err := base64.StdEncoding.DecodeString(b64)
 		if err != nil {
-			return nil, fmt.Sprintf("line %d: not valid base64", len(keys)+1)
+			return nil, fmt.Sprintf("line %d: not valid standard base64 with padding", len(keys)+1)
 		}
 		if len(key) < minSigningKeyBytes || len(key) > maxSigningKeyBytes {
 			return nil, fmt.Sprintf("line %d: want %d to %d bytes after decoding", len(keys)+1,
@@ -459,8 +459,7 @@ func LoadSinks(path string) ([]SinkProfile, error) {
 // URL.
 func LogSinkWarnings(log *slog.Logger, sinks []SinkProfile) {
 	for _, s := range sinks {
-		if (s.Type == SinkTypeDocs && !strings.HasPrefix(s.DocsBaseURL, "https://")) ||
-			(s.Type == SinkTypeWebhook && !strings.HasPrefix(s.URL, "https://")) {
+		if (s.Type == SinkTypeDocs && !isHTTPS(s.DocsBaseURL)) || (s.Type == SinkTypeWebhook && !isHTTPS(s.URL)) {
 			log.Warn("sink profile does not use https", "profile", s.Name)
 		}
 		if s.Declaration == nil {
@@ -472,6 +471,12 @@ func LogSinkWarnings(log *slog.Logger, sinks []SinkProfile) {
 				"location", s.Declaration.Location)
 		}
 	}
+}
+
+// isHTTPS reports whether u parses with the scheme https, in any case.
+func isHTTPS(u string) bool {
+	p, err := url.Parse(u)
+	return err == nil && strings.EqualFold(p.Scheme, "https")
 }
 
 // loadProviders validates the providers file with the rules of

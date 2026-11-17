@@ -139,7 +139,9 @@ applies:
    (`config_error`, `rejected_by_sink` or, after the last attempt, `retries_exhausted`);
 2. a sink is `sending` → hold `delivery_uncertain`;
 3. a sink returned `recipient_unresolved` → hold `owner_unresolved` (a registration `PUT` resumes the job, as for one
-   sink);
+   sink; only a record of a sink that uses the owner, `docs`, locks the owner, so a `sent` `frontend` sink does not
+   block the `PUT`, while with two `docs` sinks of which one has delivered the owner stays locked and the admin skips
+   the held sink with `release`);
 4. a sink is `pending` (a `not_sent` result; group 2 waits for group 1 or for the pickup) → `transient`;
 5. every sink done → `ok`, job `delivered`, `delivered_at` set, `cleanup` scheduled.
 
@@ -161,14 +163,14 @@ the summary therefore leaves the group 2 sinks `failed`. A pickup after that doe
 **Admin actions** (`architecture.md` §5.4) take an optional `"sink": "<profile>"`. A name that is not a sink of the job
 is `400 invalid-request`; a sink in a status the action does not accept is `409 invalid-job-state`.
 
-| Action                | Job                                                 | Sink status           | Effect                                                                                                                                |
-| --------------------- | --------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `retry` with `sink`   | `failed` in `deliver`, or held `delivery_uncertain` | `failed` or `sending` | the sink becomes `pending` (a `sending` record is deleted); attempts reset; the step runs again                                       |
-| `retry`               | as above                                            | —                     | every `failed` and `sending` sink becomes `pending`; as before for one sink                                                           |
-| `release` with `sink` | held `delivery_uncertain`, or `failed` in `deliver` | `sending`             | `confirmed_by_admin`, optional `document_id`                                                                                          |
-| `release` with `sink` | `failed` in `deliver`                               | `failed`              | `skipped_by_admin` (also after `retries_exhausted`). Refused (`409`) when every other sink of the job is already skipped: use `purge` |
-| `release`             | held `delivery_uncertain`                           | —                     | every `sending` sink becomes `confirmed_by_admin`; `document_id` only when exactly one sink is `sending`, else `400`                  |
-| `release`             | `failed`                                            | —                     | `409 invalid-job-state`, as before                                                                                                    |
+| Action                | Job                                                 | Sink status           | Effect                                                                                                                                                                                          |
+| --------------------- | --------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `retry` with `sink`   | `failed` in `deliver`, or held `delivery_uncertain` | `failed` or `sending` | the sink becomes `pending` (a `sending` record is deleted); attempts reset; the job state then follows from the sink statuses: the step runs again unless another sink is `failed` or `sending` |
+| `retry`               | as above                                            | —                     | every `failed` and `sending` sink becomes `pending`; as before for one sink                                                                                                                     |
+| `release` with `sink` | held `delivery_uncertain`, or `failed` in `deliver` | `sending`             | `confirmed_by_admin`, optional `document_id`                                                                                                                                                    |
+| `release` with `sink` | `failed` in `deliver`                               | `failed`              | `skipped_by_admin` (also after `retries_exhausted`). Refused (`409`) when every other sink of the job is already skipped: use `purge`                                                           |
+| `release`             | held `delivery_uncertain`                           | —                     | every `sending` sink becomes `confirmed_by_admin`; `document_id` only when exactly one sink is `sending`, else `400`                                                                            |
+| `release`             | `failed`                                            | —                     | `409 invalid-job-state`, as before                                                                                                                                                              |
 
 The sink's status decides which `release` applies; the job only has to be held `delivery_uncertain` or `failed` in
 `deliver`. After an action the job state follows from the statuses with the rules above, without calling a sink:
@@ -384,12 +386,12 @@ Any 2xx is success: record `sent` with an empty `document_id`.
 
 ### 4b.3 Error classes
 
-| Class       | Webhook responses                                                                                     |
-| ----------- | ----------------------------------------------------------------------------------------------------- |
-| `not_sent`  | connection refused or DNS failure before sending; 429 (`Retry-After` honoured, at most 30 min)        |
-| `uncertain` | timeout, connection lost after sending, any 5xx, re-entry in `sending`                                |
-| `config`    | any 3xx (the URL must be fixed in the profile), 401, 403, 404, 410 (Standard Webhooks: endpoint gone) |
-| `rejected`  | any other 4xx; a §2.4 violation with `content: summary` (no request)                                  |
+| Class       | Webhook responses                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| `not_sent`  | connection refused, DNS failure or a timeout before anything was sent; 429 (`Retry-After` honoured, at most 30 min) |
+| `uncertain` | timeout, connection lost after sending, any 5xx, re-entry in `sending`                                              |
+| `config`    | any 3xx (the URL must be fixed in the profile), 401, 403, 404, 410 (Standard Webhooks: endpoint gone)               |
+| `rejected`  | any other 4xx; a §2.4 violation with `content: summary` (no request)                                                |
 
 No `recipient_unresolved`. Outcomes as in §1.6. `uncertain` holds the job as for Docs: the receiver may have acted.
 

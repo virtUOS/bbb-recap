@@ -86,7 +86,7 @@ func TestLoadWebhookBadKeys(t *testing.T) {
 		{"content", "content: notice", "content: everything", "", "sinks[0].content"},
 		{"no-secret-file", "    signing_secret_file: webhook.key\n", "", "", "sinks[0].signing_secret_file: required"},
 		{"secret-no-prefix", "", "", "c2VjcmV0", "sinks[0].signing_secret_file: file webhook.key: line 1"},
-		{"secret-not-base64", "", "", "whsec_!!!", "not valid base64"},
+		{"secret-not-base64", "", "", "whsec_!!!", "not valid standard base64 with padding"},
 		{"secret-too-short", "", "", short, "24 to 64 bytes"},
 		{"secret-too-long", "", "", long, "24 to 64 bytes"},
 		{"three-secrets", "", "", strings.Repeat(fixtureWebhookSecret+"\n", 3), "one or two secret lines"},
@@ -165,8 +165,18 @@ sinks:
 }
 
 func TestLogWebhookWarnings(t *testing.T) {
+	upper := strings.Replace(webhookProfile, "https://hooks.recap.test/recap?channel=x", "HTTPS://hooks.recap.test/recap?channel=x", 1)
+	sinks, err := LoadSinks(webhookFile(t, upper, fixtureWebhookSecret))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var quiet bytes.Buffer
+	LogSinkWarnings(slog.New(slog.NewJSONHandler(&quiet, nil)), sinks)
+	if quiet.Len() != 0 {
+		t.Errorf("warning for an upper-case https scheme: %s", quiet.String())
+	}
 	text := strings.Replace(webhookProfile, "https://hooks.recap.test/recap?channel=x", "http://hooks.recap.test/recap?channel=x", 1)
-	sinks, err := LoadSinks(webhookFile(t, text, fixtureWebhookSecret))
+	sinks, err = LoadSinks(webhookFile(t, text, fixtureWebhookSecret))
 	if err != nil {
 		t.Fatal(err)
 	}
