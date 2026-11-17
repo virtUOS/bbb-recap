@@ -50,9 +50,11 @@ type Sink struct {
 	// DocumentURLTemplate is the profile's document_url_template with {id}
 	// (sinks.md §3.1); empty: no link.
 	DocumentURLTemplate string
-	// UsesOwner: the sink sends the owner identity (docs). Only a delivery
-	// record of such a sink locks the owner (§2.4).
-	UsesOwner bool
+	// WithoutOwner: the sink never uses the owner identity (frontend,
+	// webhook), so its delivery record does not lock the owner (§2.4). A
+	// record of every other profile locks it, also of one no longer
+	// configured.
+	WithoutOwner bool
 }
 
 // Config configures the API.
@@ -276,7 +278,7 @@ func (a *API) store(ctx context.Context, tx pgx.Tx, frontendID string, req reque
 	case reg.ownerSub == req.Owner.Sub && reg.ownerEmail == req.Owner.Email && reg.resultURL == deref(req.ResultURL):
 		return http.StatusOK, nil // identical: nothing changes, not even updated_at
 	}
-	locked, err := deliveryStarted(ctx, tx, reg.id, req.RecordID, a.ownerSinks())
+	locked, err := deliveryStarted(ctx, tx, reg.id, req.RecordID, a.sinksWithoutOwner())
 	if err != nil {
 		return 0, err
 	}
@@ -286,11 +288,12 @@ func (a *API) store(ctx context.Context, tx pgx.Tx, frontendID string, req reque
 	return http.StatusOK, replaceOwner(ctx, tx, reg.id, req, a.ttl)
 }
 
-// ownerSinks lists the profiles whose sink uses the owner identity.
-func (a *API) ownerSinks() []string {
-	var names []string
+// sinksWithoutOwner lists the profiles whose sink never uses the owner
+// identity; never nil.
+func (a *API) sinksWithoutOwner() []string {
+	names := []string{}
 	for name, s := range a.sinks {
-		if s.UsesOwner {
+		if s.WithoutOwner {
 			names = append(names, name)
 		}
 	}

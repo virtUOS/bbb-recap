@@ -227,9 +227,10 @@ from the request or `null`, §2.7).
 A `PUT` replaces the whole registration body: a later `PUT` without `result_url` removes it (the response then shows
 `null`), under the same lock as `owner`.
 
-Of the delivery records, only those of sinks that use the owner identity (`docs`) lock the owner; a `frontend` or
-`webhook` record does not ([`sinks.md`](sinks.md) §1.8 rule 3). With two `docs` sinks, once one has delivered, the
-owner stays locked, and the admin skips the held sink with `release`.
+Every delivery record locks the owner except those of `frontend` and `webhook` sinks, which do not use it, and
+`skipped_by_admin` ones ([`sinks.md`](sinks.md) §1.8 rule 3); a record of a profile no longer configured locks it.
+With two `docs` sinks, once one has delivered, the owner stays locked, and the admin skips the held sink with
+`release` and `sink`.
 
 ### 2.5 `DELETE` (cancel)
 

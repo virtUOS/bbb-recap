@@ -142,6 +142,15 @@ func TestOwnerLockBySinkType(t *testing.T) {
 			t.Fatalf("job state %q (%v), want running (resumed)", state, err)
 		}
 	})
+	t.Run("removed-docs-profile-sent", func(t *testing.T) {
+		// docs-old delivered and was then removed from the configuration:
+		// its record still locks the owner (fail closed).
+		rid, _ := held(t, "docs-old,docs-test", "docs-old")
+		expectProblem(t, e.put(t, tokenFE, rid, body(t, rid, "meeting-1", ownerB)), http.StatusConflict, "registration-locked")
+		if row := getRow(t, e.pool, rid); row.sub != ownerA[0] {
+			t.Fatal("owner replaced although locked")
+		}
+	})
 	t.Run("two-docs-one-sent", func(t *testing.T) {
 		rid, _ := held(t, "docs-test,docs-no-link", "docs-test")
 		expectProblem(t, e.put(t, tokenFE, rid, body(t, rid, "meeting-1", ownerB)), http.StatusConflict, "registration-locked")

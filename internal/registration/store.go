@@ -115,13 +115,14 @@ func anyJob(ctx context.Context, tx pgx.Tx, id int64, recordID string) (bool, er
 
 // deliveryStarted reports whether a job of the registration has left the
 // pending deliver step, or has a delivery record (sending, sent or
-// confirmed) of a sink in ownerSinks, the sinks that use the owner identity.
-// The owner is locked from then on (§2.4, identity-mapping.md §5). A record
-// of a frontend or webhook sink does not lock it: a job held
-// owner_unresolved after its frontend sink was sent can still be resumed by
-// a PUT (sinks.md §1.8 rule 3). The job rows are locked first, so a deliver
-// claim running now is seen.
-func deliveryStarted(ctx context.Context, tx pgx.Tx, id int64, recordID string, ownerSinks []string) (bool, error) {
+// confirmed) of a sink that is not in withoutOwner, the profiles known not to
+// use the owner identity (frontend, webhook). The owner is locked from then on
+// (§2.4, identity-mapping.md §5). A record of a frontend or webhook sink does
+// not lock it: a job held owner_unresolved after its frontend sink was sent
+// can still be resumed by a PUT (sinks.md §1.8 rule 3). A record of a
+// profile that is no longer configured locks it (fail closed). The job rows
+// are locked first, so a deliver claim running now is seen.
+func deliveryStarted(ctx context.Context, tx pgx.Tx, id int64, recordID string, withoutOwner []string) (bool, error) {
 	if _, err := lockJobs(ctx, tx, recordID); err != nil {
 		return false, err
 	}
@@ -132,8 +133,8 @@ func deliveryStarted(ctx context.Context, tx pgx.Tx, id int64, recordID string, 
 			WHERE j.registration_id = $1 AND s.state <> 'pending')
 		OR EXISTS (
 			SELECT 1 FROM jobs j JOIN deliveries d ON d.job_id = j.job_id
-			WHERE j.registration_id = $1 AND d.sink_profile = ANY($2) AND d.state <> 'skipped_by_admin')`,
-		id, ownerSinks).Scan(&started)
+			WHERE j.registration_id = $1 AND NOT (d.sink_profile = ANY($2)) AND d.state <> 'skipped_by_admin')`,
+		id, withoutOwner).Scan(&started)
 	return started, err
 }
 
