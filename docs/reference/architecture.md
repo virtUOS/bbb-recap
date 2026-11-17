@@ -188,6 +188,9 @@ Wrong state → `409 invalid-job-state`.
 | `purge`   | job `held` or `failed`                            | runs `cleanup` only, and deletes a waiting `frontend` summary `results/<job_id>/`; job `cleaned`, outcome `purged`                                                                                                                                                                                                                                                                                             | yes       |
 | `erase`   | job `cleaned`                                     | data-subject erasure of the job's remaining rows; returns the Docs document ID and, per sink, `{sink_profile, document_id, target}` (`privacy.md` §5.4, §11)                                                                                                                                                                                                                                                   | —         |
 
+`retry` and `release` with `sink` need a sink that is `failed` or `sending`; a job that failed in `deliver` with every
+sink `pending` (e.g. `internal_error`, or a failure before migration 0002) takes only `retry` without `sink`.
+
 With the default retention 0 a delivered job is cleaned at once, so `rerun` works only for held and failed jobs, or
 with `RECAP_RETENTION_AFTER_DELIVERY` > 0.
 

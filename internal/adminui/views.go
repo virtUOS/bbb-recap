@@ -190,11 +190,21 @@ func actionEffect(name string) (string, bool) {
 func actionsFor(j admin.Job) []string {
 	held := j.State == "held"
 	uncertain := held && j.HeldReason != nil && *j.HeldReason == "delivery_uncertain"
-	// A failed job with several sinks may have a sink to skip (release
-	// with sink, sinks.md §1.8).
+	// A failed job may have a sink to confirm or skip (release with sink,
+	// sinks.md §1.8); skipping needs another sink that is not skipped.
+	failed, sending := 0, 0
+	for _, d := range j.Deliveries {
+		switch d.State {
+		case "failed":
+			failed++
+		case "sending":
+			sending++
+		}
+	}
+	releaseSink := j.State == "failed" && (sending > 0 || failed > 0 && len(j.Deliveries) > 1)
 	allowed := map[string]bool{
 		"retry":   j.State == "failed" || uncertain,
-		"release": held || j.State == "failed" && len(j.Deliveries) > 1,
+		"release": held || releaseSink,
 		"rerun":   j.State != "cleaned",
 		"purge":   held || j.State == "failed",
 		"erase":   j.State == "cleaned",
@@ -223,15 +233,29 @@ func (u *UI) confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uncertain := j.State == "held" && j.HeldReason != nil && *j.HeldReason == "delivery_uncertain"
+	// retry and release take a sink that is failed or sending (sinks.md
+	// §1.8). The empty choice is what the action does without a sink: retry
+	// resets every failed and sending sink, release of a held job confirms
+	// every sending one; release of a failed job needs a sink.
+	var open []admin.SinkDelivery
 	sending := false
 	for _, d := range j.Deliveries {
+		if d.State == "failed" || d.State == "sending" {
+			open = append(open, d)
+		}
 		sending = sending || d.State == "sending"
 	}
-	// retry and release take a sink for a job with several sinks
-	// (sinks.md §1.8); the empty choice means every failed or sending sink.
 	var sinks []admin.SinkDelivery
-	if (action == "retry" || action == "release") && (uncertain || j.State == "failed") && len(j.Deliveries) > 1 {
-		sinks = j.Deliveries
+	all := ""
+	if (action == "retry" || action == "release") && (uncertain || j.State == "failed") && len(open) > 0 &&
+		(len(j.Deliveries) > 1 || action == "release" && j.State == "failed") {
+		sinks = open
+		switch {
+		case action == "retry":
+			all = "every failed or sending sink"
+		case uncertain:
+			all = "every sink in sending"
+		}
 	}
 	docField := action == "release" && (uncertain || j.State == "failed") && sending
 	u.render(w, http.StatusOK, "confirm", view{Title: "Confirm " + action, Session: session(r), Data: struct {
@@ -239,7 +263,8 @@ func (u *UI) confirm(w http.ResponseWriter, r *http.Request) {
 		Action, Effect  string
 		DocumentIDField bool
 		Sinks           []admin.SinkDelivery
-	}{j, action, effect, docField, sinks}})
+		AllSinks        string
+	}{j, action, effect, docField, sinks, all}})
 }
 
 // act runs a confirmed action (Protect checked the CSRF token) and

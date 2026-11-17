@@ -10,7 +10,9 @@
 {{- if .Sinks}}
 <p><label>Sink<br>
 <select name="sink">
-<option value="">every failed or sending sink</option>
+{{- with .AllSinks}}
+<option value="">{{.}}</option>
+{{- end}}
 {{- range .Sinks}}
 <option value="{{.SinkProfile}}">{{.SinkProfile}} ({{.State}})</option>
 {{- end}}

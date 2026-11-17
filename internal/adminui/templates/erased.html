@@ -4,14 +4,14 @@
 {{- if .DocumentID}}
 <p>Docs document ID: <code class="docid">{{.DocumentID}}</code>{{with .SinkProfile}} (sink profile <code>{{.}}</code>){{end}}.</p>
 <p>The service has no rights on this document. Send the ID to the Docs operator, who deletes it.</p>
-{{- if gt (len .Deliveries) 1}}
+{{- end}}
+{{- if .Deliveries}}
 <p>Delivery records of the job:</p>
 <ul>
 {{- range .Deliveries}}
 <li><code>{{.SinkProfile}}</code>{{with .DocumentID}}: <code>{{.}}</code>{{end}}{{with .Target}} in <code>{{.}}</code>{{end}}</li>
 {{- end}}
 </ul>
-{{- end}}
 {{- else}}
 <p>The job had no delivery record, so there is no Docs document to report.</p>
 {{- end}}
