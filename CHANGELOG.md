@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-17
+
+### Fixed
+
+- Release workflow: the plugin's version is taken from the tag, so a release no longer needs a version bump in
+  `plugin/package.json`. v0.2.0 has no plugin assets; v0.2.1 is the first release with them.
+
+## [0.2.0] - 2026-11-17
+
 ### Added
 
 - Slides as context (format `meeting-summary` 1.1.0): a meeting type can switch on `inputs: {slides: true}`; the text
