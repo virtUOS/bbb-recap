@@ -18,25 +18,29 @@
 # provider profiles at http://mock:8080. up copies the repo's formats/ into
 # the configuration, so the worker finds them at /etc/recap/formats.
 #
-# RECAP_CONTRACT_DOCS_ADDR (host:port, set at up): adds the sink profile
-# docs-contract with docs_base_url http://RECAP_CONTRACT_DOCS_ADDR
-# (contracts/README.md). At up, this is the address the containers use to
-# reach the tests' mock Docs server on the host.
+# RECAP_CONTRACT_DOCS_ADDR (host:port, set at up and, with another value, for
+# the tests; see below): adds the sink profile docs-contract with
+# docs_base_url http://RECAP_CONTRACT_DOCS_ADDR (contracts/README.md). At up,
+# this is the address the containers use to reach the tests' mock Docs server
+# on the host.
 #
-# RECAP_CONTRACT_HOOKS_ADDR (host:port, set at up): adds the sink profiles
-# webhook-contract (url http://ADDR/webhook) and matrix-contract
-# (homeserver_url http://ADDR), where the multi-sink tests serve a webhook
-# receiver and a Matrix homeserver (contracts/README.md; docs/reference/sinks.md
-# §4b, §4c). Container side, as RECAP_CONTRACT_DOCS_ADDR.
+# RECAP_CONTRACT_HOOKS_ADDR (host:port, set at up and, with another value, for
+# the tests; see below): adds the sink profiles webhook-contract (url
+# http://ADDR/webhook) and matrix-contract (homeserver_url http://ADDR), where
+# the multi-sink tests serve a webhook receiver and a Matrix homeserver
+# (contracts/README.md; docs/reference/sinks.md §4b, §4c). Container side, as
+# RECAP_CONTRACT_DOCS_ADDR.
 #
 # The tests read the same two variables, but as the address to listen on, so
-# the values at up and for go test usually differ. On rootless podman (pasta):
+# the values at up and for go test usually differ. As observed with podman 5.8
+# (netavark, pasta) on a rootless host:
 #   at up:       host.containers.internal:PORT (the containers' name for the host)
 #   for go test: HOST_IP:PORT, the host's LAN address, same PORT
 # host.containers.internal does not resolve on the host, and a listener on
 # 127.0.0.1 is not reachable from the containers. The LAN address does not
-# work at up either: pasta gives the container namespace the host's LAN
-# address, so a container connecting to it reaches itself.
+# work at up either: pasta gives podman's rootless network namespace the host's
+# LAN address, so a connection from a container to that address ends there and
+# does not reach the host.
 #   HOST_IP=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')
 #   RECAP_CONTRACT_DOCS_ADDR=host.containers.internal:18081 run.sh up NAME 18080
 #   RECAP_CONTRACT_DOCS_ADDR=$HOST_IP:18081 RECAP_CONTRACT_BASE_URL=... go test ...
