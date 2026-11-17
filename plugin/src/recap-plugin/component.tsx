@@ -35,6 +35,8 @@ function recordIcon(on: boolean) {
   ) as SVGProps<SVGSVGElement>;
 }
 
+const NAV_BAR_ITEM_ID = "recap-ai-minutes";
+
 // A nav bar button right of BBB's recording indicator (bigbluebutton-html5/imports/ui/components/nav-bar/
 // component.jsx:329-335 @ 7d27e7e). It starts and pauses the meeting recording with the mutation of BBB's own record
 // button, after a confirmation. It shows only to users who may record (recording.ts mayRecord).
@@ -75,10 +77,17 @@ export default function RecapPlugin({ pluginUuid }: RecapPluginProps) {
     }
     pluginApi.setNavBarItems([
       new NavBarButton({
+        // A fixed id keeps the button mounted across updates; without one, BBB assigns a new id on every call
+        // (plugins-engine/extensible-areas/manager.tsx:47-54 @ 7d27e7e) and the button loses focus.
+        id: NAV_BAR_ITEM_ID,
         label: recording ? messages.labelOn : messages.labelOff,
         tooltip: recording ? messages.tooltipPause : messages.tooltipStart,
         icon: { svgContent: recordIcon(recording) },
-        color: recording ? "danger" : "primary",
+        // "default" has no !important rules, so the inline style applies in full (common/button/styles.js:893-955).
+        color: "default",
+        // The button is inline-block and the icon display:flex, which puts the icon above the label
+        // (common/button/styles.js:840, plugins/plugin-icon/styles.tsx:5).
+        style: { display: "inline-flex", alignItems: "center" },
         // The mutation trigger is null until the client has set it up.
         disabled: !setRecordingStatus,
         position: NavBarItemPosition.RIGHT,
