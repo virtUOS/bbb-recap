@@ -9,13 +9,18 @@ import { POPOVER_ATTRIBUTE } from "./popover";
 // index.js:11-38, notifications/component.tsx:103-112), and react-toastify 11.0.2 puts that id on the toast's element
 // (src/components/Toast.tsx, <div id={toastId}>). Each selector matches exactly one toast. If BBB changes the ids, the
 // rules match nothing and BBB's toasts simply show again. Same in BBB v4.0.2.
+// Not display:none: react-toastify closes a toast when its progress bar animation ends (src/components/
+// ProgressBar.tsx, onAnimationEnd) and removes it after its exit animation, and no animation runs under display:none,
+// so the toasts would stay open, unseen. Invisible and out of the flow, they still close and go away as usual, and
+// screen readers do not announce them.
 export const HIDDEN_BBB_TOASTS = [
   "success-record-app.notification.recordingStart",
   "error-record-app.notification.recordingPaused",
 ];
 
 export const PAGE_CSS = [
-  `${HIDDEN_BBB_TOASTS.map((id) => `[id="${id}"]`).join(", ")} { display: none !important; }`,
+  `${HIDDEN_BBB_TOASTS.map((id) => `[id="${id}"]`).join(", ")} ` +
+    "{ position: absolute !important; visibility: hidden !important; pointer-events: none !important; }",
   // The plugin's own popovers are modal dialogs; like a popover, they do not dim the page.
   `dialog[${POPOVER_ATTRIBUTE}]::backdrop { background: transparent; }`,
 ].join("\n");

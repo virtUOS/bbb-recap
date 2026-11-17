@@ -20,12 +20,12 @@ export function useReducedMotion(): boolean {
   return useSyncExternalStore(subscribeReducedMotion, reducedMotionNow, () => false);
 }
 
-// The client clock, updated every second. The plugin re-renders with it; the nav bar is updated only when the shown
-// time changes.
+// The client clock, updated four times a second, so the shown second changes within 250 ms of the real one instead
+// of at an arbitrary phase. The plugin re-renders with it; the nav bar is updated only when the shown second changes.
 export function useClock(): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
   }, []);
   return now;

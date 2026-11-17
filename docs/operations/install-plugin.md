@@ -1,3 +1,5 @@
+# Install the BBB plugin
+
 The plugin adds an **AI minutes** control ("KI-Protokoll" in German) to the BBB nav bar, right after BBB's recording
 indicator. The AI minutes are the normal BBB recording of the meeting: the plugin starts and pauses it with the same
 call as BBB's record button, which stays visible. Users who may record (moderators, or users with the join parameter
@@ -145,7 +147,9 @@ removes it when it stops:
 ```css
 [id="success-record-app.notification.recordingStart"],
 [id="error-record-app.notification.recordingPaused"] {
-  display: none !important;
+  position: absolute !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 dialog[data-recap-popover]::backdrop {
   background: transparent;
@@ -156,11 +160,14 @@ dialog[data-recap-popover]::backdrop {
   recorded anymore". In a recap meeting the recording is the AI minutes, and the plugin's own toasts already report
   both changes. The selectors are the toast ids BBB builds from the server notification (type, icon, message id), so
   each matches exactly one toast and nothing else. BBB's recording pill, its start confirmation, its consent dialog
-  (`notifyRecordingIsOn`) and every other toast stay as they are.
+  (`notifyRecordingIsOn`) and every other toast stay as they are. The toasts are made invisible rather than removed
+  with `display: none`, so their timer and close animation still run and they go away as usual; screen readers do
+  not announce them.
 - The second rule keeps the page undimmed behind the plugin's own popovers.
 
 If a BBB upgrade changes the toast ids, the rule matches nothing and BBB's toasts show again next to the plugin's;
-nothing else breaks. A Content Security Policy that forbids inline styles has the same effect. Sources (BBB v4.0.0
+nothing else breaks. A Content Security Policy that forbids inline styles has the same effect, and the page is then
+also dimmed behind the plugin's popovers. Sources (BBB v4.0.0
 `7d27e7e`, unchanged in v4.0.2): `SetRecordingStatusCmdMsgHdlr.scala` (the notifications), `bigbluebutton-html5/
 imports/ui/services/notification/index.js` (`generateToastId`), react-toastify 11.0.2 `Toast.tsx` (`id={toastId}`).
 

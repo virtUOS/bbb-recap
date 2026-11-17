@@ -6,7 +6,7 @@ describe("PAGE_CSS", () => {
   it("hides exactly BBB's two recording toasts, by their ids", () => {
     expect(PAGE_CSS).toContain(
       '[id="success-record-app.notification.recordingStart"], [id="error-record-app.notification.recordingPaused"] ' +
-        "{ display: none !important; }",
+        "{ position: absolute !important; visibility: hidden !important; pointer-events: none !important; }",
     );
   });
 

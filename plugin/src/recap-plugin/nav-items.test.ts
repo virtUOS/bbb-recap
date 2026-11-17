@@ -39,14 +39,14 @@ describe("pillItem", () => {
   it("off: a start action without a timer", () => {
     const item = pillItem(base);
     expect(textOf(item.label)).toBe("Start AI minutes");
-    expect(item.tooltip).toBe("AI minutes are off. Click to start.");
+    expect(item.tooltip).toBe("Start AI minutes. They are off.");
     expect(item.style?.border).toBe("1px solid transparent");
   });
 
   it("running: label with the active time, solid violet border", () => {
     const item = pillItem({ ...base, state: "running" });
     expect(textOf(item.label)).toBe("AI minutes· 12:04");
-    expect(item.tooltip).toBe("AI minutes are running. Click to pause.");
+    expect(item.tooltip).toBe("AI minutes running. Click to pause.");
     expect(item.style?.border).toContain("solid");
     expect(item.style?.background).toContain("color-mix");
   });
@@ -54,8 +54,23 @@ describe("pillItem", () => {
   it("paused: label with the time, dashed border, resume in the tooltip", () => {
     const item = pillItem({ ...base, state: "paused" });
     expect(textOf(item.label)).toBe("AI minutes paused· 12:04");
-    expect(item.tooltip).toBe("AI minutes are paused. Click to resume.");
+    expect(item.tooltip).toBe("AI minutes paused. Click to resume.");
     expect(item.style?.border).toContain("dashed");
+  });
+
+  it("starts the tooltip, which is the accessible name, with the visible label text (WCAG 2.5.3)", () => {
+    for (const locale of ["en", "de"]) {
+      const messages = messagesFor(locale);
+      for (const state of ["off", "running", "paused"] as const) {
+        const item = pillItem({ ...base, state, messages });
+        const visible = textOf(item.label).split("·")[0].trim();
+        expect(item.tooltip.startsWith(visible)).toBe(true);
+      }
+      for (const state of ["running", "paused"] as const) {
+        const item = chipItem({ state, messages, reducedMotion: false, onClick: () => {} });
+        expect(item.tooltip.startsWith(textOf(item.label))).toBe(true);
+      }
+    }
   });
 
   it("keeps the tooltip free of the timer, since it is the aria-label", () => {
@@ -142,7 +157,7 @@ describe("chipItem", () => {
   it("running: label, details in the tooltip, pulsing dot", () => {
     const item = chipItem({ ...chip, state: "running" });
     expect(textOf(item.label)).toBe("Minutes are being taken");
-    expect(item.tooltip).toBe("AI minutes are being taken. Click for details.");
+    expect(item.tooltip).toBe("Minutes are being taken. Click for details.");
     expect(item.id).toBe(CHIP_ID);
     expect(item.style?.height).toBe("2rem");
     expect(item.disabled).toBe(false);

@@ -32,10 +32,13 @@ export const MEETING_RECORDING = `subscription RecapMeetingRecording {
 }`;
 
 // The server clock, as BBB reads it for its own recording timer (bigbluebutton-html5/imports/ui/core/utils/
-// timeSync.ts:5-20, bbb-graphql-server/bbb_schema.sql:2327-2330).
+// timeSync.ts:5-20, bbb-graphql-server/bbb_schema.sql:2327-2330). BBB runs a plugin's query cache-first, and BBB's
+// own timer writes current_time { currentTimestamp } to the cache (core/graphql/queries/timer.ts:38-44); the extra
+// field currentTimeMillis, which that query does not select, makes the cache unable to answer, so the time is fresh.
 export const CURRENT_TIME = `query RecapCurrentTime {
   current_time {
     currentTimestamp
+    currentTimeMillis
   }
 }`;
 

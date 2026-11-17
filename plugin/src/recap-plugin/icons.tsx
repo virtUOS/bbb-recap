@@ -1,6 +1,7 @@
 // SVG icons. The nav bar and toast icons are rendered by BBB's React, so they are plain SVG elements only, no
 // components or hooks (the plugin bundles its own React copy). BBB forces nav bar icons to 1em
-// (plugins/plugin-icon/styles.tsx:10-13 @ 7d27e7e); an inline width and height override that.
+// (plugins/plugin-icon/styles.tsx:10-13 @ 7d27e7e); an inline width and height override that. That rule matches every
+// nested <svg> too, so inner parts are placed with <g transform>, which no CSS size touches.
 import type { SVGProps } from "react";
 
 import type { MinutesState } from "./recording";
@@ -68,9 +69,9 @@ function runningIcon(motion: boolean) {
     >
       {motion && pulse(11, 11, 11)}
       <circle cx="11" cy="11" r="11" fill={ACCENT} />
-      <svg x="4" y="4" width="14" height="14" viewBox="0 0 24 24">
+      <g transform="translate(4 4) scale(0.583333)">
         <path d={SPARKLE_FILLED} fill={ON_ACCENT} />
-      </svg>
+      </g>
     </svg>
   );
 }
@@ -80,10 +81,10 @@ function pausedIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" aria-hidden="true" style={size(22)}>
       <circle cx="11" cy="11" r="10.25" fill="none" stroke={ACCENT_LIGHT} strokeWidth="1.5" />
-      <svg x="6" y="6" width="10" height="10" viewBox="0 0 10 10">
+      <g transform="translate(6 6)">
         <rect x="1.5" y="1" width="2.4" height="8" rx="1" fill={ACCENT_LIGHT} />
         <rect x="6.1" y="1" width="2.4" height="8" rx="1" fill={ACCENT_LIGHT} />
-      </svg>
+      </g>
     </svg>
   );
 }
@@ -137,9 +138,9 @@ export function toastIcon(): Svg {
       style={{ width: "2rem", height: "2rem" }}
     >
       <circle cx="16" cy="16" r="16" fill={ACCENT} />
-      <svg x="8" y="8" width="16" height="16" viewBox="0 0 24 24">
+      <g transform="translate(8 8) scale(0.666667)">
         <path d={SPARKLE_FILLED} fill={ON_ACCENT} />
-      </svg>
+      </g>
     </svg>
   ) as Svg;
 }
