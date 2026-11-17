@@ -1,13 +1,14 @@
-# Releases and published images
+# Releases, published images and the plugin
 
 For maintainers. Image rules: [deployment.md](../reference/deployment.md) §1; upgrade order: §8.
 
 ## What CI publishes
 
-| Workflow                       | Trigger                                | Publishes                                                                     |
-| ------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------- |
-| `.github/workflows/ci.yaml`    | every push and pull request            | nothing (`make lint`, `make test`, `make images`, hook tests)                 |
-| `.github/workflows/image.yaml` | push to `main`, a `v*` tag, manual run | `ghcr.io/virtuos/bbb-recap/recap`, `ghcr.io/virtuos/bbb-recap/recap-exporter` |
+| Workflow                         | Trigger                                | Publishes                                                                     |
+| -------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------- |
+| `.github/workflows/ci.yaml`      | every push and pull request            | nothing (`make lint`, `make test`, `make images`, hook tests)                 |
+| `.github/workflows/image.yaml`   | push to `main`, a `v*` tag, manual run | `ghcr.io/virtuos/bbb-recap/recap`, `ghcr.io/virtuos/bbb-recap/recap-exporter` |
+| `.github/workflows/release.yaml` | a `v*` tag                             | the GitHub release of the tag with the BBB plugin                             |
 
 | Git ref            | Image tags (`linux/amd64` only) |
 | ------------------ | ------------------------------- |
@@ -25,6 +26,29 @@ For maintainers. Image rules: [deployment.md](../reference/deployment.md) §1; u
   tags and the label check fails.
 - Images built in a linked git worktree carry `(devel)`/`unknown` labels (no VCS stamping there); release images come
   from CI clones.
+
+## The plugin release
+
+For a tag `vX.Y.Z`, `release.yaml` builds `plugin/` (`npm ci`, `npm run build`, the Node.js line of the ci `plugin`
+job) and attaches to the GitHub release of the tag:
+
+| Asset                     | Content                                                   |
+| ------------------------- | --------------------------------------------------------- |
+| `RecapPlugin.js`          | the plugin script                                         |
+| `manifest.json`           | the manifest, with the version from `plugin/package.json` |
+| `recap-plugin-vX.Y.Z.zip` | both files, no directory                                  |
+| `SHA256SUMS`              | SHA-256 of the three files above, for `sha256sum -c`      |
+
+- It creates the release if there is none, with notes generated from the merged pull requests
+  (`gh release create --generate-notes`). Edit the notes afterwards on the release page or with
+  `gh release edit "$VERSION" --notes-file notes.md`; a re-run does not overwrite them.
+- A tag with a pre-release suffix (`vX.Y.Z-<pre>`) creates a pre-release.
+- Re-running the workflow for the same tag replaces the assets (`gh release upload --clobber`).
+- **Set `version` in `plugin/package.json` to the release before tagging.** The manifest and the banner of
+  `RecapPlugin.js` carry it, and BBB appends it to the script URL to bust caches. The workflow fails for `vX.Y.Z` if
+  it differs and only warns for a pre-release.
+
+Admins download the assets as in [install-plugin.md](install-plugin.md) step 1.
 
 ## Make the package pullable (once)
 
@@ -64,6 +88,8 @@ git switch main && git pull --ff-only
 git tag -a "$VERSION" -m "recap $VERSION" && git push origin "$VERSION"
 sleep 10
 gh run watch "$(gh run list --workflow image.yaml --branch "$VERSION" --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+gh run watch "$(gh run list --workflow release.yaml --branch "$VERSION" --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+gh release view "$VERSION"   # expect the four assets of "The plugin release"
 ```
 
 If the release cannot run steps of jobs the previous release created, its notes say "drain first".

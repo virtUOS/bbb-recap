@@ -7,25 +7,29 @@ button, which stays (without its "no microphone" warning). It shows only to user
 is active only in meetings created with `meta_recap-enabled=true`. The plugin sends no data outside BBB; the summary
 comes from the recording through the exporter ([install-exporter.md](install-exporter.md)) as before.
 
-You need BBB 4.0 (plugin SDK `1.0.0-beta.3`), a static HTTPS host and Node.js 24 or later to build. The plugin is
-built and unit-tested but not yet tested on a BBB server.
+You need BBB 4.0 (plugin SDK `1.0.0-beta.3`) and a static HTTPS host. The plugin is built and unit-tested but not
+yet tested on a BBB server.
 
 `RecapPlugin.js` bundles the BBB plugin SDK (LGPL-3.0), React and browser-bunyan (MIT). The comment at the top of the
 file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sources.
 
 ## Quick start
 
-1. Build, on any machine with Node.js and git:
+1. Download the plugin from the [GitHub release](https://github.com/virtUOS/bbb-recap/releases) and check it, on
+   any machine with curl:
 
    ```sh
    VERSION=v0.1.0                              # same release as the service
-   git clone --depth 1 --branch "$VERSION" https://github.com/virtUOS/bbb-recap.git
-   cd bbb-recap/plugin
-   npm ci && npm run build
-   ls dist                                     # expect: RecapPlugin.js  manifest.json
+   RELEASE_URL=https://github.com/virtUOS/bbb-recap/releases/download/$VERSION
+   mkdir "recap-plugin-$VERSION" && cd "recap-plugin-$VERSION"
+   curl -fsSL -O "$RELEASE_URL/RecapPlugin.js" -O "$RELEASE_URL/manifest.json" -O "$RELEASE_URL/SHA256SUMS"
+   sha256sum -c --ignore-missing SHA256SUMS   # expect: RecapPlugin.js: OK  manifest.json: OK
    ```
 
-2. Upload both files from `dist/` into one directory on a static HTTPS host and check that they are served:
+   The release also carries `recap-plugin-$VERSION.zip` with both files. To build them yourself, see
+   [Build it yourself](#build-it-yourself).
+
+2. Upload both files into one directory on a static HTTPS host and check that they are served:
 
    ```sh
    PLUGIN_URL=https://cdn.example.org/bbb-recap/$VERSION      # the directory that holds both files
@@ -79,6 +83,21 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
    indicator. A viewer does not see it. In a meeting without `meta_recap-enabled` the plugin is not loaded; with any
    value other than `true` it loads but shows nothing.
 
+## Build it yourself
+
+Instead of step 1, on any machine with Node.js 24 or later and git. The release workflow
+(`.github/workflows/release.yaml`) runs the same commands.
+
+```sh
+VERSION=v0.1.0
+git clone --depth 1 --branch "$VERSION" https://github.com/virtUOS/bbb-recap.git
+cd bbb-recap/plugin
+npm ci && npm run build
+ls dist                                     # expect: RecapPlugin.js  manifest.json
+```
+
+Continue with step 2, uploading the two files from `dist/`.
+
 ## How the plugin is limited to recap meetings
 
 `manifest.json` contains the placeholder `${meta_recap-enabled}` without a default. bbb-web fills it from the
@@ -112,8 +131,8 @@ enough: no change in the front end. Sources: BBB `docs/docs/plugins.md` ("Meta\_
 
 ## Upgrade
 
-Build the new release, upload it to a new directory (`$PLUGIN_URL` with the new version), change the URL in
-`pluginManifests` and restart bbb-web as in step 3. Running meetings keep the old version. The manifest carries the
+Download (or build) the new release, upload it to a new directory (`$PLUGIN_URL` with the new version), change the
+URL in `pluginManifests` and restart bbb-web as in step 3. Running meetings keep the old version. The manifest carries the
 plugin version, which BBB appends to the script URL, so browsers do not use a cached old script. With `pluginManifestCacheEnabled=true`, bbb-web may keep an old manifest for up to
 `pluginManifestCacheRefreshIntervalMinutes`.
 

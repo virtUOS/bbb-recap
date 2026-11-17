@@ -31,6 +31,8 @@ First release.
   backends; images on ghcr.io, built with Go 1.27.
 - BBB plugin (`plugin/`) with an "AI summary" button next to the recording indicator that starts and pauses the
   recording, for users who may record and only in meetings with `meta_recap-enabled=true`; English and German.
+- Releases carry the built BBB plugin (`RecapPlugin.js`, `manifest.json`, a zip of both and `SHA256SUMS`) as
+  release assets, built by `.github/workflows/release.yaml` for every `v*` tag.
 
 ### Changed
 
