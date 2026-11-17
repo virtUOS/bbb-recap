@@ -133,12 +133,11 @@ export default function RecapPlugin({ pluginUuid }: RecapPluginProps) {
     const kind = toastFor(previous.current, state, controller);
     previous.current = state;
     if (kind !== null) {
-      const { title, body } = toastText(kind, messages);
+      const message = toastText(kind, messages);
       hideNavItemTooltip(PILL_DATA_TEST);
       hideNavItemTooltip(CHIP_DATA_TEST);
       pluginApi.uiCommands?.notification.send({
-        message: title,
-        content: body,
+        message,
         icon: { svgContent: toastIcon() },
         type: NotificationTypeUiCommand.DEFAULT,
       });

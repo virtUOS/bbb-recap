@@ -33,16 +33,20 @@ describe("toastText", () => {
   it("names no destination of the minutes", () => {
     for (const locale of ["en", "de"]) {
       for (const kind of ["startedModerator", "startedParticipant", "paused"] as const) {
-        const { title, body } = toastText(kind, messagesFor(locale));
-        expect(`${title} ${body}`).not.toMatch(/mail|send|sent|versend|geht .* an/i);
-        expect(title).not.toBe("");
-        expect(body).not.toBe("");
+        expect(toastText(kind, messagesFor(locale))).not.toMatch(/mail|send|sent|versend|geht .* an/i);
       }
     }
   });
 
-  it("uses the locale", () => {
-    expect(toastText("startedParticipant", messagesFor("de")).title).toBe("Dieses Meeting wird jetzt protokolliert");
-    expect(toastText("paused", messagesFor("en")).title).toBe("AI minutes paused");
+  it("is one message of title and body, like BBB's own toasts", () => {
+    expect(toastText("startedParticipant", messagesFor("de"))).toBe(
+      "Dieses Meeting wird jetzt protokolliert. Gesagtes wird mit Namen transkribiert.",
+    );
+    expect(toastText("paused", messagesFor("en"))).toBe(
+      "AI minutes paused. Nothing is transcribed until they are resumed.",
+    );
+    expect(toastText("startedModerator", messagesFor("en"))).toBe(
+      "AI minutes are running. All participants have been notified.",
+    );
   });
 });

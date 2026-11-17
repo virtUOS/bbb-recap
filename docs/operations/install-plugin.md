@@ -132,6 +132,10 @@ recorded.
 | resume      | none (whoever resumed has just clicked) | "This meeting is now being minuted" |
 | pause       | "AI minutes paused"                     | "AI minutes paused"                 |
 
+Each toast is one message in BBB's own toast style, title and body as two sentences (for example "AI minutes paused.
+Nothing is transcribed until they are resumed."), with the violet sparkle avatar in place of BBB's icon. BBB would show
+a separate plugin body under a line in another font and size, so the plugin does not use it.
+
 **Motion and accessibility:** the pulse is an SVG animation and is left out when the system asks for reduced motion
 (`prefers-reduced-motion: reduce`); BBB's own "animations" setting is not available to plugins. The pill and the chip
 are buttons whose tooltip, which BBB also uses as the accessible name, states the state and what a click does (the
