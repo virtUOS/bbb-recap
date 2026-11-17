@@ -1,8 +1,8 @@
 # Install the BBB plugin
 
-The plugin adds an **AI minutes** control ("KI-Protokoll" in German) to the BBB nav bar, right after BBB's recording
-indicator. The AI minutes are the normal BBB recording of the meeting: the plugin starts and pauses it with the same
-call as BBB's record button, which stays visible. Users who may record (moderators, or users with the join parameter
+The plugin adds an **AI minutes** control ("KI-Protokoll" in German) to the BBB nav bar, in the place of BBB's recording
+indicator, which it hides in recap meetings. The AI minutes are the normal BBB recording of the meeting: the plugin
+starts and pauses it with the same call as BBB's record button. Users who may record (moderators, or users with the join parameter
 `userdata-bbb_record_permission=true`, in meetings with `record=true` and `allowStartStopRecording=true`) get a pill
 that starts and pauses; everyone else gets a status chip once the minutes have been started. The plugin is active
 only in meetings created with `meta_recap-enabled=true`. It sends no data outside BBB; the minutes come from the
@@ -82,8 +82,8 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
    ```
 
 4. Check: create a meeting with `meta_recap-enabled=true`, `record=true` and `allowStartStopRecording=true` (a front
-   end with recap does this) and join as moderator. The grey pill "Start AI minutes" appears right after the recording
-   indicator. A viewer sees nothing until the minutes are started, then the chip "Minutes are being taken". In a
+   end with recap does this) and join as moderator. The grey pill "Start AI minutes" appears at the start of the
+   nav bar's right group, and BBB's own recording pill is not shown. A viewer sees nothing until the minutes are started, then the chip "Minutes are being taken". In a
    meeting without `meta_recap-enabled` the plugin is not loaded; with any value other than `true` it loads but shows
    nothing.
 
@@ -145,6 +145,9 @@ While active (only in recap meetings), the plugin adds one `<style data-recap-pl
 removes it when it stops:
 
 ```css
+[data-test="recordingIndicator"] {
+  display: none !important;
+}
 [id="success-record-app.notification.recordingStart"],
 [id="error-record-app.notification.recordingPaused"] {
   position: absolute !important;
@@ -156,19 +159,27 @@ dialog[data-recap-popover]::backdrop {
 }
 ```
 
-- The first rule hides BBB's own toasts "This session is now being recorded" and "This session is not being
+- The first rule hides BBB's own recording pill in the nav bar (the "Start recording" button and the recording
+  indicator with its timer), for moderators and viewers alike. In a recap meeting the recording is the AI minutes, and
+  the plugin's pill or chip takes its place: the plugin's item comes right after it in the nav bar, so with BBB's pill
+  hidden it is the first item of the right group. `data-test="recordingIndicator"` sits only on the wrapper of that
+  pill. `display: none` takes it out of the layout, the tab order and the accessibility tree, and no animation needs
+  to finish. BBB's start-recording confirmation opens only from a click or Enter on that pill, so it cannot appear.
+  BBB's consent dialog (`notifyRecordingIsOn`) is a separate element and is not hidden; leave `notifyRecordingIsOn` off
+  for recap meetings.
+- The second rule hides BBB's own toasts "This session is now being recorded" and "This session is not being
   recorded anymore". In a recap meeting the recording is the AI minutes, and the plugin's own toasts already report
   both changes. The selectors are the toast ids BBB builds from the server notification (type, icon, message id), so
-  each matches exactly one toast and nothing else. BBB's recording pill, its start confirmation, its consent dialog
-  (`notifyRecordingIsOn`) and every other toast stay as they are. The toasts are made invisible rather than removed
+  each matches exactly one toast and nothing else. Every other toast stays as it is. The toasts are made invisible rather than removed
   with `display: none`, so their timer and close animation still run and they go away as usual; screen readers do
   not announce them.
-- The second rule keeps the page undimmed behind the plugin's own popovers.
+- The third rule keeps the page undimmed behind the plugin's own popovers.
 
-If a BBB upgrade changes the toast ids, the rule matches nothing and BBB's toasts show again next to the plugin's;
-nothing else breaks. A Content Security Policy that forbids inline styles has the same effect, and the page is then
+If a BBB upgrade changes the `data-test` or the toast ids, the rule matches nothing and BBB's pill or toasts show
+again next to the plugin's; nothing else breaks. A Content Security Policy that forbids inline styles has the same effect, and the page is then
 also dimmed behind the plugin's popovers. Sources (BBB v4.0.0
-`7d27e7e`, unchanged in v4.0.2): `SetRecordingStatusCmdMsgHdlr.scala` (the notifications), `bigbluebutton-html5/
+`7d27e7e`, unchanged in v4.0.2): `nav-bar/nav-bar-graphql/recording-indicator/component.tsx` (the pill),
+`SetRecordingStatusCmdMsgHdlr.scala` (the notifications), `bigbluebutton-html5/
 imports/ui/services/notification/index.js` (`generateToastId`), react-toastify 11.0.2 `Toast.tsx` (`id={toastId}`).
 
 ## How the plugin is limited to recap meetings
@@ -212,9 +223,10 @@ the plugin version, which BBB appends to the script URL, so browsers do not use 
 
 The plugin relies on BBB internals that are not part of the plugin SDK's contract: the recording GraphQL fields
 (`meeting_recording`, `current_time`), the nav bar rendering a label made of elements and the inline style of a
-nav bar button, and the toast ids above. Re-check after every BBB upgrade, in a recap meeting:
+nav bar button, and the `data-test` and toast ids of the hidden BBB elements above. Re-check after every BBB upgrade, in a recap meeting:
 
-- the pill in all three states and the chip look as described above, and the timer matches BBB's recording timer;
+- the pill in all three states and the chip look as described above, and the timer is the same in two clients;
+- BBB's recording pill is not visible and not reachable with Tab, for moderators and viewers, in every state;
 - starting and pausing show the plugin's toasts and **not** BBB's "being recorded" toasts;
 - the pill keeps the keyboard focus while the timer runs.
 
