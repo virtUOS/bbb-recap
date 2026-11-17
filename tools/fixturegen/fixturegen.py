@@ -116,6 +116,10 @@ FIXTURES = {
     "F-13": dict(name="slides", kind="slides", meta=OPTIN, registration=True,
                  purpose="F-01's recording periods and audio plus presentations: slide selection (templates.md §3.1)",
                  hook="spool", exporter=("acked", None), service=("exporter", ("delivered", None))),
+    "F-14": dict(name="slide-images", kind="slideimages", meta=OPTIN, registration=True,
+                 purpose="one long recording period plus decks for slide images: rendering, dedupe, cap"
+                         " (templates.md §3.2)",
+                 hook="spool", exporter=("acked", None), service=("exporter", ("delivered", None))),
 }
 
 
@@ -616,6 +620,251 @@ def gen_slides(g, fid, rid, mid, meta, base):
     write_json(base + "/expected/slides.json", F13_SLIDES)
 
 
+# --- F-14 slide images (templates.md §3.2) -----------------------------------------------------------
+
+def png(width, height, rows, alpha):
+    """A PNG of 8-bit RGB (colour type 2) or RGBA (6) rows. Deterministic: no time or text chunks."""
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    raw = b"".join(b"\x00" + r for r in rows)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6 if alpha else 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
+def in_box(x, y, boxes):
+    return any(x0 <= x < x1 and y0 <= y < y1 for x0, y0, x1, y1 in boxes)
+
+
+# The chart of the image-only page: 320x180 pixels, two opaque blue bars on a fully transparent background whose
+# colour is black, so a renderer that ignores the soft mask shows black where white is expected. Boxes are
+# (x0, y0, x1, y1), rows from the top.
+CHART_SIZE = (320, 180)
+CHART_BARS = [(40, 100, 100, 180), (140, 40, 200, 180)]
+# The image upload: 400x200 RGBA, left half transparent black, right half opaque green.
+PHOTO_SIZE = (400, 200)
+PHOTO_GREEN = [(200, 0, 400, 200)]
+
+
+def chart_planes():
+    """RGB and alpha planes of the chart image, rows from the top."""
+    w, h = CHART_SIZE
+    rgb, alpha = b"", b""
+    for y in range(h):
+        for x in range(w):
+            on = in_box(x, y, CHART_BARS)
+            rgb += b"\x00\x00\xff" if on else b"\x00\x00\x00"
+            alpha += b"\xff" if on else b"\x00"
+    return rgb, alpha
+
+
+def photo_png():
+    w, h = PHOTO_SIZE
+    rows = []
+    for y in range(h):
+        rows.append(b"".join(b"\x00\xa0\x00\xff" if in_box(x, y, PHOTO_GREEN) else b"\x00\x00\x00\x00"
+                             for x in range(w)))
+    return png(w, h, rows, alpha=True)
+
+
+def pdf_doc(pages):
+    """A small valid PDF. A page is dict(size=(w, h) in points, lines=[text] or None, chart=True to fill the page with
+    the chart image (soft mask for its alpha)). Deterministic: no dates, no IDs."""
+    objs = [b"<< /Type /Catalog /Pages 2 0 R >>", None,
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+
+    def add(obj):
+        objs.append(obj)
+        return len(objs)
+
+    def stream(dictionary, data):
+        return b"<< %s /Length %d >>\nstream\n" % (dictionary, len(data)) + data + b"\nendstream"
+
+    def esc(t):
+        return t.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    kids = []
+    chart = None
+    for page in pages:
+        w, h = page["size"]
+        res = b"/Font << /F1 3 0 R >>"
+        if page.get("chart"):
+            if chart is None:
+                rgb, alpha = chart_planes()
+                cw, ch = CHART_SIZE
+                img = b"/Type /XObject /Subtype /Image /Width %d /Height %d /BitsPerComponent 8" % (cw, ch)
+                smask = add(stream(img + b" /ColorSpace /DeviceGray /Filter /FlateDecode", zlib.compress(alpha, 9)))
+                chart = add(stream(img + b" /ColorSpace /DeviceRGB /Filter /FlateDecode /SMask %d 0 R" % smask,
+                                   zlib.compress(rgb, 9)))
+            res += b" /XObject << /Im1 %d 0 R >>" % chart
+            content = b"q %d 0 0 %d 0 0 cm /Im1 Do Q" % (w, h)
+        else:
+            lines = page["lines"]
+            parts = ["BT /F1 36 Tf 60 %d Td (%s) Tj /F1 24 Tf" % (h - 80, esc(lines[0]))]
+            parts += ["0 -40 Td (%s) Tj" % esc(t) for t in lines[1:]]
+            content = (" ".join(parts) + " ET").encode("ascii")
+        c = add(stream(b"", content))
+        kids.append(add(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] /Resources << %s >> /Contents %d 0 R >>"
+                        % (w, h, res, c)))
+    objs[1] = b"<< /Type /Pages /Kids [%s] /Count %d >>" % (b" ".join(b"%d 0 R" % k for k in kids), len(pages))
+    out = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"
+    offsets = []
+    for i, o in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+    for off in offsets:
+        out += b"%010d 00000 n \n" % off
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+    return out
+
+
+WIDE, FOUR_THREE = (960, 540), (720, 540)  # PDF points: renders at 1280x720 and 1280x960
+F14_DEFAULT = pres_id("F-14-default", 300)
+F14_CHART = pres_id("F-14-chart", 2000)
+F14_AGAIN = pres_id("F-14-chart-again", 2500)
+F14_43 = pres_id("F-14-four-three", 3000)
+F14_PHOTO = pres_id("F-14-photo", 3500)
+F14_BROKEN = pres_id("F-14-broken", 4000)
+F14_LONG = pres_id("F-14-long", 4500)
+F14_NAMES = {F14_DEFAULT: "default.pdf", F14_CHART: "fixture-chart-deck.pptx", F14_AGAIN: "fixture-chart-deck-copy.pdf",
+             F14_43: "fixture-four-three.odp", F14_PHOTO: "fixture-photo-upload.png",
+             F14_BROKEN: "fixture-broken-deck.pdf", F14_LONG: "fixture-long-deck.pdf"}
+F14_CHART_TEXT = ["Fixture Chart Deck", "Quarterly widget output", "Blue bars show the fixture plan"]
+F14_LONG_PAGES = 52
+F14_BROKEN_PDF = b"%PDF-1.4\n% SYNTHETIC broken PDF: no objects, no cross-reference table\n%%EOF\n"
+# Pages per deck: (pdf page or None, text file content). The chart deck's page 3 is page 1 again (same content, so
+# the same render); its page 2 holds only the chart, so BBB's text extraction gives the placeholder.
+F14_DECKS = {
+    F14_DEFAULT: [(dict(size=WIDE, lines=["Fixture default deck welcome text"]), "Fixture default deck welcome text\n")],
+    F14_CHART: [(dict(size=WIDE, lines=F14_CHART_TEXT), "\n".join(F14_CHART_TEXT) + "\n"),
+                (dict(size=WIDE, chart=True), PLACEHOLDER),
+                (dict(size=WIDE, lines=F14_CHART_TEXT), "\n".join(F14_CHART_TEXT) + "\n")],
+    F14_43: [(dict(size=FOUR_THREE, lines=["Fixture Four Three Deck", "Old projector format"]),
+              "Fixture Four Three Deck\nOld projector format\n"),
+             (dict(size=FOUR_THREE, lines=["Unshown four three page", "This page is never shown"]),
+              "Unshown four three page\nThis page is never shown\n")],
+    F14_LONG: [(dict(size=WIDE, lines=["Fixture long deck page %02d" % n, "Topic %02d of the fixture lecture" % n]),
+                "Fixture long deck page %02d\nTopic %02d of the fixture lecture\n" % (n, n))
+               for n in range(1, F14_LONG_PAGES + 1)],
+}
+F14_LONG_START = 80000  # page n of the long deck is shown from F14_LONG_START + (n - 1) * 5000
+F14_CAP = 50  # render attempts per job (templates.md §3.2)
+
+
+def f14_expected():
+    """Expected slides[] with images on and off (templates.md §3.1, §3.2), written by hand from the timeline in
+    gen_slide_images: axis = offset - 5000. Image labels i-<n> stand for equal image bytes; null = no image.
+    Render attempts in slides[] order: chart 1, 2, 3 (page 3 renders to the bytes of page 1), the copy of the chart
+    deck has the same file bytes and page, so it reuses render 1; four-three 4, photo 5, broken PDF 6 (fails), long
+    deck pages 1-44 are attempts 7-50, pages 45-52 are over the cap and keep only their text."""
+    chart = "\n".join(F14_CHART_TEXT)
+    t43 = "Fixture Four Three Deck\nOld projector format"
+    tb = "Fixture broken deck\nIts PDF does not parse"
+    on = [dict(t_ms=5000, deck="d-1", page=1, text=chart, image="i-1"),
+          dict(t_ms=15000, deck="d-1", page=2, text="", image="i-2"),
+          dict(t_ms=25000, deck="d-1", page=3, text=chart, image="i-1"),
+          dict(t_ms=35000, deck="d-2", page=1, text=chart, image="i-1"),
+          dict(t_ms=45000, deck="d-3", page=1, text=t43, image="i-3"),
+          dict(t_ms=55000, deck="d-4", page=1, text="", image="i-4"),
+          dict(t_ms=65000, deck="d-5", page=1, text=tb, image=None)]
+    off = [dict(t_ms=5000, deck="d-1", page=1, text=chart), dict(t_ms=25000, deck="d-1", page=3, text=chart),
+           dict(t_ms=35000, deck="d-2", page=1, text=chart), dict(t_ms=45000, deck="d-3", page=1, text=t43),
+           dict(t_ms=65000, deck="d-4", page=1, text=tb)]
+    images = {"i-1": dict(width=1280, height=720), "i-2": dict(width=1280, height=720),
+              "i-3": dict(width=1280, height=960), "i-4": dict(width=400, height=200)}
+    attempts = 6
+    for n in range(1, F14_LONG_PAGES + 1):
+        t = F14_LONG_START - 5000 + (n - 1) * 5000
+        text = "Fixture long deck page %02d\nTopic %02d of the fixture lecture" % (n, n)
+        label = None
+        if attempts < F14_CAP:
+            attempts += 1
+            label = "i-%d" % (len(images) + 1)
+            images[label] = dict(width=1280, height=720)
+        on.append(dict(t_ms=t, deck="d-6", page=n, text=text, image=label))
+        off.append(dict(t_ms=t, deck="d-5", page=n, text=text))
+    # Pixels (x, y) of rendered images and the colour expected there (a tolerance applies in the tests): the bars
+    # of the chart page at render scale 4 (1280 / 320) and the white of its transparent area; the photo is not
+    # scaled (400 px is under the 1280 px long edge).
+    pixels = [dict(image="i-2", x=280, y=560, rgb=[0, 0, 255]), dict(image="i-2", x=680, y=440, rgb=[0, 0, 255]),
+              dict(image="i-2", x=1100, y=100, rgb=[255, 255, 255]),
+              dict(image="i-4", x=100, y=100, rgb=[255, 255, 255]), dict(image="i-4", x=300, y=100, rgb=[0, 160, 0])]
+    return {"images_on": {"slides": on, "images": images}, "images_off": {"slides": off},
+            "render_attempts": attempts, "pixels": pixels}
+
+
+def gen_slide_images(g, fid, rid, mid, meta, base):
+    """F-14: F-01's joins and period-1 microphone files, one recording period 5000-400000, and seven decks.
+
+    Timeline (offset ms):
+      300   default deck converted and shared (skipped)
+      2000-4500 the other decks converted (not shared)
+      10000 chart deck shared, page 1        -> d-1/1, render 1
+      20000 page 2 (chart image only)        -> d-1/2, empty text, render 2
+      30000 page 3 (same content as page 1)  -> d-1/3, render 3, same bytes as render 1
+      40000 copy of the chart deck shared    -> d-2/1, same file and page as render 1: no new render
+      50000 four-three deck shared, page 1   -> d-3/1, render 4 (1280x960); its page 2 is never shown
+      60000 image upload shared              -> d-4/1, empty text, render 5 (not scaled up)
+      70000 broken PDF deck shared           -> d-5/1, render 6 fails, text kept
+      80000 long deck shared, a new page every 5 s up to page 52 at 335000 (shown to the end of the period)
+                                             -> d-6/1-52; pages 1-44 are renders 7-50, pages 45-52 keep their text
+    """
+    raw = base + "/raw/" + rid
+    f01 = "testdata/meetings/F-01/raw/%s/audio/" % record_id("F-01")
+    evs = joins(405000) + [record_status(5000, True), record_status(400000, False)]
+    mkdirs(raw + "/audio")
+    for user, track, pub, unpub, _ in F01_TRACKS[:2]:
+        name = mic_name(user, track, pub)
+        evs += track_events(rid, user, track, "microphone", pub, unpub, name)
+        g.copy(f01 + name, raw + "/audio/" + name, "F-01 period-1 microphone track of %s" % user["name"])
+
+    def pres_event(offset, name, fields):
+        evs.append(event(offset, "PRESENTATION", name, [("podId", POD)] + fields, note=SHAPE_PRES))
+
+    def share(offset, pres):
+        pres_event(offset, "SharePresentationEvent", [("presentationName", pres), ("share", "true")])
+
+    def goto(offset, pres, page):
+        pres_event(offset, "GotoSlideEvent",
+                   [("presentationName", pres), ("id", "%s/%d" % (pres, page)), ("slide", str(page - 1))])
+
+    for pres in F14_NAMES:
+        off = int(pres.rsplit("-", 1)[1]) - EPOCH_MS
+        pres_event(off, "ConversionCompletedEvent", [("presentationName", pres), ("originalFilename", F14_NAMES[pres])])
+    share(301, F14_DEFAULT)
+    goto(302, F14_DEFAULT, 1)
+    share(10000, F14_CHART)
+    goto(20000, F14_CHART, 2)
+    goto(30000, F14_CHART, 3)
+    share(40000, F14_AGAIN)
+    share(50000, F14_43)
+    share(60000, F14_PHOTO)
+    share(70000, F14_BROKEN)
+    share(F14_LONG_START, F14_LONG)
+    for n in range(2, F14_LONG_PAGES + 1):
+        goto(F14_LONG_START + (n - 1) * 5000, F14_LONG, n)
+
+    def deck_files(pres, pages, pdf=None):
+        d = "%s/presentation/%s" % (raw, pres)
+        write("%s/%s.pdf" % (d, pres), pdf if pdf is not None else pdf_doc([p for p, _ in pages]))
+        for n, (p, text) in enumerate(pages, 1):
+            write("%s/svgs/slide%d.svg" % (d, n), slide_svg(n, p["lines"][0] if p.get("lines") else "(chart)"))
+            write("%s/textfiles/slide-%d.txt" % (d, n), text.encode("utf-8"))
+
+    for pres in (F14_DEFAULT, F14_CHART, F14_43, F14_LONG):
+        deck_files(pres, F14_DECKS[pres])
+    # The same deck uploaded again: byte-identical PDF, own presentation ID.
+    deck_files(F14_AGAIN, F14_DECKS[F14_CHART])
+    deck_files(F14_BROKEN, [(dict(size=WIDE, lines=["Fixture broken deck"]),
+                             "Fixture broken deck\nIts PDF does not parse\n")], pdf=F14_BROKEN_PDF)
+    d = "%s/presentation/%s" % (raw, F14_PHOTO)
+    write("%s/%s.png" % (d, F14_PHOTO), photo_png())
+    write("%s/textfiles/slide-1.txt" % d, PLACEHOLDER.encode("utf-8"))
+    write(raw + "/events.xml", events_xml(fid, rid, mid, meta, evs))
+    write_json(base + "/expected/slide-images.json", f14_expected())
+
+
 def outcome_files(fid, fx, base):
     hook = {"decision": fx["hook"], "exit_code": 0}
     raw_fid = "F-01" if fx["kind"] == "ref" else fid
@@ -660,6 +909,13 @@ def readme(fid, fx, rid):
                      " a second deck and a removed deck) with `textfiles/`; `expected/slides.json` is the expected normalized `slides[]`,"
                      " written by hand from the timeline in `gen_slides`. Original file names appear only in"
                      " `ConversionCompletedEvent`.")
+    if fid == "F-14":
+        lines.append("Slide images (docs/reference/templates.md §3.2): a chart deck (text page, image-only page with a"
+                     " transparent background, a page equal to page 1), a byte-identical copy of it, a 4:3 deck, an"
+                     " image upload, a PDF that does not parse and a 52-page deck that runs into the cap of 50 render"
+                     " attempts. `expected/slide-images.json` holds the expected `slides[]` with images on and off,"
+                     " the image sizes and sample pixels, written by hand in `gen_slide_images`. Original file names"
+                     " appear only in `ConversionCompletedEvent`.")
     if fid == "F-01":
         lines.append("Excluded from the package on purpose: `audio/screen_share_audio-*` (5 s tone), `notes/notes.pdf`,"
                      " `video/`, `deskshare/` (2 s black VP8), `learning-dashboard/data.json`, and the dangling symlink"
@@ -718,6 +974,8 @@ def main():
                 gen_nomarks(g, fid, rid, mid, fx["meta"], base)
             elif fx["kind"] == "slides":
                 gen_slides(g, fid, rid, mid, fx["meta"], base)
+            elif fx["kind"] == "slideimages":
+                gen_slide_images(g, fid, rid, mid, fx["meta"], base)
             if fx["registration"]:
                 write_json(base + "/registration.json", {
                     "schema_version": "1.0.0", "meeting_id": mid, "record_id": rid,

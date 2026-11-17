@@ -1,0 +1,1012 @@
+{
+  "images_on": {
+    "slides": [
+      {
+        "t_ms": 5000,
+        "deck": "d-1",
+        "page": 1,
+        "text": "Fixture Chart Deck\nQuarterly widget output\nBlue bars show the fixture plan",
+        "image": "i-1"
+      },
+      {
+        "t_ms": 15000,
+        "deck": "d-1",
+        "page": 2,
+        "text": "",
+        "image": "i-2"
+      },
+      {
+        "t_ms": 25000,
+        "deck": "d-1",
+        "page": 3,
+        "text": "Fixture Chart Deck\nQuarterly widget output\nBlue bars show the fixture plan",
+        "image": "i-1"
+      },
+      {
+        "t_ms": 35000,
+        "deck": "d-2",
+        "page": 1,
+        "text": "Fixture Chart Deck\nQuarterly widget output\nBlue bars show the fixture plan",
+        "image": "i-1"
+      },
+      {
+        "t_ms": 45000,
+        "deck": "d-3",
+        "page": 1,
+        "text": "Fixture Four Three Deck\nOld projector format",
+        "image": "i-3"
+      },
+      {
+        "t_ms": 55000,
+        "deck": "d-4",
+        "page": 1,
+        "text": "",
+        "image": "i-4"
+      },
+      {
+        "t_ms": 65000,
+        "deck": "d-5",
+        "page": 1,
+        "text": "Fixture broken deck\nIts PDF does not parse",
+        "image": null
+      },
+      {
+        "t_ms": 75000,
+        "deck": "d-6",
+        "page": 1,
+        "text": "Fixture long deck page 01\nTopic 01 of the fixture lecture",
+        "image": "i-5"
+      },
+      {
+        "t_ms": 80000,
+        "deck": "d-6",
+        "page": 2,
+        "text": "Fixture long deck page 02\nTopic 02 of the fixture lecture",
+        "image": "i-6"
+      },
+      {
+        "t_ms": 85000,
+        "deck": "d-6",
+        "page": 3,
+        "text": "Fixture long deck page 03\nTopic 03 of the fixture lecture",
+        "image": "i-7"
+      },
+      {
+        "t_ms": 90000,
+        "deck": "d-6",
+        "page": 4,
+        "text": "Fixture long deck page 04\nTopic 04 of the fixture lecture",
+        "image": "i-8"
+      },
+      {
+        "t_ms": 95000,
+        "deck": "d-6",
+        "page": 5,
+        "text": "Fixture long deck page 05\nTopic 05 of the fixture lecture",
+        "image": "i-9"
+      },
+      {
+        "t_ms": 100000,
+        "deck": "d-6",
+        "page": 6,
+        "text": "Fixture long deck page 06\nTopic 06 of the fixture lecture",
+        "image": "i-10"
+      },
+      {
+        "t_ms": 105000,
+        "deck": "d-6",
+        "page": 7,
+        "text": "Fixture long deck page 07\nTopic 07 of the fixture lecture",
+        "image": "i-11"
+      },
+      {
+        "t_ms": 110000,
+        "deck": "d-6",
+        "page": 8,
+        "text": "Fixture long deck page 08\nTopic 08 of the fixture lecture",
+        "image": "i-12"
+      },
+      {
+        "t_ms": 115000,
+        "deck": "d-6",
+        "page": 9,
+        "text": "Fixture long deck page 09\nTopic 09 of the fixture lecture",
+        "image": "i-13"
+      },
+      {
+        "t_ms": 120000,
+        "deck": "d-6",
+        "page": 10,
+        "text": "Fixture long deck page 10\nTopic 10 of the fixture lecture",
+        "image": "i-14"
+      },
+      {
+        "t_ms": 125000,
+        "deck": "d-6",
+        "page": 11,
+        "text": "Fixture long deck page 11\nTopic 11 of the fixture lecture",
+        "image": "i-15"
+      },
+      {
+        "t_ms": 130000,
+        "deck": "d-6",
+        "page": 12,
+        "text": "Fixture long deck page 12\nTopic 12 of the fixture lecture",
+        "image": "i-16"
+      },
+      {
+        "t_ms": 135000,
+        "deck": "d-6",
+        "page": 13,
+        "text": "Fixture long deck page 13\nTopic 13 of the fixture lecture",
+        "image": "i-17"
+      },
+      {
+        "t_ms": 140000,
+        "deck": "d-6",
+        "page": 14,
+        "text": "Fixture long deck page 14\nTopic 14 of the fixture lecture",
+        "image": "i-18"
+      },
+      {
+        "t_ms": 145000,
+        "deck": "d-6",
+        "page": 15,
+        "text": "Fixture long deck page 15\nTopic 15 of the fixture lecture",
+        "image": "i-19"
+      },
+      {
+        "t_ms": 150000,
+        "deck": "d-6",
+        "page": 16,
+        "text": "Fixture long deck page 16\nTopic 16 of the fixture lecture",
+        "image": "i-20"
+      },
+      {
+        "t_ms": 155000,
+        "deck": "d-6",
+        "page": 17,
+        "text": "Fixture long deck page 17\nTopic 17 of the fixture lecture",
+        "image": "i-21"
+      },
+      {
+        "t_ms": 160000,
+        "deck": "d-6",
+        "page": 18,
+        "text": "Fixture long deck page 18\nTopic 18 of the fixture lecture",
+        "image": "i-22"
+      },
+      {
+        "t_ms": 165000,
+        "deck": "d-6",
+        "page": 19,
+        "text": "Fixture long deck page 19\nTopic 19 of the fixture lecture",
+        "image": "i-23"
+      },
+      {
+        "t_ms": 170000,
+        "deck": "d-6",
+        "page": 20,
+        "text": "Fixture long deck page 20\nTopic 20 of the fixture lecture",
+        "image": "i-24"
+      },
+      {
+        "t_ms": 175000,
+        "deck": "d-6",
+        "page": 21,
+        "text": "Fixture long deck page 21\nTopic 21 of the fixture lecture",
+        "image": "i-25"
+      },
+      {
+        "t_ms": 180000,
+        "deck": "d-6",
+        "page": 22,
+        "text": "Fixture long deck page 22\nTopic 22 of the fixture lecture",
+        "image": "i-26"
+      },
+      {
+        "t_ms": 185000,
+        "deck": "d-6",
+        "page": 23,
+        "text": "Fixture long deck page 23\nTopic 23 of the fixture lecture",
+        "image": "i-27"
+      },
+      {
+        "t_ms": 190000,
+        "deck": "d-6",
+        "page": 24,
+        "text": "Fixture long deck page 24\nTopic 24 of the fixture lecture",
+        "image": "i-28"
+      },
+      {
+        "t_ms": 195000,
+        "deck": "d-6",
+        "page": 25,
+        "text": "Fixture long deck page 25\nTopic 25 of the fixture lecture",
+        "image": "i-29"
+      },
+      {
+        "t_ms": 200000,
+        "deck": "d-6",
+        "page": 26,
+        "text": "Fixture long deck page 26\nTopic 26 of the fixture lecture",
+        "image": "i-30"
+      },
+      {
+        "t_ms": 205000,
+        "deck": "d-6",
+        "page": 27,
+        "text": "Fixture long deck page 27\nTopic 27 of the fixture lecture",
+        "image": "i-31"
+      },
+      {
+        "t_ms": 210000,
+        "deck": "d-6",
+        "page": 28,
+        "text": "Fixture long deck page 28\nTopic 28 of the fixture lecture",
+        "image": "i-32"
+      },
+      {
+        "t_ms": 215000,
+        "deck": "d-6",
+        "page": 29,
+        "text": "Fixture long deck page 29\nTopic 29 of the fixture lecture",
+        "image": "i-33"
+      },
+      {
+        "t_ms": 220000,
+        "deck": "d-6",
+        "page": 30,
+        "text": "Fixture long deck page 30\nTopic 30 of the fixture lecture",
+        "image": "i-34"
+      },
+      {
+        "t_ms": 225000,
+        "deck": "d-6",
+        "page": 31,
+        "text": "Fixture long deck page 31\nTopic 31 of the fixture lecture",
+        "image": "i-35"
+      },
+      {
+        "t_ms": 230000,
+        "deck": "d-6",
+        "page": 32,
+        "text": "Fixture long deck page 32\nTopic 32 of the fixture lecture",
+        "image": "i-36"
+      },
+      {
+        "t_ms": 235000,
+        "deck": "d-6",
+        "page": 33,
+        "text": "Fixture long deck page 33\nTopic 33 of the fixture lecture",
+        "image": "i-37"
+      },
+      {
+        "t_ms": 240000,
+        "deck": "d-6",
+        "page": 34,
+        "text": "Fixture long deck page 34\nTopic 34 of the fixture lecture",
+        "image": "i-38"
+      },
+      {
+        "t_ms": 245000,
+        "deck": "d-6",
+        "page": 35,
+        "text": "Fixture long deck page 35\nTopic 35 of the fixture lecture",
+        "image": "i-39"
+      },
+      {
+        "t_ms": 250000,
+        "deck": "d-6",
+        "page": 36,
+        "text": "Fixture long deck page 36\nTopic 36 of the fixture lecture",
+        "image": "i-40"
+      },
+      {
+        "t_ms": 255000,
+        "deck": "d-6",
+        "page": 37,
+        "text": "Fixture long deck page 37\nTopic 37 of the fixture lecture",
+        "image": "i-41"
+      },
+      {
+        "t_ms": 260000,
+        "deck": "d-6",
+        "page": 38,
+        "text": "Fixture long deck page 38\nTopic 38 of the fixture lecture",
+        "image": "i-42"
+      },
+      {
+        "t_ms": 265000,
+        "deck": "d-6",
+        "page": 39,
+        "text": "Fixture long deck page 39\nTopic 39 of the fixture lecture",
+        "image": "i-43"
+      },
+      {
+        "t_ms": 270000,
+        "deck": "d-6",
+        "page": 40,
+        "text": "Fixture long deck page 40\nTopic 40 of the fixture lecture",
+        "image": "i-44"
+      },
+      {
+        "t_ms": 275000,
+        "deck": "d-6",
+        "page": 41,
+        "text": "Fixture long deck page 41\nTopic 41 of the fixture lecture",
+        "image": "i-45"
+      },
+      {
+        "t_ms": 280000,
+        "deck": "d-6",
+        "page": 42,
+        "text": "Fixture long deck page 42\nTopic 42 of the fixture lecture",
+        "image": "i-46"
+      },
+      {
+        "t_ms": 285000,
+        "deck": "d-6",
+        "page": 43,
+        "text": "Fixture long deck page 43\nTopic 43 of the fixture lecture",
+        "image": "i-47"
+      },
+      {
+        "t_ms": 290000,
+        "deck": "d-6",
+        "page": 44,
+        "text": "Fixture long deck page 44\nTopic 44 of the fixture lecture",
+        "image": "i-48"
+      },
+      {
+        "t_ms": 295000,
+        "deck": "d-6",
+        "page": 45,
+        "text": "Fixture long deck page 45\nTopic 45 of the fixture lecture",
+        "image": null
+      },
+      {
+        "t_ms": 300000,
+        "deck": "d-6",
+        "page": 46,
+        "text": "Fixture long deck page 46\nTopic 46 of the fixture lecture",
+        "image": null
+      },
+      {
+        "t_ms": 305000,
+        "deck": "d-6",
+        "page": 47,
+        "text": "Fixture long deck page 47\nTopic 47 of the fixture lecture",
+        "image": null
+      },
+      {
+        "t_ms": 310000,
+        "deck": "d-6",
+        "page": 48,
+        "text": "Fixture long deck page 48\nTopic 48 of the fixture lecture",
+        "image": null
+      },
+      {
+        "t_ms": 315000,
+        "deck": "d-6",
+        "page": 49,
+        "text": "Fixture long deck page 49\nTopic 49 of the fixture lecture",
+        "image": null
+      },
+      {
+        "t_ms": 320000,
+        "deck": "d-6",
+        "page": 50,
+        "text": "Fixture long deck page 50\nTopic 50 of the fixture lecture",
+        "image": null
+      },
+      {
+        "t_ms": 325000,
+        "deck": "d-6",
+        "page": 51,
+        "text": "Fixture long deck page 51\nTopic 51 of the fixture lecture",
+        "image": null
+      },
+      {
+        "t_ms": 330000,
+        "deck": "d-6",
+        "page": 52,
+        "text": "Fixture long deck page 52\nTopic 52 of the fixture lecture",
+        "image": null
+      }
+    ],
+    "images": {
+      "i-1": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-2": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-3": {
+        "width": 1280,
+        "height": 960
+      },
+      "i-4": {
+        "width": 400,
+        "height": 200
+      },
+      "i-5": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-6": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-7": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-8": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-9": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-10": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-11": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-12": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-13": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-14": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-15": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-16": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-17": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-18": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-19": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-20": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-21": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-22": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-23": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-24": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-25": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-26": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-27": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-28": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-29": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-30": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-31": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-32": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-33": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-34": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-35": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-36": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-37": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-38": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-39": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-40": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-41": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-42": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-43": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-44": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-45": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-46": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-47": {
+        "width": 1280,
+        "height": 720
+      },
+      "i-48": {
+        "width": 1280,
+        "height": 720
+      }
+    }
+  },
+  "images_off": {
+    "slides": [
+      {
+        "t_ms": 5000,
+        "deck": "d-1",
+        "page": 1,
+        "text": "Fixture Chart Deck\nQuarterly widget output\nBlue bars show the fixture plan"
+      },
+      {
+        "t_ms": 25000,
+        "deck": "d-1",
+        "page": 3,
+        "text": "Fixture Chart Deck\nQuarterly widget output\nBlue bars show the fixture plan"
+      },
+      {
+        "t_ms": 35000,
+        "deck": "d-2",
+        "page": 1,
+        "text": "Fixture Chart Deck\nQuarterly widget output\nBlue bars show the fixture plan"
+      },
+      {
+        "t_ms": 45000,
+        "deck": "d-3",
+        "page": 1,
+        "text": "Fixture Four Three Deck\nOld projector format"
+      },
+      {
+        "t_ms": 65000,
+        "deck": "d-4",
+        "page": 1,
+        "text": "Fixture broken deck\nIts PDF does not parse"
+      },
+      {
+        "t_ms": 75000,
+        "deck": "d-5",
+        "page": 1,
+        "text": "Fixture long deck page 01\nTopic 01 of the fixture lecture"
+      },
+      {
+        "t_ms": 80000,
+        "deck": "d-5",
+        "page": 2,
+        "text": "Fixture long deck page 02\nTopic 02 of the fixture lecture"
+      },
+      {
+        "t_ms": 85000,
+        "deck": "d-5",
+        "page": 3,
+        "text": "Fixture long deck page 03\nTopic 03 of the fixture lecture"
+      },
+      {
+        "t_ms": 90000,
+        "deck": "d-5",
+        "page": 4,
+        "text": "Fixture long deck page 04\nTopic 04 of the fixture lecture"
+      },
+      {
+        "t_ms": 95000,
+        "deck": "d-5",
+        "page": 5,
+        "text": "Fixture long deck page 05\nTopic 05 of the fixture lecture"
+      },
+      {
+        "t_ms": 100000,
+        "deck": "d-5",
+        "page": 6,
+        "text": "Fixture long deck page 06\nTopic 06 of the fixture lecture"
+      },
+      {
+        "t_ms": 105000,
+        "deck": "d-5",
+        "page": 7,
+        "text": "Fixture long deck page 07\nTopic 07 of the fixture lecture"
+      },
+      {
+        "t_ms": 110000,
+        "deck": "d-5",
+        "page": 8,
+        "text": "Fixture long deck page 08\nTopic 08 of the fixture lecture"
+      },
+      {
+        "t_ms": 115000,
+        "deck": "d-5",
+        "page": 9,
+        "text": "Fixture long deck page 09\nTopic 09 of the fixture lecture"
+      },
+      {
+        "t_ms": 120000,
+        "deck": "d-5",
+        "page": 10,
+        "text": "Fixture long deck page 10\nTopic 10 of the fixture lecture"
+      },
+      {
+        "t_ms": 125000,
+        "deck": "d-5",
+        "page": 11,
+        "text": "Fixture long deck page 11\nTopic 11 of the fixture lecture"
+      },
+      {
+        "t_ms": 130000,
+        "deck": "d-5",
+        "page": 12,
+        "text": "Fixture long deck page 12\nTopic 12 of the fixture lecture"
+      },
+      {
+        "t_ms": 135000,
+        "deck": "d-5",
+        "page": 13,
+        "text": "Fixture long deck page 13\nTopic 13 of the fixture lecture"
+      },
+      {
+        "t_ms": 140000,
+        "deck": "d-5",
+        "page": 14,
+        "text": "Fixture long deck page 14\nTopic 14 of the fixture lecture"
+      },
+      {
+        "t_ms": 145000,
+        "deck": "d-5",
+        "page": 15,
+        "text": "Fixture long deck page 15\nTopic 15 of the fixture lecture"
+      },
+      {
+        "t_ms": 150000,
+        "deck": "d-5",
+        "page": 16,
+        "text": "Fixture long deck page 16\nTopic 16 of the fixture lecture"
+      },
+      {
+        "t_ms": 155000,
+        "deck": "d-5",
+        "page": 17,
+        "text": "Fixture long deck page 17\nTopic 17 of the fixture lecture"
+      },
+      {
+        "t_ms": 160000,
+        "deck": "d-5",
+        "page": 18,
+        "text": "Fixture long deck page 18\nTopic 18 of the fixture lecture"
+      },
+      {
+        "t_ms": 165000,
+        "deck": "d-5",
+        "page": 19,
+        "text": "Fixture long deck page 19\nTopic 19 of the fixture lecture"
+      },
+      {
+        "t_ms": 170000,
+        "deck": "d-5",
+        "page": 20,
+        "text": "Fixture long deck page 20\nTopic 20 of the fixture lecture"
+      },
+      {
+        "t_ms": 175000,
+        "deck": "d-5",
+        "page": 21,
+        "text": "Fixture long deck page 21\nTopic 21 of the fixture lecture"
+      },
+      {
+        "t_ms": 180000,
+        "deck": "d-5",
+        "page": 22,
+        "text": "Fixture long deck page 22\nTopic 22 of the fixture lecture"
+      },
+      {
+        "t_ms": 185000,
+        "deck": "d-5",
+        "page": 23,
+        "text": "Fixture long deck page 23\nTopic 23 of the fixture lecture"
+      },
+      {
+        "t_ms": 190000,
+        "deck": "d-5",
+        "page": 24,
+        "text": "Fixture long deck page 24\nTopic 24 of the fixture lecture"
+      },
+      {
+        "t_ms": 195000,
+        "deck": "d-5",
+        "page": 25,
+        "text": "Fixture long deck page 25\nTopic 25 of the fixture lecture"
+      },
+      {
+        "t_ms": 200000,
+        "deck": "d-5",
+        "page": 26,
+        "text": "Fixture long deck page 26\nTopic 26 of the fixture lecture"
+      },
+      {
+        "t_ms": 205000,
+        "deck": "d-5",
+        "page": 27,
+        "text": "Fixture long deck page 27\nTopic 27 of the fixture lecture"
+      },
+      {
+        "t_ms": 210000,
+        "deck": "d-5",
+        "page": 28,
+        "text": "Fixture long deck page 28\nTopic 28 of the fixture lecture"
+      },
+      {
+        "t_ms": 215000,
+        "deck": "d-5",
+        "page": 29,
+        "text": "Fixture long deck page 29\nTopic 29 of the fixture lecture"
+      },
+      {
+        "t_ms": 220000,
+        "deck": "d-5",
+        "page": 30,
+        "text": "Fixture long deck page 30\nTopic 30 of the fixture lecture"
+      },
+      {
+        "t_ms": 225000,
+        "deck": "d-5",
+        "page": 31,
+        "text": "Fixture long deck page 31\nTopic 31 of the fixture lecture"
+      },
+      {
+        "t_ms": 230000,
+        "deck": "d-5",
+        "page": 32,
+        "text": "Fixture long deck page 32\nTopic 32 of the fixture lecture"
+      },
+      {
+        "t_ms": 235000,
+        "deck": "d-5",
+        "page": 33,
+        "text": "Fixture long deck page 33\nTopic 33 of the fixture lecture"
+      },
+      {
+        "t_ms": 240000,
+        "deck": "d-5",
+        "page": 34,
+        "text": "Fixture long deck page 34\nTopic 34 of the fixture lecture"
+      },
+      {
+        "t_ms": 245000,
+        "deck": "d-5",
+        "page": 35,
+        "text": "Fixture long deck page 35\nTopic 35 of the fixture lecture"
+      },
+      {
+        "t_ms": 250000,
+        "deck": "d-5",
+        "page": 36,
+        "text": "Fixture long deck page 36\nTopic 36 of the fixture lecture"
+      },
+      {
+        "t_ms": 255000,
+        "deck": "d-5",
+        "page": 37,
+        "text": "Fixture long deck page 37\nTopic 37 of the fixture lecture"
+      },
+      {
+        "t_ms": 260000,
+        "deck": "d-5",
+        "page": 38,
+        "text": "Fixture long deck page 38\nTopic 38 of the fixture lecture"
+      },
+      {
+        "t_ms": 265000,
+        "deck": "d-5",
+        "page": 39,
+        "text": "Fixture long deck page 39\nTopic 39 of the fixture lecture"
+      },
+      {
+        "t_ms": 270000,
+        "deck": "d-5",
+        "page": 40,
+        "text": "Fixture long deck page 40\nTopic 40 of the fixture lecture"
+      },
+      {
+        "t_ms": 275000,
+        "deck": "d-5",
+        "page": 41,
+        "text": "Fixture long deck page 41\nTopic 41 of the fixture lecture"
+      },
+      {
+        "t_ms": 280000,
+        "deck": "d-5",
+        "page": 42,
+        "text": "Fixture long deck page 42\nTopic 42 of the fixture lecture"
+      },
+      {
+        "t_ms": 285000,
+        "deck": "d-5",
+        "page": 43,
+        "text": "Fixture long deck page 43\nTopic 43 of the fixture lecture"
+      },
+      {
+        "t_ms": 290000,
+        "deck": "d-5",
+        "page": 44,
+        "text": "Fixture long deck page 44\nTopic 44 of the fixture lecture"
+      },
+      {
+        "t_ms": 295000,
+        "deck": "d-5",
+        "page": 45,
+        "text": "Fixture long deck page 45\nTopic 45 of the fixture lecture"
+      },
+      {
+        "t_ms": 300000,
+        "deck": "d-5",
+        "page": 46,
+        "text": "Fixture long deck page 46\nTopic 46 of the fixture lecture"
+      },
+      {
+        "t_ms": 305000,
+        "deck": "d-5",
+        "page": 47,
+        "text": "Fixture long deck page 47\nTopic 47 of the fixture lecture"
+      },
+      {
+        "t_ms": 310000,
+        "deck": "d-5",
+        "page": 48,
+        "text": "Fixture long deck page 48\nTopic 48 of the fixture lecture"
+      },
+      {
+        "t_ms": 315000,
+        "deck": "d-5",
+        "page": 49,
+        "text": "Fixture long deck page 49\nTopic 49 of the fixture lecture"
+      },
+      {
+        "t_ms": 320000,
+        "deck": "d-5",
+        "page": 50,
+        "text": "Fixture long deck page 50\nTopic 50 of the fixture lecture"
+      },
+      {
+        "t_ms": 325000,
+        "deck": "d-5",
+        "page": 51,
+        "text": "Fixture long deck page 51\nTopic 51 of the fixture lecture"
+      },
+      {
+        "t_ms": 330000,
+        "deck": "d-5",
+        "page": 52,
+        "text": "Fixture long deck page 52\nTopic 52 of the fixture lecture"
+      }
+    ]
+  },
+  "render_attempts": 50,
+  "pixels": [
+    {
+      "image": "i-2",
+      "x": 280,
+      "y": 560,
+      "rgb": [
+        0,
+        0,
+        255
+      ]
+    },
+    {
+      "image": "i-2",
+      "x": 680,
+      "y": 440,
+      "rgb": [
+        0,
+        0,
+        255
+      ]
+    },
+    {
+      "image": "i-2",
+      "x": 1100,
+      "y": 100,
+      "rgb": [
+        255,
+        255,
+        255
+      ]
+    },
+    {
+      "image": "i-4",
+      "x": 100,
+      "y": 100,
+      "rgb": [
+        255,
+        255,
+        255
+      ]
+    },
+    {
+      "image": "i-4",
+      "x": 300,
+      "y": 100,
+      "rgb": [
+        0,
+        160,
+        0
+      ]
+    }
+  ]
+}
