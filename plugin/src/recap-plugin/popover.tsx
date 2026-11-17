@@ -113,7 +113,7 @@ export default function Popover({
     return () => {
       window.removeEventListener("resize", place);
       dialog.close();
-      hideTooltipOf(document.querySelector(`[data-test="${anchor}"]`));
+      hideNavItemTooltip(anchor);
     };
   }, [anchor, width]);
 
@@ -124,7 +124,7 @@ export default function Popover({
       aria-labelledby={titleId}
       style={dialogStyle}
       onClose={() => {
-        hideTooltipOf(document.querySelector(`[data-test="${anchor}"]`));
+        hideNavItemTooltip(anchor);
         onClose();
       }}
       // A click on the dialog itself, not on its content, is a click on the backdrop: close, like a popover.
@@ -157,6 +157,13 @@ export function hideTooltipOf(element: Element | null) {
   const tippy = (element as { _tippy?: { clearDelayTimeouts?: () => void; hide?: () => void } } | null)?._tippy;
   tippy?.clearDelayTimeouts?.();
   tippy?.hide?.();
+}
+
+// The same for a nav bar item, found by its data-test. Called after every click on the pill or chip, since a mouse
+// click focuses the button and the focus trigger would keep the tooltip open after the pointer has left; and when a
+// toast is sent, so a tooltip never covers it. Focus by Tab still shows the tooltip until the next of these.
+export function hideNavItemTooltip(dataTest: string) {
+  hideTooltipOf(globalThis.document?.querySelector(`[data-test="${dataTest}"]`) ?? null);
 }
 
 // Closes the dialog the button is in; the dialog's close event then tells the owner.

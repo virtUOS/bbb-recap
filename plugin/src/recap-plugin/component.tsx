@@ -12,8 +12,18 @@ import { useClock, useReducedMotion, useServerOffset } from "./hooks";
 import { messagesFor } from "./messages";
 import { toastIcon } from "./icons";
 import { InfoPopover, PausePopover, StartPopover } from "./minutes-popovers";
-import { type PopoverKind, chipItem, navView, pillItem, popoverOnClick, popoverStillFits } from "./nav-items";
+import {
+  CHIP_DATA_TEST,
+  PILL_DATA_TEST,
+  type PopoverKind,
+  chipItem,
+  navView,
+  pillItem,
+  popoverOnClick,
+  popoverStillFits,
+} from "./nav-items";
 import { installPageStyle } from "./page-style";
+import { hideNavItemTooltip } from "./popover";
 import {
   CURRENT_TIME,
   type CurrentTimeData,
@@ -124,6 +134,8 @@ export default function RecapPlugin({ pluginUuid }: RecapPluginProps) {
     previous.current = state;
     if (kind !== null) {
       const { title, body } = toastText(kind, messages);
+      hideNavItemTooltip(PILL_DATA_TEST);
+      hideNavItemTooltip(CHIP_DATA_TEST);
       pluginApi.uiCommands?.notification.send({
         message: title,
         content: body,
