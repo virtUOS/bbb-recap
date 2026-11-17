@@ -75,6 +75,34 @@ func TestLoadSinksDefaults(t *testing.T) {
 	}
 }
 
+// document_url_template defaults to <docs_base_url>/docs/{id}/; an explicit
+// value wins (sinks.md §3.1).
+func TestLoadSinksDocumentURLTemplate(t *testing.T) {
+	for _, c := range []struct{ base, template, want string }{
+		{"https://docs.recap.test", "-", "https://docs.recap.test/docs/{id}/"},
+		{"https://docs.recap.test/", "-", "https://docs.recap.test/docs/{id}/"},
+		{"https://recap.test/docs-app/", "-", "https://recap.test/docs-app/docs/{id}/"},
+		{"https://docs.recap.test", `"https://notes.recap.test/d/{id}"`, "https://notes.recap.test/d/{id}"},
+	} {
+		t.Run(c.base+" "+c.template, func(t *testing.T) {
+			path := sinksFixture(t, "document_url_template", c.template)
+			b, _ := os.ReadFile(path)
+			text := strings.Replace(string(b), "docs_base_url: https://docs.recap.test\n",
+				"docs_base_url: "+c.base+"\n", 1)
+			if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			sinks, err := LoadSinks(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := sinks[0].DocumentURLTemplate; got != c.want {
+				t.Errorf("document_url_template = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 // check-config names each bad sink key (sinks.md §1.5, §3.1).
 func TestLoadSinksBadKeys(t *testing.T) {
 	for _, c := range []struct{ key, value, want string }{

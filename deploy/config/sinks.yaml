@@ -12,7 +12,9 @@ sinks:
     type: docs
     docs_base_url: https://docs.example.org # REPLACE
     api_key_file: /run/secrets/recap/sinks/docs.key
-    document_url_template: "https://docs.example.org/docs/{id}/" # REPLACE
+    # document_url_template defaults to <docs_base_url>/docs/{id}/; set it only
+    # if people open Docs under another address than docs_base_url.
+    # document_url_template: "https://docs.example.org/docs/{id}/"
     request_timeout: 60s
     max_inflight: 2
     max_document_bytes: 2097152

@@ -201,13 +201,18 @@ func loadSinks(l *loader, c *Config, name string, readKeys bool) []SinkProfile {
 }
 
 // checkDocsSink checks the keys of a docs profile (sinks.md §3.1) and reads
-// its key when readKeys is set. It sets Timeout.
+// its key when readKeys is set. It sets Timeout and, when empty,
+// DocumentURLTemplate to <docs_base_url>/docs/{id}/.
 func checkDocsSink(l *loader, at, name string, s *SinkProfile, readKeys bool) {
 	if u, err := url.Parse(s.DocsBaseURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") ||
 		u.Host == "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
 		l.errorf("%s.docs_base_url: want an http(s) URL without query, fragment or credentials", at)
 	}
-	if s.DocumentURLTemplate != "" && !strings.Contains(s.DocumentURLTemplate, "{id}") {
+	switch {
+	case s.DocumentURLTemplate == "":
+		// sinks.md §3.1: the default is Docs' own document page.
+		s.DocumentURLTemplate = strings.TrimRight(s.DocsBaseURL, "/") + "/docs/{id}/"
+	case !strings.Contains(s.DocumentURLTemplate, "{id}"):
 		l.errorf("%s.document_url_template: want a URL with {id}", at)
 	}
 	switch {
