@@ -16,11 +16,11 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
 ## Quick start
 
 1. Download the plugin from the [GitHub release](https://github.com/virtUOS/bbb-recap/releases) and check it, on
-   any machine with curl. Releases carry the plugin from the release after `v0.1.0` on; for `v0.1.0` use
+   any machine with curl. Releases carry the plugin from `v0.2.1` on; for `v0.1.0` and `v0.2.0` use
    [Build it yourself](#build-it-yourself) instead.
 
    ```sh
-   VERSION=v0.2.0                              # same release as the service
+   VERSION=v0.2.1                              # same release as the service
    RELEASE_URL=https://github.com/virtUOS/bbb-recap/releases/download/$VERSION
    mkdir "recap-plugin-$VERSION" && cd "recap-plugin-$VERSION"
    curl -fsSL --fail-early -O "$RELEASE_URL/RecapPlugin.js" -O "$RELEASE_URL/manifest.json" \
@@ -45,7 +45,7 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
    root:
 
    ```sh
-   PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.2.0      # from step 2
+   PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.2.1      # from step 2
    PROPS=/etc/bigbluebutton/bbb-web.properties
    if grep -q '^pluginManifests=' "$PROPS"; then
      grep '^pluginManifests=' "$PROPS"   # already set: add {"url":"$PLUGIN_URL/manifest.json"} to this list,
@@ -63,7 +63,7 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
 
    ```sh
    BBB_DIR=/srv/bbb                                          # holds BBB's docker-compose.yml
-   PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.2.0      # from step 2
+   PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.2.1      # from step 2
    cat "$BBB_DIR/docker-compose.override.yml"               # check: only the exporter's recording-workers mounts
    cat > "$BBB_DIR/docker-compose.override.yml" <<EOF
    services:
@@ -87,13 +87,13 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
 ## Build it yourself
 
 Instead of step 1, on any machine with Node.js 24 or later and git. The release workflow
-(`.github/workflows/release.yaml`) runs the same commands.
+(`.github/workflows/release.yaml`) runs the same commands; `npm version` gives the plugin the release's version.
 
 ```sh
-VERSION=v0.1.0
+VERSION=v0.2.0
 git clone --depth 1 --branch "$VERSION" https://github.com/virtUOS/bbb-recap.git
 cd bbb-recap/plugin
-npm ci && npm run build
+npm ci && npm version "${VERSION#v}" --no-git-tag-version --allow-same-version && npm run build
 ls dist                                     # expect: RecapPlugin.js  manifest.json
 ```
 

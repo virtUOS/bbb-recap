@@ -2,7 +2,7 @@
 # (docs/operations/release.md, docs/operations/install-plugin.md). Creates the release
 # with the assets if it does not exist; vX.Y.Z-pre tags make a pre-release. Re-running
 # replaces the assets. The images come from image.yaml. v0.1.0 predates this
-# workflow and has no plugin assets.
+# workflow and has no plugin assets; v0.2.0 has none either.
 name: release
 
 on:
@@ -37,19 +37,13 @@ jobs:
           if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
             echo "::error::tag $TAG is not vX.Y.Z or vX.Y.Z-pre"; exit 1
           fi
-          # The plugin's version (manifest.json, banner of RecapPlugin.js) comes from plugin/package.json.
-          version=$(node -p 'require("./plugin/package.json").version')
-          if [ "v$version" != "$TAG" ]; then
-            case "$TAG" in
-              *-*) echo "::warning::plugin/package.json has version $version, not ${TAG#v}" ;;
-              *) echo "::error::plugin/package.json has version $version, not ${TAG#v}"; exit 1 ;;
-            esac
-          fi
 
       - name: Build
         working-directory: plugin
         run: |
           npm ci
+          # The plugin's version (manifest.json, banner of RecapPlugin.js) is the tag.
+          npm version "${TAG#v}" --no-git-tag-version --allow-same-version
           npm run build
 
       - name: Package
