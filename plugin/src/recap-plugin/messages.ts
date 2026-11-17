@@ -10,7 +10,11 @@ export interface Messages {
   tooltipRunning: string;
   tooltipPaused: string;
   startTitle: string;
-  startText: string;
+  startSpoken: string;
+  startSpokenDetail: string;
+  noVideo: string;
+  startData: string;
+  startNotice: string;
   pauseTitle: string;
   pauseText: string;
   startButton: string;
@@ -26,7 +30,11 @@ const en: Messages = {
   tooltipRunning: "AI minutes are running. Click to pause.",
   tooltipPaused: "AI minutes are paused. Click to resume.",
   startTitle: "Start AI minutes?",
-  startText: "Everything said is transcribed, with names and timestamps. Everyone sees a notice while it runs.",
+  startSpoken: "Everything said is transcribed",
+  startSpokenDetail: ", with names and timestamps.",
+  noVideo: "No video in the minutes.",
+  startData: "Including chat, participant list and meeting data.",
+  startNotice: "Everyone sees a notice while minutes are being taken.",
   pauseTitle: "Pause AI minutes?",
   pauseText: "Nothing is transcribed until you resume.",
   startButton: "Start",
@@ -42,8 +50,11 @@ const de: Messages = {
   tooltipRunning: "KI-Protokoll läuft. Klicken zum Pausieren.",
   tooltipPaused: "KI-Protokoll pausiert. Klicken zum Fortsetzen.",
   startTitle: "KI-Protokoll starten?",
-  startText:
-    "Alles Gesagte wird transkribiert, mit Namen und Zeitstempeln. Alle sehen einen Hinweis, solange es läuft.",
+  startSpoken: "Alles Gesagte wird transkribiert",
+  startSpokenDetail: ", mit Namen und Zeitstempeln.",
+  noVideo: "Kein Video im Protokoll.",
+  startData: "Inkl. Chat, Teilnehmerliste und Meeting-Daten.",
+  startNotice: "Alle sehen einen Hinweis, solange protokolliert wird.",
   pauseTitle: "KI-Protokoll pausieren?",
   pauseText: "Bis zum Fortsetzen wird nichts transkribiert.",
   startButton: "Starten",

@@ -7,10 +7,11 @@ import {
   type PluginApi,
 } from "bigbluebutton-html-plugin-sdk";
 
-import ConfirmDialog from "./confirm-dialog";
 import { useClock, useReducedMotion, useServerOffset } from "./hooks";
 import { messagesFor } from "./messages";
-import { pillItem } from "./nav-items";
+import { PausePopover, StartPopover } from "./minutes-popovers";
+import { type PopoverKind, pillItem, popoverOnClick, popoverStillFits } from "./nav-items";
+import { installPageStyle } from "./page-style";
 import {
   CURRENT_TIME,
   type CurrentTimeData,
@@ -50,11 +51,11 @@ export default function RecapPlugin({ pluginUuid }: RecapPluginProps) {
   const now = useClock();
   const offset = useServerOffset(currentTime.data);
 
-  // The recording state to ask for in the open confirmation, or null when no confirmation is open.
-  const [pending, setPending] = useState<boolean | null>(null);
+  // The open popover, or null.
+  const [popover, setPopover] = useState<PopoverKind | null>(null);
 
   const messages = messagesFor(locale);
-  const allowed =
+  const controller =
     allLoaded([currentUser, policies, recordingState, permission]) &&
     mayRecord({
       ...recordingPolicies(policies.data),
@@ -65,14 +66,16 @@ export default function RecapPlugin({ pluginUuid }: RecapPluginProps) {
   // Changes once a second while running and not at all while off or paused, so the nav bar is updated only then.
   const seconds = activeSeconds(recordingState.data ?? undefined, now + offset);
 
-  // A confirmation that was open when the user lost the permission must not come back by itself. Adjusting state
-  // during render, as React recommends instead of an effect (react.dev "You Might Not Need an Effect").
-  if (!allowed && pending !== null) {
-    setPending(null);
+  // A popover that no longer fits must not stay open or come back by itself. Adjusting state during render, as React
+  // recommends instead of an effect (react.dev "You Might Not Need an Effect").
+  if (popover !== null && !popoverStillFits(popover, controller, state)) {
+    setPopover(null);
   }
 
+  useEffect(installPageStyle, []);
+
   useEffect(() => {
-    if (!allowed) {
+    if (!controller) {
       pluginApi.setNavBarItems([]);
       return;
     }
@@ -86,29 +89,32 @@ export default function RecapPlugin({ pluginUuid }: RecapPluginProps) {
           reducedMotion,
           // The mutation trigger is null until the client has set it up.
           disabled: !setRecordingStatus,
-          // Paused: resume at once, without a confirmation.
-          onClick: () =>
-            state === "paused" ? setRecordingStatus?.({ variables: { recording: true } }) : setPending(state === "off"),
+          onClick: () => {
+            const kind = popoverOnClick(state);
+            if (kind === null) {
+              // Paused: resume at once, without a popover.
+              setRecordingStatus?.({ variables: { recording: true } });
+            } else {
+              setPopover(kind);
+            }
+          },
         }),
       }),
     ]);
-  }, [allowed, state, seconds, messages, reducedMotion, setRecordingStatus, pluginApi]);
+  }, [controller, state, seconds, messages, reducedMotion, setRecordingStatus, pluginApi]);
 
   useEffect(() => () => void pluginApi.setNavBarItems([]), [pluginApi]);
 
-  if (pending === null || !allowed) {
-    return null;
+  // The server ignores a request for the state the meeting already has (SetRecordingStatusCmdMsgHdlr.scala:49-50), so
+  // a confirmation that crosses another user's change does no harm.
+  const setRecording = (recording: boolean) => setRecordingStatus?.({ variables: { recording } });
+  const close = () => setPopover(null);
+  switch (popover) {
+    case "start":
+      return <StartPopover messages={messages} onConfirm={() => setRecording(true)} onClose={close} />;
+    case "pause":
+      return <PausePopover messages={messages} onConfirm={() => setRecording(false)} onClose={close} />;
+    default:
+      return null;
   }
-  return (
-    <ConfirmDialog
-      title={pending ? messages.startTitle : messages.pauseTitle}
-      text={pending ? messages.startText : messages.pauseText}
-      confirmLabel={pending ? messages.startButton : messages.pauseButton}
-      cancelLabel={messages.cancel}
-      // The server ignores a request for the state the meeting already has
-      // (SetRecordingStatusCmdMsgHdlr.scala:49-50), so a stale confirmation does no harm.
-      onConfirm={() => setRecordingStatus?.({ variables: { recording: pending } })}
-      onClose={() => setPending(null)}
-    />
-  );
 }

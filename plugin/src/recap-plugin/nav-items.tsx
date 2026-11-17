@@ -93,3 +93,16 @@ export function pillItem({ state, seconds, messages, reducedMotion, disabled, on
     onClick,
   };
 }
+
+export type PopoverKind = "start" | "pause";
+
+// The popover a click on the pill opens; null for paused, which resumes at once.
+export function popoverOnClick(state: MinutesState): PopoverKind | null {
+  return state === "off" ? "start" : state === "running" ? "pause" : null;
+}
+
+// An open popover closes by itself once it no longer fits: the user lost the control, or the state changed under it
+// (another moderator, or BBB's own record button).
+export function popoverStillFits(kind: PopoverKind, controller: boolean, state: MinutesState): boolean {
+  return controller && popoverOnClick(state) === kind;
+}

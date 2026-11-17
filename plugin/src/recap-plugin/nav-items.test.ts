@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { messagesFor } from "./messages";
-import { PILL_ID, pillItem, type PillInput } from "./nav-items";
+import { PILL_ID, pillItem, type PillInput, popoverOnClick, popoverStillFits } from "./nav-items";
 import { elementsOf, textOf } from "./test-utils";
 
 const base: PillInput = {
@@ -76,5 +76,21 @@ describe("pill icon motion", () => {
 
   it("does not pulse with prefers-reduced-motion", () => {
     expect(elementsOf(svgOf({ ...base, state: "running", reducedMotion: true }), "animate")).toHaveLength(0);
+  });
+});
+
+describe("popovers of the pill", () => {
+  it("start from off, pause from running, none from paused (resume at once)", () => {
+    expect(popoverOnClick("off")).toBe("start");
+    expect(popoverOnClick("running")).toBe("pause");
+    expect(popoverOnClick("paused")).toBeNull();
+  });
+
+  it("close when the state changes under them or the user loses the control", () => {
+    expect(popoverStillFits("start", true, "off")).toBe(true);
+    expect(popoverStillFits("start", true, "running")).toBe(false);
+    expect(popoverStillFits("pause", true, "running")).toBe(true);
+    expect(popoverStillFits("pause", true, "paused")).toBe(false);
+    expect(popoverStillFits("start", false, "off")).toBe(false);
   });
 });

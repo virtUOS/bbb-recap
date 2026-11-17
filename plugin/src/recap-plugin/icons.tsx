@@ -39,7 +39,7 @@ function pulse(cx: number, cy: number, r: number) {
 }
 
 // Off: outline sparkle.
-export function sparkleOutlineIcon(px = 20): Svg {
+export function sparkleOutlineIcon(px = 20) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -54,11 +54,11 @@ export function sparkleOutlineIcon(px = 20): Svg {
       <path d={SPARKLE} />
       <path d={SPARKLE_SMALL} />
     </svg>
-  ) as Svg;
+  );
 }
 
 // Running: filled violet circle with a sparkle and a pulsing ring.
-function runningIcon(motion: boolean): Svg {
+function runningIcon(motion: boolean) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -72,11 +72,11 @@ function runningIcon(motion: boolean): Svg {
         <path d={SPARKLE_FILLED} fill={ON_ACCENT} />
       </svg>
     </svg>
-  ) as Svg;
+  );
 }
 
 // Paused: outlined circle with a pause sign, no pulse.
-function pausedIcon(): Svg {
+function pausedIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" aria-hidden="true" style={size(22)}>
       <circle cx="11" cy="11" r="10.25" fill="none" stroke={ACCENT_LIGHT} strokeWidth="1.5" />
@@ -85,16 +85,75 @@ function pausedIcon(): Svg {
         <rect x="6.1" y="1" width="2.4" height="8" rx="1" fill={ACCENT_LIGHT} />
       </svg>
     </svg>
-  ) as Svg;
+  );
 }
 
+// The SDK types an icon's svgContent as SVG props, but BBB renders it as a child (nav-bar/component.jsx:71-77), so it
+// is an <svg> element.
 export function pillIcon(state: MinutesState, reducedMotion: boolean): Svg {
   switch (state) {
     case "running":
-      return runningIcon(!reducedMotion);
+      return runningIcon(!reducedMotion) as Svg;
     case "paused":
-      return pausedIcon();
+      return pausedIcon() as Svg;
     default:
-      return sparkleOutlineIcon();
+      return sparkleOutlineIcon() as Svg;
   }
+}
+
+// Icons of the popovers, rendered by the plugin itself.
+const rowIcon = {
+  width: 18,
+  height: 18,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "#A7B0BC",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+  style: { flexShrink: 0, marginTop: 2 },
+} as const;
+
+export function micIcon() {
+  return (
+    <svg {...rowIcon}>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0014 0M12 18v3" />
+    </svg>
+  );
+}
+
+export function chatIcon() {
+  return (
+    <svg {...rowIcon}>
+      <path d="M4 5h16v11H9l-5 4z" />
+    </svg>
+  );
+}
+
+export function eyeIcon() {
+  return (
+    <svg {...rowIcon}>
+      <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
+export function sparkleFilledIcon(px: number, color: string) {
+  return (
+    <svg width={px} height={px} viewBox="0 0 24 24" fill={color} aria-hidden="true">
+      <path d={SPARKLE_FILLED} />
+    </svg>
+  );
+}
+
+export function pauseFilledIcon(px: number, color: string) {
+  return (
+    <svg width={px} height={px} viewBox="0 0 24 24" fill={color} aria-hidden="true">
+      <rect x="6" y="5" width="4" height="14" rx="1.5" />
+      <rect x="14" y="5" width="4" height="14" rx="1.5" />
+    </svg>
+  );
 }
