@@ -30,7 +30,9 @@ stderr. Keys the tests treat as required: top level `schema_version`, `defaults`
 present (all five fields of `privacy.md` §7). Optional: `declaration` (absent: the file loads and stderr has exactly
 one WARN line naming the profile), `credentials_file`, `extra_body`, `structured_output` (default `json_object`),
 `max_inflight` (default `1`) (`providers.md` §3.3), and `max_file_bytes` on ASR profiles (integer; overrides the
-dialect's capability, null for whisperx-family).
+dialect's capability, null for whisperx-family). `defaults.vision` (schema 1.1.0, also accepted in a 1.0.0 file) must
+name an LLM profile whose declaration, when present, lists `slide_images`; otherwise the start fails naming `vision` or
+`slide_images` (§4.1).
 
 **Logs** go to stderr as JSON lines with a `level` field. Never at any level: provider error bodies, credentials,
 `Authorization` headers (`privacy.md` §6). Never at INFO or above: segment text, prompt text or reply text
@@ -120,7 +122,9 @@ One JSON object on stdin:
 ```
 
 `request` is the `LlmRequest` of §3.1; `output` is `{"type": "text"}` or `{"type": "json", "schema": <draft 2020-12
-schema>}`. `profile` absent: `defaults.llm`. The structured-output mode comes from the profile (§3.3). In
+schema>}`. A `user` message's `content` may be a list of content parts (§3.6): `{"type": "text", "text": …}` and
+`{"type": "image_url", "image_url": {"url": "data:image/png;base64,…"}}`, sent unchanged; any other URL is exit 2
+with no request. `profile` absent: `defaults.llm`. The structured-output mode comes from the profile (§3.3). In
 `json_object` and `prompt` modes the adapter adds the schema to the system message; in `json_schema` mode it sends it in
 `response_format`. JSON repair
 calls (§3.4) happen inside one run; there are no other retries.
@@ -150,6 +154,13 @@ ceil(prompt_chars / 3.0) − 10 % of context_tokens` with the profile's values (
 
 Output: `{"budget_tokens": <used budget>, "chunks": [{"lines": ["…"]}, …]}`. A line that does not fit the budget is cut into pieces (at the last
 sentence end, else the last space, within the budget); a piece is an element of `lines`.
+
+## Not implemented yet
+
+Written before the implementation of vision calls (`providers.md` §3.6, §4.1; ADR-017); they fail until it lands:
+`TestVision` (CT-PROV-13 content parts, CT-PROV-14 profiles 1.1.0). Against the current tool a message whose
+`content` is a list is a usage error, and `defaults.vision` is an unknown key. The subtests that expect a start error
+(`unknown-profile`, `asr-profile`, …) pass already for that other reason; the valid cases fail.
 
 ## Fixtures
 

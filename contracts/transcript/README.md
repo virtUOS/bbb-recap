@@ -9,17 +9,22 @@ Dev/test only (`docs/reference/README.md` "Configuration, processes, metrics"). 
 
 ```
 recap tool normalize DIR
+recap tool normalize --slide-images IMAGES DIR
 ```
 
 - `DIR`: a raw recording directory `raw/<record_id>/` as `archive.rb` leaves it, or a package directory (files at
   their manifest paths). Files are selected by the allow-list of `meeting-package.md` §5. The tool only reads below
-  `DIR` and writes nothing.
+  `DIR` and writes nothing, except with `--slide-images`.
+- `--slide-images IMAGES`: normalize as for a meeting type with `slide_images: true` (`templates.md` §3.2): render
+  the shown slides and write each distinct image as `IMAGES/<sha256 hex>.png` (an existing, empty directory) in place
+  of a job blob; `slides[].image` is `sha256:<hex>` of that file. Without the flag, nothing is rendered and no
+  `image` field is written. `contracts/render` pins both (CT-TPL-16, CT-TPL-17).
 - Output: the normalized meeting as **one JSON object** on stdout, exit 0. Its fields are not pinned here (except
   `slides`, which `contracts/render` pins, CT-TPL-12): the tests pass it unchanged to `assemble`. It must hold everything `assemble` needs (events, track hashes, decode results),
   because `assemble` reads nothing but stdin.
 - A microphone file that cannot be decoded is not an error: it becomes a gap `track_unreadable`
   (`architecture.md` §5.2), which shows up in the transcript.
-- Deterministic: the same `DIR` gives byte-identical stdout.
+- Deterministic: the same `DIR` gives byte-identical stdout (and, with `--slide-images`, the same image files).
 - Exit 1 on a runtime error, 2 on a usage error; then stdout is empty and stderr says why.
 
 ## `recap tool assemble`
