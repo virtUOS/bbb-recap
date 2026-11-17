@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { messagesFor } from "./messages";
 import {
@@ -179,5 +179,43 @@ describe("chipItem", () => {
   it("is German for a German locale", () => {
     const item = chipItem({ ...chip, state: "running", messages: messagesFor("de") });
     expect(textOf(item.label)).toBe("Wird protokolliert");
+  });
+});
+
+describe("tooltip after a click", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function fakeButton() {
+    const tippy = { clearDelayTimeouts: vi.fn(), hide: vi.fn() };
+    const querySelector = vi.fn(() => ({ _tippy: tippy }));
+    vi.stubGlobal("document", { querySelector });
+    return { tippy, querySelector };
+  }
+
+  it("hides BBB's tooltip of the pill on every click, also when no popover opens (resume)", () => {
+    const { tippy, querySelector } = fakeButton();
+    const onClick = vi.fn();
+    pillItem({ ...base, state: "paused", onClick }).onClick();
+    expect(querySelector).toHaveBeenCalledWith('[data-test="recapAiMinutesButton"]');
+    expect(tippy.clearDelayTimeouts).toHaveBeenCalledOnce();
+    expect(tippy.hide).toHaveBeenCalledOnce();
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it("hides BBB's tooltip of the chip on a click", () => {
+    const { tippy, querySelector } = fakeButton();
+    const onClick = vi.fn();
+    chipItem({ state: "running", messages: messagesFor("en"), reducedMotion: false, onClick }).onClick();
+    expect(querySelector).toHaveBeenCalledWith('[data-test="recapAiMinutesChip"]');
+    expect(tippy.hide).toHaveBeenCalledOnce();
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it("still runs the click without a document or a tooltip", () => {
+    const onClick = vi.fn();
+    pillItem({ ...base, onClick }).onClick();
+    expect(onClick).toHaveBeenCalledOnce();
   });
 });
