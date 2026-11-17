@@ -5,8 +5,9 @@ meeting_types:
   - name: meeting-summary
     format: meeting-summary
   # Optional: a type that also sends the text of the slides shown during
-  # recording to the LLM (templates.md §3.1, default off). List the data
-  # category slides in the LLM profile's declaration (privacy.md §7).
+  # recording to the LLM (templates.md §3.1). Slides are used only for a type
+  # with inputs.slides set (default off). List the data category slides in
+  # the LLM profile's declaration (privacy.md §7).
   # - name: lecture
   #   format: meeting-summary
   #   inputs: { slides: true }
