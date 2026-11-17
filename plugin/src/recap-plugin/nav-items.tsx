@@ -10,6 +10,7 @@ import type { NavBarButton } from "bigbluebutton-html-plugin-sdk";
 
 import { chipDot, infoIcon, pillIcon } from "./icons";
 import type { Messages } from "./messages";
+import { hideNavItemTooltip } from "./popover";
 import { formatDuration, type MinutesState } from "./recording";
 
 // Without the position, which is an SDK value: the SDK cannot be loaded outside a browser, and the tests run in Node.
@@ -90,7 +91,10 @@ export function pillItem({ state, seconds, messages, reducedMotion, disabled, on
     disabled,
     hasSeparator: false,
     dataTest: PILL_DATA_TEST,
-    onClick,
+    onClick: () => {
+      hideNavItemTooltip(PILL_DATA_TEST);
+      onClick();
+    },
   };
 }
 
@@ -140,7 +144,10 @@ export function chipItem({ state, messages, reducedMotion, onClick }: ChipInput)
     disabled: false,
     hasSeparator: false,
     dataTest: CHIP_DATA_TEST,
-    onClick,
+    onClick: () => {
+      hideNavItemTooltip(CHIP_DATA_TEST);
+      onClick();
+    },
   };
 }
 
