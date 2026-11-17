@@ -20,15 +20,27 @@
 #
 # RECAP_CONTRACT_DOCS_ADDR (host:port, set at up): adds the sink profile
 # docs-contract with docs_base_url http://RECAP_CONTRACT_DOCS_ADDR
-# (contracts/README.md). The address must be reachable from the containers, e.g.
-# host.containers.internal:PORT for a mock Docs server on the host.
-# If that is refused (some rootless podman networks), use the host's LAN address.
+# (contracts/README.md). At up, this is the address the containers use to
+# reach the tests' mock Docs server on the host.
 #
-# RECAP_CONTRACT_HOOKS_ADDR (host:port, set at up and for the tests): adds the
-# sink profiles webhook-contract (url http://ADDR/webhook) and matrix-contract
+# RECAP_CONTRACT_HOOKS_ADDR (host:port, set at up): adds the sink profiles
+# webhook-contract (url http://ADDR/webhook) and matrix-contract
 # (homeserver_url http://ADDR), where the multi-sink tests serve a webhook
 # receiver and a Matrix homeserver (contracts/README.md; docs/reference/sinks.md
-# §4b, §4c). Reachable from the containers as for RECAP_CONTRACT_DOCS_ADDR.
+# §4b, §4c). Container side, as RECAP_CONTRACT_DOCS_ADDR.
+#
+# The tests read the same two variables, but as the address to listen on, so
+# the values at up and for go test usually differ. On rootless podman (pasta):
+#   at up:       host.containers.internal:PORT (the containers' name for the host)
+#   for go test: HOST_IP:PORT, the host's LAN address, same PORT
+# host.containers.internal does not resolve on the host, and a listener on
+# 127.0.0.1 is not reachable from the containers. The LAN address does not
+# work at up either: pasta gives the container namespace the host's LAN
+# address, so a container connecting to it reaches itself.
+#   HOST_IP=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+#   RECAP_CONTRACT_DOCS_ADDR=host.containers.internal:18081 run.sh up NAME 18080
+#   RECAP_CONTRACT_DOCS_ADDR=$HOST_IP:18081 RECAP_CONTRACT_BASE_URL=... go test ...
+# Where one address is reachable from both sides, the same value serves both.
 #
 # RECAP_CONTRACT_RESULT_TTL (duration, set at up and for the tests): the
 # RECAP_RESULT_TTL of api and worker, default 7d. The slow lifetime tests of

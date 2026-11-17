@@ -25,6 +25,28 @@ make hook-test                                    # hook tests on Ruby 3.2 and 4
 
 The harness's own unit tests also run under `make test`.
 
+Against the contract environment (`tools/contract-env/run.sh`) on rootless podman (pasta). The address variables
+(`RECAP_CONTRACT_DOCS_ADDR`, `RECAP_CONTRACT_HOOKS_ADDR`) are read twice: by `run.sh up`, as the address the containers
+connect to, and by the tests, as the address they listen on. The two values differ, with the same port:
+
+- at `up`: `host.containers.internal:<port>`, the containers' name for the host. It does not resolve on the host.
+- for the tests: the host's LAN address and the port. A listener on `127.0.0.1` is not reachable from the containers,
+  and the LAN address does not work at `up`: pasta gives the container namespace the host's LAN address, so a
+  container connecting to it reaches itself.
+
+```sh
+make build
+NAME=recap-ce-$$ API_PORT=18080 DOCS_PORT=18081
+HOST_IP=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+RECAP_CONTRACT_DOCS_ADDR=host.containers.internal:$DOCS_PORT tools/contract-env/run.sh up "$NAME" "$API_PORT"
+RECAP_BIN=./bin/recap RECAP_CONTRACT_BASE_URL=http://127.0.0.1:$API_PORT \
+  RECAP_CONTRACT_DOCS_ADDR=$HOST_IP:$DOCS_PORT go test -count=1 ./contracts/sink/
+tools/contract-env/run.sh down "$NAME"
+```
+
+`RECAP_CONTRACT_HOOKS_ADDR` follows the same split, on a port of its own. Where one address is reachable from both
+sides, the same value serves both.
+
 ## Conventions
 
 - Log scans read the log of the binary under test from `RECAP_CONTRACT_LOG_FILE`: JSON lines, all levels including
@@ -35,10 +57,11 @@ The harness's own unit tests also run under `make test`.
 - HTTP tests that ingest derive fresh `record_id`s from a fixture (F-07 shares F-01's `record_id` on purpose). They
   first rebuild the unchanged fixture and check it against its golden `package_id`.
 - Sink tests that drive the service serve their own mock Docs on `RECAP_CONTRACT_DOCS_ADDR` (`host:port`). The
-  contract environment configures a sink profile `docs-contract` pointing at `http://<that address>`; `docs-main`
-  stays on `recap-mock`. Unset: those tests skip.
+  contract environment configures a sink profile `docs-contract` pointing at `http://<the address given at up>`;
+  `docs-main` stays on `recap-mock`. The address at `up` and for the tests usually differs (see Run). Unset: those
+  tests skip.
 - Several sinks, webhook and Matrix (ADR-016): the multi-sink tests use `docs-contract` and `frontend-contract`. With
-  `RECAP_CONTRACT_HOOKS_ADDR` (`host:port`, set at `up` and for the tests) the contract environment adds the profiles
+  `RECAP_CONTRACT_HOOKS_ADDR` (`host:port`, set at `up` and for the tests, split as in Run) the contract environment adds the profiles
   `webhook-contract` (`http://<addr>/webhook`) and `matrix-contract` (`http://<addr>`), and the tests serve a webhook receiver and a Matrix homeserver there. Unset: CT-SINK-18 and
   CT-META-08 skip. A service without the webhook and Matrix sink types does not start with these profiles.
 - `RECAP_CONTRACT_SLOW` (any value) runs tests that wait for every attempt of a step, about two hours (CT-SINK-19);

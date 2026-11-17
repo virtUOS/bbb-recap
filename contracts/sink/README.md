@@ -183,5 +183,8 @@ no direct scan of Postgres (no database access in the contract tests).
 ```sh
 make contracts                                       # all skip
 make build && RECAP_BIN=./bin/recap make contracts
-RECAP_CONTRACT_BASE_URL=… RECAP_CONTRACT_DOCS_ADDR=127.0.0.1:18080 RECAP_CONTRACT_LOG_FILE=… make contracts
+RECAP_CONTRACT_BASE_URL=… RECAP_CONTRACT_DOCS_ADDR=… RECAP_CONTRACT_LOG_FILE=… make contracts
 ```
+
+`RECAP_CONTRACT_DOCS_ADDR` for the tests is the address they listen on; with the contract environment on rootless
+podman it differs from the value given to `run.sh up` (`contracts/README.md`, Run).
