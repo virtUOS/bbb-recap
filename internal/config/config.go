@@ -408,6 +408,82 @@ func checkFrontendSinks(l *loader, c *Config) {
 	}
 }
 
+// LogFrontendAccess logs, for the api role, what each front end may claim
+// and request (metadata-interface.md §2.1, §3 check 9a), given the IDs of the
+// frontend.<id> credential files. It warns on a front-end ID in
+// RECAP_FRONTEND_SERVERS, RECAP_FRONTEND_TYPES or RECAP_FRONTEND_SINKS
+// without a credential file (likely a typo, which leaves the real front end
+// unrestricted), and on a front end missing from a set
+// RECAP_FRONTEND_SERVERS (it may claim no server). IDs are configuration,
+// not content.
+func (c *Config) LogFrontendAccess(log *slog.Logger, frontends []string) {
+	for _, fe := range frontends {
+		var servers []string
+		for _, s := range c.FrontendServers {
+			if s.FrontendID == fe {
+				servers = append(servers, s.BBBServerID)
+			}
+		}
+		if len(c.FrontendServers) > 0 && len(servers) == 0 {
+			log.Warn("front end is not in RECAP_FRONTEND_SERVERS and may claim no BBB server", "frontend", fe)
+		}
+		log.Info("front end access", "frontend", fe,
+			"bbb_servers", allOr(servers, len(c.FrontendServers) == 0),
+			"meeting_types", allOr(namesOf(c.FrontendTypes, fe), true),
+			"sinks", allOr(namesOf(c.FrontendSinks, fe), true))
+	}
+	warn := func(variable, fe string) {
+		if !slices.Contains(frontends, fe) {
+			log.Warn("front end has no credential file; check the ID for a typo", "variable", variable,
+				"frontend", fe, "want_file", "frontend."+fe)
+		}
+	}
+	var ids []string
+	for _, s := range c.FrontendServers {
+		ids = append(ids, s.FrontendID)
+	}
+	slices.Sort(ids)
+	for _, fe := range slices.Compact(ids) {
+		warn("RECAP_FRONTEND_SERVERS", fe)
+	}
+	for _, v := range []struct {
+		name string
+		list []FrontendName
+	}{{"RECAP_FRONTEND_TYPES", c.FrontendTypes}, {"RECAP_FRONTEND_SINKS", c.FrontendSinks}} {
+		ids = nil
+		for _, n := range v.list {
+			ids = append(ids, n.FrontendID)
+		}
+		slices.Sort(ids)
+		for _, fe := range slices.Compact(ids) {
+			warn(v.name, fe)
+		}
+	}
+}
+
+// namesOf returns the names list allows for front end fe.
+func namesOf(list []FrontendName, fe string) []string {
+	var names []string
+	for _, n := range list {
+		if n.FrontendID == fe {
+			names = append(names, n.Name)
+		}
+	}
+	return names
+}
+
+// allOr returns names as a comma-separated list, or "all" when names is
+// empty and an empty list means all.
+func allOr(names []string, emptyMeansAll bool) string {
+	if len(names) == 0 && emptyMeansAll {
+		return "all"
+	}
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, ",")
+}
+
 // checkDSN accepts a postgres:// URL without a password (deployment.md §5.1).
 func checkDSN(dsn string) error {
 	u, err := url.Parse(dsn)

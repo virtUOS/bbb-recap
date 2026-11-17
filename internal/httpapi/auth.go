@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -86,7 +87,8 @@ func LoadCredentials(dir string) (*Credentials, error) {
 		cr := credential{client: client, file: name, sum: sha256.Sum256([]byte(token))}
 		for _, other := range c.list {
 			if other.sum == cr.sum {
-				errs = append(errs, fmt.Errorf("client secrets: %s and %s hold the same token", other.file, name))
+				errs = append(errs, fmt.Errorf("client secrets: %s and %s hold the same token; two clients cannot "+
+					"share a token: if a client ID was renamed, remove the file of the old ID", other.file, name))
 			}
 		}
 		c.list = append(c.list, cr)
@@ -95,6 +97,19 @@ func LoadCredentials(dir string) (*Credentials, error) {
 		return nil, errors.Join(errs...)
 	}
 	return c, nil
+}
+
+// IDs returns the IDs of the clients of kind, sorted, each once (a file and
+// its .next count as one).
+func (c *Credentials) IDs(kind Kind) []string {
+	var ids []string
+	for _, cr := range c.list {
+		if cr.client.Kind == kind {
+			ids = append(ids, cr.client.ID)
+		}
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids)
 }
 
 func parseCredentialName(name string) (Client, bool) {

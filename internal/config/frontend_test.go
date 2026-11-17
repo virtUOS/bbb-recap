@@ -123,3 +123,54 @@ func TestLogSinkWarningsNoDeclaration(t *testing.T) {
 		t.Errorf("unexpected warning content:\n%s", out)
 	}
 }
+
+// LogFrontendAccess prints the effective mapping per front end and warns on
+// front-end IDs without a credential file (metadata-interface.md §2.1).
+func TestLogFrontendAccess(t *testing.T) {
+	tests := []struct {
+		name      string
+		env       []string
+		frontends []string
+		want      []string // each must occur once
+		warns     int
+	}{
+		{"unset: all", with(validEnv(), "RECAP_FRONTEND_SERVERS=-"), []string{"pilos-fixture"},
+			[]string{`"msg":"front end access","frontend":"pilos-fixture","bbb_servers":"all","meeting_types":"all","sinks":"all"`},
+			0},
+		{"unset: mistyped IDs", with(validEnv(), "RECAP_FRONTEND_SERVERS=-",
+			"RECAP_FRONTEND_TYPES=pilos-fixture:meeting-summary,pilos-fixtrue:meeting-summary",
+			"RECAP_FRONTEND_SINKS=pilos-fixtrue:docs-main"), []string{"pilos-fixture"},
+			[]string{
+				`"bbb_servers":"all","meeting_types":"meeting-summary","sinks":"all"`,
+				`"variable":"RECAP_FRONTEND_TYPES","frontend":"pilos-fixtrue","want_file":"frontend.pilos-fixtrue"`,
+				`"variable":"RECAP_FRONTEND_SINKS","frontend":"pilos-fixtrue","want_file":"frontend.pilos-fixtrue"`,
+			}, 2},
+		{"set", validEnv(), []string{"other-fixture", "pilos-fixture"},
+			[]string{
+				`"frontend":"pilos-fixture","bbb_servers":"bbb-fixture-a,bbb-fixture-b"`,
+				`"msg":"front end is not in RECAP_FRONTEND_SERVERS and may claim no BBB server","frontend":"other-fixture"`,
+				`"frontend":"other-fixture","bbb_servers":"none"`,
+			}, 1},
+		{"set: no credential", validEnv(), nil,
+			[]string{`"variable":"RECAP_FRONTEND_SERVERS","frontend":"pilos-fixture"`}, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := Load(tt.env, RoleAPI)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var buf bytes.Buffer
+			c.LogFrontendAccess(slog.New(slog.NewJSONHandler(&buf, nil)), tt.frontends)
+			out := buf.String()
+			for _, w := range tt.want {
+				if strings.Count(out, w) != 1 {
+					t.Errorf("want one %s:\n%s", w, out)
+				}
+			}
+			if n := strings.Count(out, `"level":"WARN"`); n != tt.warns {
+				t.Errorf("%d WARN lines, want %d:\n%s", n, tt.warns, out)
+			}
+		})
+	}
+}

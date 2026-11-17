@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -133,5 +135,58 @@ func TestCheckConfigNoDeclaration(t *testing.T) {
 				t.Errorf("%v: want one warning for %s:\n%s", tt.args, p, got)
 			}
 		}
+	}
+}
+
+// For the api role check-config reads the client credentials: a token in two
+// files fails with a hint, a front-end ID without a credential file warns,
+// and the effective front-end access is logged.
+func TestCheckConfigClientSecrets(t *testing.T) {
+	dup := t.TempDir()
+	for _, name := range []string{"bbb_server.bbb-old", "bbb_server.bbb-new"} {
+		if err := os.WriteFile(filepath.Join(dup, name), []byte("FIXTURE-NOT-A-SECRET-dup\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tests := []struct {
+		name string
+		args []string
+		env  []string
+		code int
+		want []string // on stderr
+		not  []string
+	}{
+		{"duplicate token", nil, append(without(validEnv(), "RECAP_CLIENT_SECRETS_DIR"), "RECAP_CLIENT_SECRETS_DIR="+dup),
+			exitUsage, []string{"bbb_server.bbb-new and bbb_server.bbb-old hold the same token; two clients cannot share " +
+				"a token: if a client ID was renamed, remove the file of the old ID"}, nil},
+		{"duplicate token, worker only", []string{"--role", "worker"},
+			append(without(validEnv(), "RECAP_CLIENT_SECRETS_DIR"), "RECAP_CLIENT_SECRETS_DIR="+dup), exitOK, nil,
+			[]string{"same token"}},
+		{"mistyped front end", nil, append(without(validEnv(), "RECAP_FRONTEND_SERVERS"),
+			"RECAP_FRONTEND_TYPES=pilos-fixtrue:meeting-summary"), exitOK,
+			[]string{`"msg":"front end has no credential file; check the ID for a typo","variable":"RECAP_FRONTEND_TYPES","frontend":"pilos-fixtrue"`,
+				`"msg":"front end access","frontend":"pilos-fixture","bbb_servers":"all","meeting_types":"all","sinks":"all"`},
+			nil},
+		{"mapping", nil, validEnv(), exitOK,
+			[]string{`"frontend":"pilos-fixture","bbb_servers":"bbb-fixture-a","meeting_types":"all","sinks":"all"`},
+			[]string{`"level":"WARN"`}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+			if code := checkConfig(tt.args, tt.env, &out, &errOut); code != tt.code {
+				t.Fatalf("exit code = %d, want %d; stderr:\n%s", code, tt.code, errOut.String())
+			}
+			for _, w := range tt.want {
+				if !strings.Contains(errOut.String(), w) {
+					t.Errorf("stderr lacks %s:\n%s", w, errOut.String())
+				}
+			}
+			for _, w := range append(tt.not, "FIXTURE-NOT-A-SECRET") {
+				if strings.Contains(errOut.String(), w) {
+					t.Errorf("stderr contains %s:\n%s", w, errOut.String())
+				}
+			}
+		})
 	}
 }

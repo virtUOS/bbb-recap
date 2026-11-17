@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -146,6 +147,24 @@ func TestLoadCredentialsErrors(t *testing.T) {
 	}
 }
 
+func TestCredentialsIDs(t *testing.T) {
+	c, err := LoadCredentials(writeSecrets(t, map[string]string{
+		"frontend.pilos-b":      "FIXTURE-NOT-A-SECRET-b",
+		"frontend.pilos-a":      "FIXTURE-NOT-A-SECRET-a",
+		"frontend.pilos-a.next": "FIXTURE-NOT-A-SECRET-a2",
+		"bbb_server.bbb-1":      "FIXTURE-NOT-A-SECRET-s",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.IDs(KindFrontend); !slices.Equal(got, []string{"pilos-a", "pilos-b"}) {
+		t.Errorf("IDs(frontend) = %v", got)
+	}
+	if got := c.IDs(KindAdmin); len(got) != 0 {
+		t.Errorf("IDs(admin) = %v, want none", got)
+	}
+}
+
 func TestLoadCredentialsDuplicateToken(t *testing.T) {
 	const shared = "FIXTURE-NOT-A-SECRET-shared"
 	dir := writeSecrets(t, map[string]string{
@@ -160,6 +179,9 @@ func TestLoadCredentialsDuplicateToken(t *testing.T) {
 	msg := err.Error()
 	if !strings.Contains(msg, "bbb_server.bbb-fixture-a") || !strings.Contains(msg, "frontend.pilos-fixture") {
 		t.Errorf("error %q does not name both files", msg)
+	}
+	if !strings.Contains(msg, "two clients cannot share a token: if a client ID was renamed, remove the file of the old ID") {
+		t.Errorf("error %q lacks the hint", msg)
 	}
 	if strings.Contains(msg, "FIXTURE-NOT-A-SECRET") || strings.Contains(msg, "admin.fixture-admin") {
 		t.Errorf("error %q leaks the token or names an unrelated file", msg)

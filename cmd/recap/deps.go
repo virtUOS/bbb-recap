@@ -59,6 +59,7 @@ func openDeps(ctx context.Context, role config.Role, environ []string, stderr io
 			log.Error("cannot load client credentials", "err", err)
 			return nil, exitUsage
 		}
+		cfg.LogFrontendAccess(log, d.creds.IDs(httpapi.KindFrontend))
 	}
 	if d.blobs, err = openBlobs(cfg); err != nil {
 		log.Error("cannot open the blob store", "err", err)
