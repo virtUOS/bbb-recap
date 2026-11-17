@@ -113,6 +113,7 @@ export default function Popover({
     return () => {
       window.removeEventListener("resize", place);
       dialog.close();
+      hideTooltipOf(document.querySelector(`[data-test="${anchor}"]`));
     };
   }, [anchor, width]);
 
@@ -122,7 +123,10 @@ export default function Popover({
       {...{ [POPOVER_ATTRIBUTE]: "" }}
       aria-labelledby={titleId}
       style={dialogStyle}
-      onClose={onClose}
+      onClose={() => {
+        hideTooltipOf(document.querySelector(`[data-test="${anchor}"]`));
+        onClose();
+      }}
       // A click on the dialog itself, not on its content, is a click on the backdrop: close, like a popover.
       onClick={(event) => event.target === event.currentTarget && ref.current?.close()}
     >
@@ -139,6 +143,20 @@ export default function Popover({
     </dialog>,
     document.body,
   );
+}
+
+// BBB's tooltip on a nav bar button is a tippy.js 6.3.7 instance with the default trigger "mouseenter focus"
+// (common/tooltip/component.jsx:79-109 @ 7d27e7e, same in v4.0.2; tippy.js dist/tippy.cjs.js:378). Closing a modal dialog
+// returns the focus to the pill or chip, as it should, and that focus event schedules the tooltip, which then stays
+// until the focus leaves the button: under the nav bar, over the toasts. So after a popover closes, the pending or
+// shown tooltip is cancelled; the focus stays on the button. Screen readers are not affected: BBB gives the tooltip
+// no ARIA role (aria: null) and sets the same text as the button's aria-label (nav-bar/component.jsx:85). tippy.js
+// documents the instance on the reference element as _tippy (https://atomiks.github.io/tippyjs/v6/tippy-instance/),
+// and BBB reads it the same way (common/tooltip/component.jsx:117-118). Without an instance, nothing happens.
+export function hideTooltipOf(element: Element | null) {
+  const tippy = (element as { _tippy?: { clearDelayTimeouts?: () => void; hide?: () => void } } | null)?._tippy;
+  tippy?.clearDelayTimeouts?.();
+  tippy?.hide?.();
 }
 
 // Closes the dialog the button is in; the dialog's close event then tells the owner.
