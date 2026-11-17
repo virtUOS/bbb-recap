@@ -324,6 +324,11 @@ declaration then lists both kinds of data.
 | S13 | Slide descriptions and their file | text read from the images, short descriptions of what they show | blob store, job prefix; `step_items` hold hashes and codes only | as S1           | `cleanup`         |
 | P5  | Vision provider copies            | images, descriptions                                            | provider                                                        | per declaration | provider operator |
 
+The hashes stay longer than the content: `step_items` rows of `describe` hold `img-<SHA-256 of the PNG>` and the
+SHA-256 of description blobs. They are job metadata (J1): kept for `RECAP_JOB_METADATA_RETENTION` (180 days) and
+deleted by the cleanup loop or an admin `erase`. Rendering is deterministic, so whoever has a slide can render it and
+match its hash during that time; this is the same class as the package file hashes already kept as job metadata.
+
 The source decks themselves are already in the package (S1). Renders exist only for jobs whose type switches images
 on (ADR-017, D10). Nothing of it is in `summary.md` or delivered to a sink; only the descriptions reach the LLM, inside
 `SLIDES` (edge D).

@@ -95,7 +95,7 @@ and `summary.v1` requests (schema with `overview`) with `testdata/render/F-01/su
 | `TestSlideDescribeRequests`  | CT-TPL-18: one vision call per distinct image to `vision-lab`, request shape (model, temperature 0, `max_tokens` 700, system string, text part plus the exact data URL, schema), no meeting content, all before summarize, no description in stderr; F-14's rendered images each described once                       |
 | `TestSlideDescriptionSchema` | CT-TPL-19: `testdata/render/llm/slide-description.v1/{valid,invalid}.*.json`                                                                                                                                                                                                                                          |
 | `TestSlideImageMerge`        | CT-TPL-20: exact `SLIDES` section with descriptions, text and a left-out image-only slide; format 1.2.0; system message changes only with a description; fence markers in a description stay data                                                                                                                     |
-| `TestSlideImageFallback`     | CT-TPL-21: invalid reply (with two repair calls), 500, empty description → text; all failing → requests equal to images off; 401 → `permanent`/`config_error` and no summarize call                                                                                                                                   |
+| `TestSlideImageFallback`     | CT-TPL-21: invalid reply (with two repair calls), 500, 400, `finish_reason: "length"`, empty description → text; five images failing `retryable` → at most 3 + (`max_inflight` − 1) calls, then text; all failing → requests equal to images off; 401 → `permanent`/`config_error` and no summarize call              |
 | `TestSlideImagesOff`         | CT-TPL-22: `slide_images: false` or absent → no vision call, requests equal to the same slides without images                                                                                                                                                                                                         |
 | `TestSlideImagesConfig`      | CT-TPL-23: images on with `defaults.vision` accepted; `slide_images` without `slides` names `slide_images`; without `defaults.vision` names `vision`                                                                                                                                                                  |
 | `TestVTTMapping`             | gap variant (failed-track gap, `en` and `de`) and `mapping` golden: pause, gap NOTEs incl. tie, after a pause NOTE and at the end, +1 ms, clamping, "Speaker n", escaping                                                                                                                                             |
@@ -110,9 +110,10 @@ Written before the implementation of slide images (templates.md §3.2, ADR-017);
 `TestSlideImageMerge`, `TestSlideImageFallback`, `TestSlideImagesOff` and `TestSlideImagesConfig` (CT-TPL-16 to 23).
 Against the current tool: `normalize` and `render` exit 2 on the unknown flags `--slide-images` and `--images`, the
 meeting-types file is refused because `slide_images` is an unknown input, the providers file because `vision` is an
-unknown key, and `--check-schema` because the format has no `slide-description.v1`. Some subtests that expect such a
-configuration error (`TestSlideImagesConfig/…/without-slides`) pass already, for that other reason; the test as a
-whole fails until the implementation accepts the valid combination. Format version 1.2.0 also changes the protected
+unknown key, and `--check-schema` because the format has no `slide-description.v1`. The configuration subtests
+(`TestSlideImagesConfig/…/without-slides`, `…/without-defaults.vision`) fail too, because the tool stops at the
+unknown `--images` flag before it reads the files. Only `TestSlideImageRendering/CT-TPL-16/images-off` passes already:
+it guards that the text-only selection stays as it is. Format version 1.2.0 also changes the protected
 goldens and the version `TestFormatSelection` and `TestSlideCallPlan` expect, in a dedicated fixture change ahead of
 the implementation (templates.md §8).
 

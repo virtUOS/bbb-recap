@@ -83,6 +83,7 @@ reports the capped value. Error bodies only select an allow-listed code and are 
 | ASR attempt timeout             | `max(600 s, 0.5 × duration)` | pattern from transkribierBAR `backend/app/routers/transcription.py:86-95 @ f3f38f3` and bbb-record-ai-summary `src/scripts/post_archive/transcribe_audio.rb:235-245 @ fd1c2cd`; the values are our choice |
 | First ASR retry after a timeout | ≥ 150 s                      | our choice: a timed-out request may still run on the GPU (transkribierBAR `backend/app/config.py:83-86 @ f3f38f3`)                                                                                        |
 | LLM request timeout             | 600 s                        | transkribierBAR `LLM_TIMEOUT` default, `backend/app/config.py:32 @ f3f38f3`                                                                                                                               |
+| Vision call timeout             | 120 s (provisional)          | our choice: one image and at most 700 output tokens per call; bounds the delay of `describe` (`templates.md` §3.2)                                                                                        |
 | JSON repair attempts            | 2                            | transkribierBAR `backend/app/services/llm/base.py:67-104 @ f3f38f3`                                                                                                                                       |
 | Chars per token (estimate)      | 3.0                          | our choice, conservative; no tokenizer call                                                                                                                                                               |
 | Budget margin                   | 10 %                         | our choice                                                                                                                                                                                                |
@@ -301,6 +302,7 @@ profile named by `defaults.vision` (§4.1), with one difference: the `user` mess
   provider), and no image server is needed. Any other URL is a programming error; no request is sent.
 - **One image per call** (ADR-017, D6). A vLLM server limits images per prompt with `--limit-mm-per-prompt`; the
   service needs at least 1 ([`upstream-facts.md`](upstream-facts.md) "Providers").
+- **Timeout:** 120 s per call (§1.5, provisional), not the LLM request timeout; a timeout is `retryable`.
 - **Errors:** as §3.4, except that a 400 on a call with an image part is `input_too_large` (the image token count is
   not estimated). `describe` maps the classes to per-image fallbacks (`templates.md` §3.2); there is no re-split.
 - **Log** per call as §3.4 (`call_ref` `<job_id>:describe:slide:<n>`, `n` the image's position in order of first

@@ -49,12 +49,14 @@ a, with c as the fallback if go-pdfium fails on real decks. The step interface d
 - **Merge (D4):** a slide with a description uses it in place of BBB's text; otherwise BBB's text is used as today.
   One source per slide, never both, because the description already contains the visible text.
 - **Failure (D5):** a vision call that fails for one image, also after all queue retries, leaves that slide with
-  BBB's text. The job neither fails nor holds for it; a metric counts the fallbacks. Only `permanent_config` (wrong
+  BBB's text. The job neither fails nor holds for it; a metric counts the fallbacks. The delay is bounded: each
+  vision call has its own 120 s timeout, and on the step's last attempt no new call starts after 3 `retryable`
+  results in a row. Only `permanent_config` (wrong
   credentials, wrong URL) fails the job, as for every other provider.
 - **One image per call (D6):** simple retries per image, small outputs, and it works with a server that allows one
   image per prompt.
 - **Caps (D7):** long edge 1 280 px, PNG, at most 50 page renders per job, at most 1 000 characters per description
-  (the existing per-slide cap). Constants, not settings, and **provisional** until the staging measurement (below).
+  (the existing per-slide cap), image uploads checked by their header against 50 megapixels before decoding. Constants, not settings, and **provisional** until the staging measurement (below).
 - **Steps (D8):** `normalize` renders (it is the BBB-specific step that reads `presentation/`); a new source-neutral
   step `describe` between `assemble` and `summarize` calls the vision model, one image per call, with progress per
   image in `step_items`.

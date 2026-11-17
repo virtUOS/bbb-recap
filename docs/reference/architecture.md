@@ -167,9 +167,20 @@ prefixed by its length as 8-byte big-endian), so `api` and `worker` compute the 
 | `cleanup`    | deletes blob prefix and owner data; the registration stays as result record until `RECAP_RESULT_TTL` (ADR-014) | —                                                                                                                                                                                                                       |
 
 `describe` (ADR-017) sits between `assemble` and `summarize`, so no vision call is made for a job that fails in
-`transcribe`. Its step name needs a new migration that adds `describe` to the checks on `jobs.current_step` and
-`steps.name` and inserts a `succeeded` `describe` row for every existing job. `summarize` treats a job without a
-descriptions file as one without descriptions, so such a job keeps the slide text path.
+`transcribe`. Its step name needs a new migration (the next free number). It adds `describe` to the checks on
+`jobs.current_step` and `steps.name` and, where `step_items` has a `step` column with a check on its values (the
+several-sinks migration adds one with `transcribe` and `deliver`), to that check too; `describe` rows carry
+`step = 'describe'`. Whichever of the two migrations is merged second adapts to the other. For every existing job
+the migration inserts a `describe` row, by the job's `current_step`, whatever the job state (`received`, `running`,
+`held` or `failed`):
+
+- `current_step` is `validate`, `normalize`, `transcribe` or `assemble`: the row is `pending`, so the job reaches
+  `describe` and runs it like any other step (a no-op for these jobs unless their type switches images on);
+- `current_step` is `summarize`, `render`, `deliver` or `cleanup`, and every `delivered` or `cleaned` job: the row is
+  `succeeded`.
+
+`summarize` treats a job without a descriptions file as one without descriptions, so such a job keeps the slide text
+path.
 
 A step returns one outcome: `ok`, `transient`, `permanent` or `hold(reason)` (README table). `permanent_config` (ASR,
 LLM) and sink `config` fail the job with `config_error`. `hold` puts the step back to `pending`. `cleanup` gets
@@ -214,7 +225,8 @@ only.
 - `steps`: `(job_id, name)` PK, `state`, `attempt`, `run_after`, `owner`, `lease_expires_at`, `last_error_class`,
   `last_error_code`, `output` (blob keys, small non-personal facts). `step_items`: per-track progress of `transcribe`
   (item `trk-<n>`), per-image progress of `describe` (item `img-<64 hex>`, longer than any profile name, so it never
-  equals a sink item), per-sink progress of `deliver`. Each step reads only its own items.
+  equals a sink item), per-sink progress of `deliver`. Each step reads only its own items; where the table has a
+  `step` column, rows carry their step name and are read by it (§5.2).
 - `registrations` (personal data, tombstones too; shape in `metadata-interface.md`). `deliveries`: `(job_id, sink_profile)`
   PK (ADR-016; a new migration replaces the key `job_id`), `state` (`sending`|`sent`|`confirmed_by_admin`|`skipped_by_admin`),
   `document_id`, `target` (Matrix room ID), `sent_at`. The registration gains `result_url` (`metadata-interface.md` §2.3).
@@ -330,20 +342,20 @@ process at a time, `deployment.md` §4), and per job up to 50 vision calls (esti
 Prefix `recap_`. No job, meeting, record, document or user IDs as labels. DB gauges are computed by `api` on scrape
 (cached 15 s); alert rules use `max without(instance)`. Plus `recap_build_info{version,commit}`.
 
-| Metric                                | Type      | Labels                                                                                                                                                                                                  | Alert                                                      |
-| ------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `recap_jobs`                          | gauge     | `state`                                                                                                                                                                                                 | — (overview)                                               |
-| `recap_jobs_held`                     | gauge     | `reason`                                                                                                                                                                                                | `> 0` for 15 min; `delivery_uncertain > 0` at once         |
-| `recap_jobs_failed`                   | gauge     | `reason`                                                                                                                                                                                                | `> 0`                                                      |
-| `recap_step_oldest_ready_age_seconds` | gauge     | `step`                                                                                                                                                                                                  | `> 1800`                                                   |
-| `recap_cleanup_overdue_jobs`          | gauge     | —                                                                                                                                                                                                       | `> 0` (retention not met)                                  |
-| `recap_step_runs_total`               | counter   | `step`, `outcome` (`ok`, `transient`, `permanent`, `hold`)                                                                                                                                              | rising `permanent`                                         |
-| `recap_step_duration_seconds`         | histogram | `step`                                                                                                                                                                                                  | — (sizing)                                                 |
-| `recap_lease_expired_total`           | counter   | `step`                                                                                                                                                                                                  | increase (crashing workers)                                |
-| `recap_external_requests_total`       | counter   | `profile`, `kind` (`asr`, `asr_cleanup`, `llm`, `vision`, `sink`), `outcome`                                                                                                                            | error ratio; any `asr_cleanup` failure (`privacy.md` §5.2) |
-| `recap_slide_image_fallbacks_total`   | counter   | `step` (`normalize`, `describe`), `reason` (`normalize`: `no_source`, `too_large`, `render_failed`, `cap`; `describe`: `empty`, `invalid_response`, `output_truncated`, `input_too_large`, `retryable`) | rising ratio to described images (`templates.md` §3.2)     |
-| `recap_ingest_requests_total`         | counter   | `bbb_server_id`, `outcome` (`ok`, an ingest or manifest problem slug, else `other`; 401 not counted)                                                                                                    | error ratio per server                                     |
-| `recap_dependency_up`                 | gauge     | `dependency` (`postgres`, `blobstore`)                                                                                                                                                                  | `== 0`                                                     |
+| Metric                                | Type      | Labels                                                                                                                                                                                                  | Alert                                                                                |
+| ------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `recap_jobs`                          | gauge     | `state`                                                                                                                                                                                                 | — (overview)                                                                         |
+| `recap_jobs_held`                     | gauge     | `reason`                                                                                                                                                                                                | `> 0` for 15 min; `delivery_uncertain > 0` at once                                   |
+| `recap_jobs_failed`                   | gauge     | `reason`                                                                                                                                                                                                | `> 0`                                                                                |
+| `recap_step_oldest_ready_age_seconds` | gauge     | `step`                                                                                                                                                                                                  | `> 1800`                                                                             |
+| `recap_cleanup_overdue_jobs`          | gauge     | —                                                                                                                                                                                                       | `> 0` (retention not met)                                                            |
+| `recap_step_runs_total`               | counter   | `step`, `outcome` (`ok`, `transient`, `permanent`, `hold`)                                                                                                                                              | rising `permanent`                                                                   |
+| `recap_step_duration_seconds`         | histogram | `step`                                                                                                                                                                                                  | — (sizing)                                                                           |
+| `recap_lease_expired_total`           | counter   | `step`                                                                                                                                                                                                  | increase (crashing workers)                                                          |
+| `recap_external_requests_total`       | counter   | `profile`, `kind` (`asr`, `asr_cleanup`, `llm`, `vision`, `sink`), `outcome`                                                                                                                            | error ratio; any `asr_cleanup` failure (`privacy.md` §5.2)                           |
+| `recap_slide_image_fallbacks_total`   | counter   | `step` (`normalize`, `describe`), `reason` (`normalize`: `no_source`, `too_large`, `render_failed`, `cap`; `describe`: `empty`, `invalid_response`, `output_truncated`, `input_too_large`, `retryable`) | rising ratio to `recap_external_requests_total{kind="vision"}` (`templates.md` §3.2) |
+| `recap_ingest_requests_total`         | counter   | `bbb_server_id`, `outcome` (`ok`, an ingest or manifest problem slug, else `other`; 401 not counted)                                                                                                    | error ratio per server                                                               |
+| `recap_dependency_up`                 | gauge     | `dependency` (`postgres`, `blobstore`)                                                                                                                                                                  | `== 0`                                                                               |
 
 ## 13. Logging
 

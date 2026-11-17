@@ -184,7 +184,7 @@ Retention and deleter: as the other job blobs, until `cleanup` (ADR-009).
 ### 3.2 Slide images
 
 Decision: ADR-017. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB presentations". The constants of this
-section (sizes, caps, timeouts) are **provisional** until the staging measurement of ADR-017 (D11).
+section (sizes, caps, pixel limit, timeouts, the stop after 3 `retryable` results) are **provisional** until the staging measurement of ADR-017 (D11).
 
 Everything below happens only for a job whose meeting type has `inputs.slide_images: true` (which needs
 `inputs.slides: true`, §1). For every other job `normalize` renders nothing, `describe` is a no-op and the requests are
@@ -211,22 +211,29 @@ file that is in the package (a blob store failure, including a hash mismatch) is
 
 1. A PDF page is rendered as displayed (crop box, page rotation applied) so that its long edge is **1 280 px**; the
    short edge is `short × 1280 / long`, rounded half up, at least 1 px.
-2. An image upload is decoded (PNG, JPEG, WebP; the first frame of an animated file) and, if its long edge is over
-   1 280 px, scaled down by the same rule; it is never scaled up.
+2. An image upload (PNG, JPEG, WebP) is first checked by its header only (width and height, Go `image.DecodeConfig`),
+   before any pixel buffer is allocated: above **50 megapixels** it gives no image (`too_large`). Otherwise it is
+   decoded and, if its long edge is over 1 280 px, scaled down by the same rule; it is never scaled up. An animated
+   WebP gives no image (the decoder does not read animations); an animated PNG gives its default image.
 3. The result is composited on opaque white and written as PNG, 8 bits per channel, colour type 2 (RGB, no alpha),
    without ancillary chunks. The same input bytes and the same binary give the same PNG bytes; PNG bytes are not
    pinned across renderer or Go versions.
 4. One renderer instance per `normalize` run, closed at its end. The PDF is passed as bytes; the renderer sees no
-   filesystem. Limits: 512 MiB renderer memory, 10 s per page. A PDF that does not parse, a page number beyond its page
-   count, an image that does not decode, or a limit hit gives **no image** for that page; its text path is unchanged.
-   At most one renderer instance runs per worker process at a time.
+   filesystem. Limits: 512 MiB renderer memory, 10 s for opening a document, 10 s per page. A time limit stops the
+   instance (the WebAssembly runtime closes the module when its deadline passes), so after a limit hit the instance is
+   discarded and the next page that needs one starts a new instance. A PDF that does not open, a page number beyond its
+   page count, an image that does not decode, or a limit hit gives **no image** for that page; its text path is
+   unchanged. At most one renderer instance runs per worker process at a time.
 
 **Dedupe and cap.** Pages are handled in `slides[]` order (§3.1 "Normalized meeting").
 
 1. A render is identified by the SHA-256 of the source file and the page number: a deck uploaded twice is rendered
    once, and every slide of it points to that one result.
-2. At most **50** render attempts per job, successful or not. A later page that is not already rendered gets no
-   image; it keeps its text, and without text it gives no slide.
+2. At most **50** render attempts per job, successful or not. An attempt is one page render of a PDF or one decode
+   of an image upload. A source file that does not open (parse error, open time limit) counts as one attempt, once per
+   file; its pages then get no image without further attempts. No source (`no_source`) and a source over the size or
+   pixel limit (`too_large`) do not count. A later page that is not already rendered gets no image (`cap`); it keeps
+   its text, and without text it gives no slide.
 3. Equal PNG bytes (equal SHA-256) are stored once as one job blob; every slide with those bytes points to it.
 
 **Normalized meeting version 5.** Each `slides[]` entry is `{t_ms, deck, page, text, image?}`. `image` is
@@ -260,18 +267,26 @@ image, it ends `ok` at once with no call.
 
 Outcome per image (adapter classes of `providers.md` §3.4):
 
-| Result of the call                                                            | Image                                                                                         |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| valid reply, description not empty                                            | described                                                                                     |
-| valid reply, empty description                                                | no description (`empty`)                                                                      |
-| `invalid_response` (after JSON repair), `output_truncated`, `input_too_large` | no description (the class name)                                                               |
-| `retryable`                                                                   | step `transient`; on the step's last attempt (5, as `summarize`) no description (`retryable`) |
-| `permanent_config`                                                            | step `permanent`, job `failed` with `config_error`                                            |
+| Result of the call                                                            | Image                                                                                                                          |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| valid reply, description not empty                                            | described                                                                                                                      |
+| valid reply, empty description                                                | no description (`empty`)                                                                                                       |
+| `invalid_response` (after JSON repair), `output_truncated`, `input_too_large` | no description (the class name)                                                                                                |
+| `retryable`                                                                   | before the last attempt: step `transient` (below); on the step's last attempt (5, as `summarize`) no description (`retryable`) |
+| `permanent_config`                                                            | step `permanent`, job `failed` with `config_error`                                                                             |
 
 An image without a description falls back to the slide's text (below); the job neither fails nor holds for it.
 Every fallback counts in `recap_slide_image_fallbacks_total` (`architecture.md` §12).
 
-**Storage and idempotency.** Each done image has a `step_items` row (item `img-<64 hex>`, state `succeeded`,
+**Bounded delay.** Each vision call has its own timeout of **120 s** (`providers.md` §3.6), not the LLM request
+timeout. On an attempt before the last, the first `retryable` result ends the step `transient`: no new call is started,
+calls in flight finish and keep their rows, and the queue retries the step with backoff and `Retry-After`
+(`architecture.md` §5.3). On the last attempt, after **3** `retryable` results in a row (in the order the calls end)
+no new call is started; calls in flight finish, and every image still without a row falls back (`retryable`). So a
+hanging vision server costs at most about `(3 + max_inflight − 1) × 120 s` on the last attempt.
+
+**Storage and idempotency.** Each done image has a `step_items` row (step `describe` where the table has a `step`
+column, `architecture.md` §6.1; item `img-<64 hex>`, state `succeeded`,
 `output` either `{"description_sha256": "<hex>"}`, the key of a job blob `{"description": "<cleaned text>"}`, or
 `{"fallback": "<reason>"}`); a retried step skips images that have a row, as `transcribe` skips tracks. At the end the
 step writes one job blob `{"version": 1, "descriptions": {"sha256:<hex>": "<description>"}}` (images without a
@@ -283,7 +298,8 @@ Logs carry IDs, counts, hashes, sizes and latencies, never description text or i
 
 1. it has an `image` with a description: the block text is the description;
 2. otherwise its `text`, as in §3.1, when it is not empty;
-3. otherwise the slide is left out.
+3. otherwise the slide is left out. This holds with images off as well: a slide with empty text and no description is
+   always left out (normalize writes such slides only with images on, another source may write them anyway).
 
 One source per slide: a description replaces the BBB text, which it already contains. Block header, order, fencing,
 the per-slide cut and the section cap of §3.1 apply unchanged; the titles-only fallback keeps the first line of the
@@ -476,7 +492,7 @@ transkribierBAR also falls back to the transcription language (`backend/app/rout
 | CT-TPL-18 | `describe` requests (§3.2, `providers.md` §3.6): one call per distinct image to the vision profile; system prompt and two user parts (text, `data:image/png;base64,` of exactly the image bytes); schema `slide-description.v1`; `max_tokens` 700; no meeting content in the call; no description text in logs at INFO. F-14's rendered images give one call each.                                                                                                              |
 | CT-TPL-19 | Schema `slide-description.v1`: fixture replies (valid and invalid) validate or fail.                                                                                                                                                                                                                                                                                                                                                                                            |
 | CT-TPL-20 | Merge (§3.2): described slides carry the cleaned description in `SLIDES`, others their text, an image-only slide without description is left out; the system message gets the slide-image rule only with a description; format version 1.2.0; description fence markers are broken up.                                                                                                                                                                                          |
-| CT-TPL-21 | Fallback (§3.2): an always invalid reply, a 500 on the tool's last attempt, an empty description each leave that slide with its text; all images failing gives requests byte-identical to images off; 401 fails with `config_error` and no `summarize` call.                                                                                                                                                                                                                    |
+| CT-TPL-21 | Fallback (§3.2): an always invalid reply, a 500 on the tool's last attempt, a 400 (`input_too_large`), `finish_reason: "length"`, an empty description each leave that slide with its text; after 3 `retryable` results no new call; all images failing gives requests byte-identical to images off; 401 fails with `config_error` and no `summarize` call.                                                                                                                     |
 | CT-TPL-22 | Images off (§3.2): `slide_images: false` or absent → no vision call, and the `summarize` requests are byte-identical to the same input without `image` fields.                                                                                                                                                                                                                                                                                                                  |
 | CT-TPL-23 | Configuration (§1): `slides` and `slide_images` with `defaults.vision` are accepted; `slide_images` without `slides` names `slide_images`; `slide_images` without `defaults.vision` names `vision`.                                                                                                                                                                                                                                                                             |
 
