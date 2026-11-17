@@ -39,7 +39,7 @@ job) and attaches to the GitHub release of the tag:
 | `recap-plugin-vX.Y.Z.zip` | both files, no directory                                  |
 | `SHA256SUMS`              | SHA-256 of the three files above, for `sha256sum -c`      |
 
-- It creates the release if there is none, with notes generated from the merged pull requests
+- It creates the release with the assets if there is none, with notes generated from the merged pull requests
   (`gh release create --generate-notes`). Edit the notes afterwards on the release page or with
   `gh release edit "$VERSION" --notes-file notes.md`; a re-run does not overwrite them.
 - A tag with a pre-release suffix (`vX.Y.Z-<pre>`) creates a pre-release.
@@ -83,14 +83,21 @@ of its own token). If `edge` should carry the update, run the `image` workflow b
 With CI green on the commit, from a checkout with push rights:
 
 ```sh
-VERSION=v0.1.0
+VERSION=v0.2.0
 git switch main && git pull --ff-only
-git tag -a "$VERSION" -m "recap $VERSION" && git push origin "$VERSION"
+if [ "v$(jq -r .version plugin/package.json)" = "$VERSION" ]; then
+  git tag -a "$VERSION" -m "recap $VERSION" && git push origin "$VERSION"
+else
+  echo "plugin/package.json is not ${VERSION#v}: bump it in a pull request first"
+fi
 sleep 10
 gh run watch "$(gh run list --workflow image.yaml --branch "$VERSION" --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
 gh run watch "$(gh run list --workflow release.yaml --branch "$VERSION" --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
 gh release view "$VERSION"   # expect the four assets of "The plugin release"
 ```
+
+If `release.yaml` fails on the version check anyway, the tag and the images are already public: do not move the
+tag; set `plugin/package.json` to the next patch version and release that.
 
 If the release cannot run steps of jobs the previous release created, its notes say "drain first".
 

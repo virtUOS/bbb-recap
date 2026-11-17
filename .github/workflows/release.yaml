@@ -1,7 +1,8 @@
 # Builds the BBB plugin for a v* tag and attaches it to the GitHub release of the tag
 # (docs/operations/release.md, docs/operations/install-plugin.md). Creates the release
-# if it does not exist; vX.Y.Z-pre tags make a pre-release. Re-running replaces the
-# assets. The images come from image.yaml.
+# with the assets if it does not exist; vX.Y.Z-pre tags make a pre-release. Re-running
+# replaces the assets. The images come from image.yaml. v0.1.0 predates this
+# workflow and has no plugin assets.
 name: release
 
 on:
@@ -65,10 +66,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if ! gh release view "$TAG" > /dev/null 2>&1; then
+          cd release
+          files=(RecapPlugin.js manifest.json "recap-plugin-$TAG.zip" SHA256SUMS)
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            # With files, gh creates a draft, uploads and then publishes: no release without assets.
             prerelease=false
             case "$TAG" in *-*) prerelease=true ;; esac
-            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes --prerelease="$prerelease"
+            gh release create "$TAG" "${files[@]}" --verify-tag --title "$TAG" --generate-notes --prerelease="$prerelease"
           fi
-          cd release
-          gh release upload "$TAG" RecapPlugin.js manifest.json "recap-plugin-$TAG.zip" SHA256SUMS --clobber

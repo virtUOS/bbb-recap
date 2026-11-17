@@ -16,18 +16,19 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
 ## Quick start
 
 1. Download the plugin from the [GitHub release](https://github.com/virtUOS/bbb-recap/releases) and check it, on
-   any machine with curl:
+   any machine with curl. Releases carry the plugin from the release after `v0.1.0` on; for `v0.1.0` use
+   [Build it yourself](#build-it-yourself) instead.
 
    ```sh
-   VERSION=v0.1.0                              # same release as the service
+   VERSION=v0.2.0                              # same release as the service
    RELEASE_URL=https://github.com/virtUOS/bbb-recap/releases/download/$VERSION
    mkdir "recap-plugin-$VERSION" && cd "recap-plugin-$VERSION"
-   curl -fsSL -O "$RELEASE_URL/RecapPlugin.js" -O "$RELEASE_URL/manifest.json" -O "$RELEASE_URL/SHA256SUMS"
-   sha256sum -c --ignore-missing SHA256SUMS   # expect: RecapPlugin.js: OK  manifest.json: OK
+   curl -fsSL --fail-early -O "$RELEASE_URL/RecapPlugin.js" -O "$RELEASE_URL/manifest.json" \
+     -O "$RELEASE_URL/recap-plugin-$VERSION.zip" -O "$RELEASE_URL/SHA256SUMS"
+   sha256sum -c SHA256SUMS                     # expect three lines ending in OK
    ```
 
-   The release also carries `recap-plugin-$VERSION.zip` with both files. To build them yourself, see
-   [Build it yourself](#build-it-yourself).
+   The zip holds the same two files.
 
 2. Upload both files into one directory on a static HTTPS host and check that they are served:
 
@@ -44,7 +45,7 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
    root:
 
    ```sh
-   PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.1.0      # from step 2
+   PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.2.0      # from step 2
    PROPS=/etc/bigbluebutton/bbb-web.properties
    if grep -q '^pluginManifests=' "$PROPS"; then
      grep '^pluginManifests=' "$PROPS"   # already set: add {"url":"$PLUGIN_URL/manifest.json"} to this list,
@@ -62,7 +63,7 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
 
    ```sh
    BBB_DIR=/srv/bbb                                          # holds BBB's docker-compose.yml
-   PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.1.0      # from step 2
+   PLUGIN_URL=https://cdn.example.org/bbb-recap/v0.2.0      # from step 2
    cat "$BBB_DIR/docker-compose.override.yml"               # check: only the exporter's recording-workers mounts
    cat > "$BBB_DIR/docker-compose.override.yml" <<EOF
    services:
@@ -132,8 +133,9 @@ enough: no change in the front end. Sources: BBB `docs/docs/plugins.md` ("Meta\_
 ## Upgrade
 
 Download (or build) the new release, upload it to a new directory (`$PLUGIN_URL` with the new version), change the
-URL in `pluginManifests` and restart bbb-web as in step 3. Running meetings keep the old version. The manifest carries the
-plugin version, which BBB appends to the script URL, so browsers do not use a cached old script. With `pluginManifestCacheEnabled=true`, bbb-web may keep an old manifest for up to
+URL in `pluginManifests` and restart bbb-web as in step 3. Running meetings keep the old version. The manifest carries
+the plugin version, which BBB appends to the script URL, so browsers do not use a cached old script. With
+`pluginManifestCacheEnabled=true`, bbb-web may keep an old manifest for up to
 `pluginManifestCacheRefreshIntervalMinutes`.
 
 The plugin uses BBB's recording GraphQL fields, which are not part of the plugin SDK's contract. Test it after every
