@@ -405,12 +405,13 @@ type visionCall struct {
 // Behaviours of the fake vision provider per image.
 const (
 	replyInvalid = "invalid" // content that is not JSON, also for every repair call
+	replyLength  = "length"  // a valid reply cut off: finish_reason "length" (output_truncated)
 )
 
 // visionFake answers vision calls (the request names the slide-description
 // schema, property "visual") by image hash, and passes every other call to
 // the fake LLM of summarize_test.go. A behaviour is a reply content, a
-// "status:<code>" or replyInvalid; "*" is the default.
+// "status:<code>", replyInvalid or replyLength; "*" is the default.
 type visionFake struct {
 	llm    *fakeLLM
 	behave map[string]string
@@ -480,14 +481,17 @@ func (f *visionFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"error": {"message": "fake vision provider error"}}`))
 		return
 	}
-	content := b
-	if b == replyInvalid {
+	content, finish := b, "stop"
+	switch b {
+	case replyInvalid:
 		content = "This is not JSON."
+	case replyLength:
+		content, finish = replyA, "length"
 	}
 	resp, _ := json.Marshal(map[string]any{
 		"id": "chatcmpl-fixture-vision", "object": "chat.completion", "created": 0, "model": "example-vision-model",
 		"choices": []any{map[string]any{
-			"index": 0, "message": map[string]any{"role": "assistant", "content": content}, "finish_reason": "stop",
+			"index": 0, "message": map[string]any{"role": "assistant", "content": content}, "finish_reason": finish,
 		}},
 		"usage": map[string]any{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
 	})
@@ -915,6 +919,11 @@ func TestSlideImageFallback(t *testing.T) {
 				section(textA(0), slideBlock(c.slides[1], descB), textA(2), textA(3)), 1, 1},
 			{"empty-description", map[string]string{c.a: `{"text": " ", "visual": ""}`, c.b: replyB},
 				section(textA(0), slideBlock(c.slides[1], descB), textA(2), textA(3)), 1, 1},
+			// A 400 on an image call is input_too_large: a fallback, not permanent_config (providers.md §3.6).
+			{"bad-request-400", map[string]string{c.a: "status:400", c.b: replyB},
+				section(textA(0), slideBlock(c.slides[1], descB), textA(2), textA(3)), 1, 1},
+			{"output-truncated", map[string]string{c.a: replyLength, c.b: replyB},
+				section(textA(0), slideBlock(c.slides[1], descB), textA(2), textA(3)), 1, 1},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				r := renderImages(t, bin, c.input(t), imageTypes(t, imagesOn), c.images(), tc.behave, true)
@@ -930,6 +939,29 @@ func TestSlideImageFallback(t *testing.T) {
 				}
 			})
 		}
+		// On the (tool's) last attempt, after 3 retryable results in a row no new
+		// call starts; calls in flight (vision-lab max_inflight 2) finish.
+		t.Run("retryable-stop", func(t *testing.T) {
+			in := f01Summarize(t).input()
+			images := map[string][]byte{}
+			var s []any
+			var blocks []string
+			for i := 0; i < 5; i++ {
+				img := testPNG(t, color.RGBA{uint8(40 * i), 0, 255, 255})
+				h := sha(img)
+				images[h] = img
+				x := slide{TMS: int64(7000 + 1000*i), Deck: "d-1", Page: i + 1, Text: fmt.Sprintf("Fixture slide %d", i+1)}
+				s = append(s, object{"at_ms": x.TMS, "deck": x.Deck, "page": x.Page, "text": x.Text, "image": "sha256:" + h})
+				blocks = append(blocks, slideBlock(x, x.Text))
+			}
+			in["slides"] = s
+			r := renderImages(t, bin, in, imageTypes(t, imagesOn), images, map[string]string{"*": "status:503"}, true)
+			r.mustOK(t)
+			if n := len(r.vision); n < 3 || n > 4 {
+				t.Errorf("%d vision calls for 5 images all failing retryable, want 3 or 4 (stop after 3 in a row, templates.md §3.2)", n)
+			}
+			wantSection(t, "summarize call", summaryCall(t, r), section(blocks...))
+		})
 		t.Run("all-fail", func(t *testing.T) {
 			r := renderImages(t, bin, c.input(t), imageTypes(t, imagesOn), c.images(),
 				map[string]string{c.a: "status:500", c.b: replyInvalid}, true)
