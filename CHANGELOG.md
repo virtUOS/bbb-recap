@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Changed
 
+- Docs sink: `document_url_template` is optional and defaults to `<docs_base_url>/docs/{id}/`.
 - Provider and sink profiles: the declaration fields `used_for_training`, `contract_ref`, `reviewed_by` and
   `reviewed_at` are removed (breaking for configs: delete these keys; they are now refused as unknown keys, and the
   service does not start while they are present).
