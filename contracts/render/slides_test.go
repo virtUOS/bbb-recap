@@ -1,8 +1,8 @@
 package render
 
 // Slides as context (templates.md §3.1, ADR-015). These tests were written
-// before the implementation and fail until it exists; they are not changed
-// to fit it (templates.md §8).
+// before the implementation; they are not changed to fit it (templates.md
+// §8).
 
 import (
 	"encoding/json"
