@@ -1,0 +1,78 @@
+# Builds the BBB plugin for a v* tag and attaches it to the GitHub release of the tag
+# (docs/operations/release.md, docs/operations/install-plugin.md). Creates the release
+# with the assets if it does not exist; vX.Y.Z-pre tags make a pre-release. Re-running
+# replaces the assets. The images come from image.yaml. v0.1.0 predates this
+# workflow and has no plugin assets.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plugin:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Same as the plugin job in ci.yaml.
+          node-version: "26"
+
+      - name: Check tag
+        run: |
+          if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::tag $TAG is not vX.Y.Z or vX.Y.Z-pre"; exit 1
+          fi
+          # The plugin's version (manifest.json, banner of RecapPlugin.js) comes from plugin/package.json.
+          version=$(node -p 'require("./plugin/package.json").version')
+          if [ "v$version" != "$TAG" ]; then
+            case "$TAG" in
+              *-*) echo "::warning::plugin/package.json has version $version, not ${TAG#v}" ;;
+              *) echo "::error::plugin/package.json has version $version, not ${TAG#v}"; exit 1 ;;
+            esac
+          fi
+
+      - name: Build
+        working-directory: plugin
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package
+        run: |
+          mkdir release
+          cp plugin/dist/RecapPlugin.js plugin/dist/manifest.json release/
+          cd release
+          zip -j "recap-plugin-$TAG.zip" RecapPlugin.js manifest.json
+          sha256sum RecapPlugin.js manifest.json "recap-plugin-$TAG.zip" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd release
+          files=(RecapPlugin.js manifest.json "recap-plugin-$TAG.zip" SHA256SUMS)
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            # With files, gh creates a draft, uploads and then publishes: no release without assets.
+            prerelease=false
+            case "$TAG" in *-*) prerelease=true ;; esac
+            gh release create "$TAG" "${files[@]}" --verify-tag --title "$TAG" --generate-notes --prerelease="$prerelease"
+          fi

@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- Slides as context (format `meeting-summary` 1.1.0): a meeting type can switch on `inputs: {slides: true}`; the text
+  of the slides shown during recording then goes, capped and fenced, to the summary call as prepared material. Off
+  by default.
+- Releases carry the built BBB plugin (`RecapPlugin.js`, `manifest.json`, a zip of both and `SHA256SUMS`) as
+  release assets, built by `.github/workflows/release.yaml` for every `v*` tag.
+
+### Changed
+
+- Docs sink: `document_url_template` is optional and defaults to `<docs_base_url>/docs/{id}/`.
+- Provider and sink profiles: the declaration fields `used_for_training`, `contract_ref`, `reviewed_by` and
+  `reviewed_at` are removed (breaking for configs: delete these keys; they are now refused as unknown keys, and the
+  service does not start while they are present).
+
+## [0.1.0] - 2026-11-16
+
 First release.
 
 ### Added
@@ -19,9 +36,6 @@ First release.
 - Providers: ASR dialects `whisperx-family` (whisperx-api-server) and `transkribierbar`; OpenAI-compatible chat
   completions for the language model, with structured output and chunking for long meetings.
 - Built-in output format `meeting-summary` (Markdown summary, WebVTT transcript), output in the meeting's language.
-- Slides as context (format `meeting-summary` 1.1.0): a meeting type can switch on `inputs: {slides: true}`; the text
-  of the slides shown during recording then goes, capped and fenced, to the summary call as prepared material. Off
-  by default.
 - Sinks: La Suite Docs (`create-for-owner`) and `frontend` (the front end fetches the Markdown); result record for
   front ends for `RECAP_RESULT_TTL`.
 - Admin API and admin web pages with OIDC login; actions `retry`, `release`, `rerun`, `purge`, `erase`; audit log.
@@ -34,9 +48,6 @@ First release.
 
 ### Changed
 
-- Provider and sink profiles: the declaration fields `used_for_training`, `contract_ref`, `reviewed_by` and
-  `reviewed_at` are removed (breaking for configs: delete these keys; they are now refused as unknown keys, and the
-  service does not start while they are present).
 - Registration API: `record_id` follows the pattern of the meeting package manifest, the exporter and the hook,
   `^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$` (up to 255 characters instead of 128, a letter or digit first). Responses carry
   `schema_version` `1.2.0`.
