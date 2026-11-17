@@ -2,7 +2,7 @@
   "name": "bbb-recap-plugin",
   "version": "0.1.0",
   "private": true,
-  "description": "BigBlueButton plugin: AI summary button that starts and pauses the meeting recording",
+  "description": "BigBlueButton plugin: \"AI minutes\" control that starts and pauses the meeting recording",
   "license": "Apache-2.0",
   "scripts": {
     "build": "webpack --mode production",

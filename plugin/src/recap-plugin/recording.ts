@@ -1,4 +1,4 @@
-// Recording state and permission rules of the AI summary button. No React and no SDK imports, so the unit tests
+// Recording state, timer and permission rules of the AI minutes. No React and no SDK imports, so the unit tests
 // run without a BBB client. Sources: bigbluebutton/bigbluebutton @ 7d27e7e (v4.0.x).
 
 // The mutation of BBB's own record button
@@ -20,9 +20,25 @@ export const RECORDING_POLICIES = `subscription RecapRecordingPolicies {
   }
 }`;
 
+// The fields of BBB's recording indicator (recording-indicator/queries.ts:32-41). The view holds the latest recording
+// segment of the meeting; previousRecordedTimeInSeconds sums the finished segments
+// (bbb-graphql-server/bbb_schema.sql:82-133).
 export const MEETING_RECORDING = `subscription RecapMeetingRecording {
   meeting_recording {
     isRecording
+    startedAt
+    previousRecordedTimeInSeconds
+  }
+}`;
+
+// The server clock, as BBB reads it for its own recording timer (bigbluebutton-html5/imports/ui/core/utils/
+// timeSync.ts:5-20, bbb-graphql-server/bbb_schema.sql:2327-2330). BBB runs a plugin's query cache-first, and BBB's
+// own timer writes current_time { currentTimestamp } to the cache (core/graphql/queries/timer.ts:38-44); the extra
+// field currentTimeMillis, which that query does not select, makes the cache unable to answer, so the time is fresh.
+export const CURRENT_TIME = `query RecapCurrentTime {
+  current_time {
+    currentTimestamp
+    currentTimeMillis
   }
 }`;
 
@@ -39,7 +55,15 @@ export interface RecordingPoliciesData {
 }
 
 export interface MeetingRecordingData {
-  meeting_recording?: { isRecording?: boolean }[];
+  meeting_recording?: {
+    isRecording?: boolean;
+    startedAt?: string | null;
+    previousRecordedTimeInSeconds?: number | null;
+  }[];
+}
+
+export interface CurrentTimeData {
+  current_time?: { currentTimestamp?: string | null }[];
 }
 
 export interface RecordPermissionData {
@@ -83,8 +107,53 @@ export function mayRecord({ record, allowStartStopRecording, isModerator, record
 // (akka-bbb-apps/src/main/scala/org/bigbluebutton/core/models/Users2x.scala:511).
 export const MODERATOR_ROLE = "MODERATOR";
 
-export function isRecording(data: MeetingRecordingData | undefined): boolean {
-  return data?.meeting_recording?.[0]?.isRecording === true;
+// The state of the AI minutes. They are the meeting's recording: off until the first start, then running or paused.
+// A segment row exists only after a start (bbb_schema.sql:82-90, startedAt is part of the primary key).
+export type MinutesState = "off" | "running" | "paused";
+
+export function minutesState(data: MeetingRecordingData | undefined): MinutesState {
+  const row = data?.meeting_recording?.[0];
+  if (row?.isRecording === true) {
+    return "running";
+  }
+  return row?.startedAt ? "paused" : "off";
+}
+
+// Seconds of active (not paused) time, the same for every client: the finished segments plus, while running, the
+// time since the current segment started, measured on the server clock. This is the formula of BBB's own timer
+// (recording-indicator/component.tsx:488-493), so both show the same time.
+export function activeSeconds(data: MeetingRecordingData | undefined, serverNowMs: number): number {
+  const row = data?.meeting_recording?.[0];
+  const previous = Math.max(0, row?.previousRecordedTimeInSeconds ?? 0);
+  if (row?.isRecording !== true || !row.startedAt) {
+    return Math.floor(previous);
+  }
+  const startedAt = new Date(row.startedAt).getTime();
+  if (Number.isNaN(startedAt)) {
+    return Math.floor(previous);
+  }
+  return Math.floor(previous + Math.max(0, (serverNowMs - startedAt) / 1000));
+}
+
+// Server time minus client time in milliseconds, from a current_time answer received at receivedAtMs for a request
+// sent at sentAtMs; half the round trip is taken as the delay, like BBB (timeSync.ts:5-20). 0 when unknown.
+export function serverOffset(data: CurrentTimeData | undefined | null, sentAtMs: number, receivedAtMs: number): number {
+  const stamp = data?.current_time?.[0]?.currentTimestamp;
+  const serverMs = stamp ? new Date(stamp).getTime() : NaN;
+  if (Number.isNaN(serverMs)) {
+    return 0;
+  }
+  return serverMs - (sentAtMs + (receivedAtMs - sentAtMs) / 2);
+}
+
+// mm:ss, or h:mm:ss from one hour on.
+export function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
 export function recordingPolicies(data: RecordingPoliciesData | undefined): {
