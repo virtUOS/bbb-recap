@@ -32,12 +32,10 @@ defaults: {asr: asr-test, llm: llm-test}
 profiles:
   - {name: asr-test, kind: asr, dialect: transkribierbar, base_url: "` + baseURL + `", model: large-v3,
      credentials_file: "` + key + `"` + extra + `,
-     declaration: {data_categories: [voice], operator: o, location: on_prem, retention: r, deletion: manual,
-                   used_for_training: "no", contract_ref: none, reviewed_by: r, reviewed_at: "2026-11-06"}}
+     declaration: {data_categories: [voice], operator: o, location: on_prem, retention: r, deletion: manual}}
   - {name: llm-test, kind: llm, dialect: openai-chat, base_url: "http://llm.recap.test/v1", model: m,
      context_tokens: 100, max_output_tokens: 10,
-     declaration: {data_categories: [transcript], operator: o, location: on_prem, retention: r, deletion: manual,
-                   used_for_training: "no", contract_ref: none, reviewed_by: r, reviewed_at: "2026-11-06"}}
+     declaration: {data_categories: [transcript], operator: o, location: on_prem, retention: r, deletion: manual}}
 `
 	s, err := providers.Parse([]byte(text))
 	if err != nil {

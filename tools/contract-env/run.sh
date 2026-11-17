@@ -129,10 +129,6 @@ add_docs_contract() {
       location: on_prem
       retention: "Document owned by the user in Docs; Docs retention policy"
       deletion: manual
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: fixture-reviewer
-      reviewed_at: "2026-10-29"
 EOF
 }
 
@@ -161,10 +157,6 @@ add_hooks_contract() {
       location: on_prem
       retention: "Receiver's policy"
       deletion: manual
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: fixture-reviewer
-      reviewed_at: "2026-11-13"
   -
     name: matrix-contract
     type: matrix
@@ -178,10 +170,6 @@ add_hooks_contract() {
       location: on_prem
       retention: "Room history; every member of the room can read the post"
       deletion: manual
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: fixture-reviewer
-      reviewed_at: "2026-11-13"
 EOF
 }
 

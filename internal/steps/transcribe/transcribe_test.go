@@ -205,12 +205,10 @@ defaults: {asr: whisperx-test, llm: llm-test}
 profiles:
   - {name: whisperx-test, kind: asr, dialect: whisperx-family, base_url: "` + e.fake.srv.URL + `", model: large-v3,
      credentials_file: "` + keyFile + `", max_inflight: ` + maxInflight + `,
-     declaration: {data_categories: [voice], operator: o, location: on_prem, retention: r, deletion: manual,
-                   used_for_training: "no", contract_ref: none, reviewed_by: r, reviewed_at: "2026-10-29"}}
+     declaration: {data_categories: [voice], operator: o, location: on_prem, retention: r, deletion: manual}}
   - {name: llm-test, kind: llm, dialect: openai-chat, base_url: "http://llm.recap.test/v1", model: m,
      context_tokens: 100, max_output_tokens: 10,
-     declaration: {data_categories: [transcript], operator: o, location: on_prem, retention: r, deletion: manual,
-                   used_for_training: "no", contract_ref: none, reviewed_by: r, reviewed_at: "2026-10-29"}}
+     declaration: {data_categories: [transcript], operator: o, location: on_prem, retention: r, deletion: manual}}
 `))
 	if err != nil {
 		t.Fatal(err)

@@ -24,10 +24,6 @@ profiles:
       location: on_prem # on_prem, eu, eea or third_country:<code>
       retention: "No persistence (RESULT_STORE__ENABLED=false)"
       deletion: none # adapter_cleanup, ttl:<duration>, none or manual
-      used_for_training: "no"
-      contract_ref: none # REPLACE: DPA reference or none
-      reviewed_by: "REPLACE: role of the person who checked this"
-      reviewed_at: "2026-11-12" # REPLACE: date of the check
   # Any OpenAI-compatible chat completions endpoint, e.g. vLLM.
   - name: llm-main
     kind: llm
@@ -45,7 +41,3 @@ profiles:
       location: on_prem
       retention: "No persistence"
       deletion: none
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: "REPLACE: role of the person who checked this"
-      reviewed_at: "2026-11-12"

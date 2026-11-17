@@ -9,7 +9,7 @@ import (
 )
 
 // check-config prints the same sink warnings as worker start-up:
-// non-https base URL, third-country location, training.
+// non-https base URL, third-country location.
 func TestCheckConfigSinkWarnings(t *testing.T) {
 	b, err := os.ReadFile(cfgData + "sinks.yaml")
 	if err != nil {
@@ -18,7 +18,6 @@ func TestCheckConfigSinkWarnings(t *testing.T) {
 	text := strings.NewReplacer(
 		"docs_base_url: https://docs.recap.test", "docs_base_url: http://docs.recap.test",
 		"location: on_prem", "location: third_country:us",
-		`used_for_training: "no"`, `used_for_training: "yes"`,
 		"api_key_file: docs-s2s.key", "api_key_file: "+mustAbs(t, cfgData+"docs-s2s.key"),
 	).Replace(string(b))
 	path := filepath.Join(t.TempDir(), "sinks.yaml")
@@ -30,7 +29,7 @@ func TestCheckConfigSinkWarnings(t *testing.T) {
 	if code := checkConfig([]string{"--role", "worker"}, env, &stdout, &stderr); code != exitOK {
 		t.Fatalf("exit %d\n%s", code, stderr.String())
 	}
-	for _, want := range []string{"does not use https", "third-country", "used for training"} {
+	for _, want := range []string{"does not use https", "third-country"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Errorf("stderr lacks %q:\n%s", want, stderr.String())
 		}

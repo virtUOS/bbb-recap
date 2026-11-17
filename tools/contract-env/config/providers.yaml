@@ -18,10 +18,6 @@ profiles:
       location: on_prem
       retention: "No persistence"
       deletion: none
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: fixture-reviewer
-      reviewed_at: "2026-10-29"
   - name: vllm-lab
     kind: llm
     dialect: openai-chat
@@ -38,7 +34,3 @@ profiles:
       location: on_prem
       retention: "No persistence"
       deletion: none
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: fixture-reviewer
-      reviewed_at: "2026-10-29"

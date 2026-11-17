@@ -19,10 +19,6 @@ sinks:
       location: on_prem
       retention: "Document owned by the user in Docs; Docs retention policy"
       deletion: manual
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: fixture-reviewer
-      reviewed_at: "2026-10-29"
   -
     name: frontend-main
     type: frontend
@@ -33,7 +29,3 @@ sinks:
       location: on_prem
       retention: "Until the front end fetches it, at most RECAP_RESULT_TTL after delivery"
       deletion: "ttl:7d"
-      used_for_training: "no"
-      contract_ref: none
-      reviewed_by: fixture-reviewer
-      reviewed_at: "2026-11-10"

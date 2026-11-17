@@ -27,7 +27,7 @@ keys, unknown dialects, incomplete `declaration` (when present), unreadable `cre
 bad name, missing required key). On any error it exits 2, writes nothing to stdout, and names each offending key on
 stderr. Keys the tests treat as required: top level `schema_version`, `defaults`, `profiles`; every profile `name`,
 `kind`, `dialect`, `base_url`, `model`; LLM profiles also `context_tokens`, `max_output_tokens`; a `declaration` when
-present (all nine fields of `privacy.md` §7). Optional: `declaration` (absent: the file loads and stderr has exactly
+present (all five fields of `privacy.md` §7). Optional: `declaration` (absent: the file loads and stderr has exactly
 one WARN line naming the profile), `credentials_file`, `extra_body`, `structured_output` (default `json_object`),
 `max_inflight` (default `1`) (`providers.md` §3.3), and `max_file_bytes` on ASR profiles (integer; overrides the
 dialect's capability, null for whisperx-family).
