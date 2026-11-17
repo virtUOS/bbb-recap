@@ -139,9 +139,9 @@ applies:
    (`config_error`, `rejected_by_sink` or, after the last attempt, `retries_exhausted`);
 2. a sink is `sending` → hold `delivery_uncertain`;
 3. a sink returned `recipient_unresolved` → hold `owner_unresolved` (a registration `PUT` resumes the job, as for one
-   sink; only a record of a sink that uses the owner, `docs`, locks the owner, so a `sent` `frontend` sink does not
-   block the `PUT`, while with two `docs` sinks of which one has delivered the owner stays locked and the admin skips
-   the held sink with `release`);
+   sink; every delivery record locks the owner except those of `frontend` and `webhook` sinks and `skipped_by_admin`
+   ones, so a `sent` `frontend` sink does not block the `PUT`, while with two `docs` sinks of which one has delivered
+   the owner stays locked and the admin skips the held sink with `release` and `sink`);
 4. a sink is `pending` (a `not_sent` result; group 2 waits for group 1 or for the pickup) → `transient`;
 5. every sink done → `ok`, job `delivered`, `delivered_at` set, `cleanup` scheduled.
 
@@ -169,11 +169,12 @@ is `400 invalid-request`; a sink in a status the action does not accept is `409 
 | `retry`               | as above                                            | —                     | every `failed` and `sending` sink becomes `pending`; as before for one sink                                                                                                                     |
 | `release` with `sink` | held `delivery_uncertain`, or `failed` in `deliver` | `sending`             | `confirmed_by_admin`, optional `document_id`                                                                                                                                                    |
 | `release` with `sink` | `failed` in `deliver`                               | `failed`              | `skipped_by_admin` (also after `retries_exhausted`). Refused (`409`) when every other sink of the job is already skipped: use `purge`                                                           |
+| `release` with `sink` | held `owner_unresolved`                             | `pending`             | `skipped_by_admin`; the job state then follows from the statuses. Refused (`409`) when every other sink of the job is already skipped: use `purge`                                              |
 | `release`             | held `delivery_uncertain`                           | —                     | every `sending` sink becomes `confirmed_by_admin`; `document_id` only when exactly one sink is `sending`, else `400`                                                                            |
 | `release`             | `failed`                                            | —                     | `409 invalid-job-state`, as before                                                                                                                                                              |
 
 The sink's status decides which `release` applies; the job only has to be held `delivery_uncertain` or `failed` in
-`deliver`. After an action the job state follows from the statuses with the rules above, without calling a sink:
+`deliver` (or held `owner_unresolved`, for the skip of a `pending` sink). After an action the job state follows from the statuses with the rules above, without calling a sink:
 every sink done → `delivered` (`cleanup` scheduled); a sink `failed` → `failed`; a sink `sending` → held `delivery_uncertain`; else the
 step runs again (`running`). A job is `delivered` only when every sink is done; no outcome value is added.
 

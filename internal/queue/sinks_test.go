@@ -245,3 +245,53 @@ func TestExhaustedSinks(t *testing.T) {
 	}
 	mustClaim(t, e, id, "deliver")
 }
+
+// A job held owner_unresolved: release with sink skips the pending sink
+// whose owner cannot be fixed (sinks.md §1.8); the last sink not skipped
+// cannot be skipped.
+func TestReleaseSinkOwnerUnresolved(t *testing.T) {
+	pool := actionDB(t)
+	e := newEngine(pool, "w1", Steps...)
+	id := seedJob(t, pool)
+	run := toDeliver(t, e, id)
+	exec(t, pool, `UPDATE jobs SET sink_profile = 'docs-a,docs-b' WHERE job_id = $1`, id)
+	exec(t, pool, `INSERT INTO deliveries (job_id, sink_profile, state, document_id) VALUES ($1, 'docs-a', 'sent', 'doc-a')`, id)
+	mustFinish(t, e, run, Result{Outcome: Hold, Reason: "owner_unresolved"})
+	if err := act(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, "docs-a", "", 0) }); !errors.Is(err, ErrInvalidState) {
+		t.Fatalf("release of a sent sink: %v, want ErrInvalidState", err)
+	}
+	if err := act(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, "docs-b", "doc-1", 0) }); !errors.Is(err, ErrDocumentIDNotAllowed) {
+		t.Fatalf("skip with a document ID: %v, want ErrDocumentIDNotAllowed", err)
+	}
+	if err := act(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, "docs-b", "", time.Hour) }); err != nil {
+		t.Fatal(err)
+	}
+	expectSinks(t, pool, id, "docs-a=sent", "docs-b=skipped_by_admin")
+	if j := getJob(t, pool, id); j.State != "delivered" || j.Held != "" {
+		t.Fatalf("job %+v, want delivered", j)
+	}
+
+	// With a sink left pending, the step continues with it; the only sink
+	// not skipped cannot be skipped.
+	other := seedJob(t, pool)
+	run = toDeliver(t, e, other)
+	exec(t, pool, `UPDATE jobs SET sink_profile = 'docs-a,docs-b,hook-a' WHERE job_id = $1`, other)
+	exec(t, pool, `INSERT INTO deliveries (job_id, sink_profile, state) VALUES ($1, 'docs-a', 'skipped_by_admin')`, other)
+	mustFinish(t, e, run, Result{Outcome: Hold, Reason: "owner_unresolved"})
+	if err := act(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, other, "docs-b", "", 0) }); err != nil {
+		t.Fatal(err)
+	}
+	expectSinks(t, pool, other, "docs-a=skipped_by_admin", "docs-b=skipped_by_admin", "hook-a=pending")
+	if j := getJob(t, pool, other); j.State != "running" {
+		t.Fatalf("job %+v, want running", j)
+	}
+	mustClaim(t, e, other, "deliver")
+
+	last := seedJob(t, pool)
+	run = toDeliver(t, e, last)
+	exec(t, pool, `UPDATE jobs SET sink_profile = 'docs-a' WHERE job_id = $1`, last)
+	mustFinish(t, e, run, Result{Outcome: Hold, Reason: "owner_unresolved"})
+	if err := act(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, last, "docs-a", "", 0) }); !errors.Is(err, ErrInvalidState) {
+		t.Fatalf("skip of the only sink: %v, want ErrInvalidState", err)
+	}
+}

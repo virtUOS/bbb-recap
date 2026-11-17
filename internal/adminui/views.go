@@ -166,8 +166,8 @@ var actions = []struct{ name, effect string }{
 		"only that failed or sending sink is sent again."},
 	{"release", "Lifts the hold. For delivery_uncertain: you found the document in Docs (or the receiver got the " +
 		"webhook); the sink is confirmed without sending again, optionally with the document ID. With a failed " +
-		"sink of a failed job: that sink is skipped (nothing is delivered there). Any other reason: the held step " +
-		"runs again."},
+		"sink of a failed job, or the pending sink of a job held owner_unresolved: that sink is skipped (nothing " +
+		"is delivered there). Any other reason: the held step runs again."},
 	{"rerun", "Creates a new job from the same package, starting at validate, and a new Docs document. " +
 		"This job then ends as cleaned (purged)."},
 	{"purge", "Runs cleanup only: the job's content is deleted and the job ends as cleaned (purged)."},
@@ -192,7 +192,7 @@ func actionsFor(j admin.Job) []string {
 	uncertain := held && j.HeldReason != nil && *j.HeldReason == "delivery_uncertain"
 	// A failed job may have a sink to confirm or skip (release with sink,
 	// sinks.md §1.8); skipping needs another sink that is not skipped.
-	failed, sending := 0, 0
+	failed, sending, notSkipped := 0, 0, 0
 	for _, d := range j.Deliveries {
 		switch d.State {
 		case "failed":
@@ -200,8 +200,11 @@ func actionsFor(j admin.Job) []string {
 		case "sending":
 			sending++
 		}
+		if d.State != "skipped_by_admin" {
+			notSkipped++
+		}
 	}
-	releaseSink := j.State == "failed" && (sending > 0 || failed > 0 && len(j.Deliveries) > 1)
+	releaseSink := j.State == "failed" && (sending > 0 || failed > 0 && notSkipped > 1)
 	allowed := map[string]bool{
 		"retry":   j.State == "failed" || uncertain,
 		"release": held || releaseSink,
@@ -233,21 +236,24 @@ func (u *UI) confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uncertain := j.State == "held" && j.HeldReason != nil && *j.HeldReason == "delivery_uncertain"
-	// retry and release take a sink that is failed or sending (sinks.md
-	// §1.8). The empty choice is what the action does without a sink: retry
-	// resets every failed and sending sink, release of a held job confirms
-	// every sending one; release of a failed job needs a sink.
+	unresolved := j.State == "held" && j.HeldReason != nil && *j.HeldReason == "owner_unresolved"
+	// retry and release take a sink that is failed or sending, and release
+	// of a job held owner_unresolved a pending one to skip (sinks.md §1.8).
+	// The empty choice is what the action does without a sink: retry resets
+	// every failed and sending sink, release of a held job confirms every
+	// sending one or runs the held step again; release of a failed job
+	// needs a sink.
 	var open []admin.SinkDelivery
 	sending := false
 	for _, d := range j.Deliveries {
-		if d.State == "failed" || d.State == "sending" {
+		if d.State == "failed" || d.State == "sending" || unresolved && action == "release" && d.State == "pending" {
 			open = append(open, d)
 		}
 		sending = sending || d.State == "sending"
 	}
 	var sinks []admin.SinkDelivery
 	all := ""
-	if (action == "retry" || action == "release") && (uncertain || j.State == "failed") && len(open) > 0 &&
+	if (action == "retry" || action == "release") && (uncertain || unresolved || j.State == "failed") && len(open) > 0 &&
 		(len(j.Deliveries) > 1 || action == "release" && j.State == "failed") {
 		sinks = open
 		switch {
@@ -255,6 +261,8 @@ func (u *UI) confirm(w http.ResponseWriter, r *http.Request) {
 			all = "every failed or sending sink"
 		case uncertain:
 			all = "every sink in sending"
+		case unresolved:
+			all = "no sink: run the held step again"
 		}
 	}
 	docField := action == "release" && (uncertain || j.State == "failed") && sending

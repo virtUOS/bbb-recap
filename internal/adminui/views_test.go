@@ -718,3 +718,41 @@ func TestErasePageListsRecords(t *testing.T) {
 		t.Fatalf("erase page:\n%s", page)
 	}
 }
+
+// A job held owner_unresolved with several sinks: release offers the
+// pending sink to skip; a failed job whose failed sink is the last not
+// skipped is not offered release.
+func TestSinkChoiceOwnerUnresolved(t *testing.T) {
+	e := newViewEnv(t)
+	csrf := e.login(t)
+	id := e.seed(t)
+	e.setState(t, id, "held/delivery_uncertain")
+	e.exec(t, `UPDATE jobs SET held_reason = 'owner_unresolved', sink_profile = 'docs-test,docs-other' WHERE job_id = $1`, id)
+	e.exec(t, `DELETE FROM deliveries WHERE job_id = $1`, id)
+	e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state, document_id, sent_at)
+		VALUES ($1, 'docs-test', 'sent', 'doc-1', now())`, id)
+	_, page := e.page(t, "/admin/jobs/"+id+"/release")
+	if !strings.Contains(page, `<option value="">no sink: run the held step again</option>`) ||
+		!strings.Contains(page, `<option value="docs-other">docs-other (pending)</option>`) ||
+		strings.Contains(page, `value="docs-test"`) {
+		t.Fatalf("confirmation page:\n%s", page)
+	}
+	code, loc, _ := e.submit(t, "/admin/jobs/"+id+"/release", url.Values{csrfField: {csrf}, "sink": {"docs-other"}})
+	if code != http.StatusSeeOther {
+		t.Fatalf("release with sink = %d", code)
+	}
+	if _, page = e.page(t, loc); !strings.Contains(page, "<td>skipped_by_admin</td>") || !strings.Contains(page, "<dd>delivered</dd>") {
+		t.Fatalf("job page after the skip:\n%s", page)
+	}
+
+	last := e.seed(t)
+	e.setState(t, last, "failed")
+	e.exec(t, `UPDATE jobs SET current_step = 'deliver', failure_reason = 'rejected_by_sink',
+		sink_profile = 'docs-test,docs-other' WHERE job_id = $1`, last)
+	e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state) VALUES ($1, 'docs-other', 'skipped_by_admin')`, last)
+	e.exec(t, `INSERT INTO step_items (job_id, step, item, state, failure_reason)
+		VALUES ($1, 'deliver', 'docs-test', 'failed', 'rejected_by_sink')`, last)
+	if _, page = e.page(t, "/admin/jobs/"+last); strings.Contains(page, "/admin/jobs/"+last+"/release") {
+		t.Fatalf("release offered for the last sink not skipped:\n%s", page)
+	}
+}

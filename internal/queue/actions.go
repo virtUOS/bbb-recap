@@ -41,6 +41,12 @@ func (j lockedJob) uncertain() bool { return j.state == "held" && j.heldReason =
 // failedInDeliver reports whether the job failed in its deliver step.
 func (j lockedJob) failedInDeliver() bool { return j.state == "failed" && j.step == "deliver" }
 
+// ownerUnresolved reports whether the job is held as owner_unresolved in
+// deliver.
+func (j lockedJob) ownerUnresolved() bool {
+	return j.state == "held" && j.heldReason == "owner_unresolved" && j.step == "deliver"
+}
+
 // lockJob locks the job row and reads it, then reads its current step in a
 // second statement, so the step row is current (see Cancel).
 func lockJob(ctx context.Context, tx pgx.Tx, jobID string) (lockedJob, error) {
@@ -159,11 +165,12 @@ func retrySink(ctx context.Context, tx pgx.Tx, by Actor, jobID, name string, ret
 // scheduled after retention (RECAP_RETENTION_AFTER_DELIVERY). Any other
 // reason: the held step runs again, as ReleaseHeld.
 //
-// With sink, the job is held as delivery_uncertain or failed in deliver,
-// and the sink decides (sinks.md §1.8): in sending it becomes
-// confirmed_by_admin (with the optional documentID); failed, in a failed
-// job, it becomes skipped_by_admin, unless every other sink is skipped
-// already. Any other status is ErrInvalidState.
+// With sink, the job is held as delivery_uncertain or owner_unresolved, or
+// failed in deliver, and the sink decides (sinks.md §1.8): in sending it
+// becomes confirmed_by_admin (with the optional documentID); failed, in a
+// failed job, or pending, in a job held owner_unresolved, it becomes
+// skipped_by_admin, unless every other sink is skipped already. Any other
+// status is ErrInvalidState.
 func Release(ctx context.Context, tx pgx.Tx, by Actor, jobID, sink, documentID string, retention time.Duration) error {
 	if sink != "" {
 		return releaseSink(ctx, tx, by, jobID, sink, documentID, retention)
@@ -222,15 +229,17 @@ func releaseSink(ctx context.Context, tx pgx.Tx, by Actor, jobID, name, document
 	if err != nil {
 		return err
 	}
-	if !j.uncertain() && !j.failedInDeliver() {
+	if !j.uncertain() && !j.failedInDeliver() && !j.ownerUnresolved() {
 		return ErrInvalidState
 	}
 	switch {
-	case s.Status == SinkSending:
+	case s.Status == SinkSending && !j.ownerUnresolved():
 		if err := confirm(ctx, tx, jobID, name, documentID); err != nil {
 			return err
 		}
-	case s.Status == SinkFailed && j.failedInDeliver():
+	case s.Status == SinkFailed && j.failedInDeliver(), s.Status == SinkPending && j.ownerUnresolved():
+		// Skip: a failed sink of a failed job, or the pending sink of a job
+		// held owner_unresolved whose owner stays locked (sinks.md §1.8).
 		if documentID != "" {
 			return ErrDocumentIDNotAllowed
 		}
