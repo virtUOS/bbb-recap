@@ -413,6 +413,8 @@ secret `testdata/secrets/webhook-signing.key` (`fixtures.md` §5).
 
 ## 4c. Matrix sink (`type: matrix`, ADR-016)
 
+Not implemented yet: the service refuses to start with a profile of `type: matrix`.
+
 Posts one short notice to a Matrix room as a bot user through the client-server API
 (https://spec.matrix.org/v1.19/client-server-api/): the meeting title and the links where the summary can be read. It
 never posts the summary. The room is the job's `matrix_room` (§1.2), chosen by the room owner in the front end

@@ -105,7 +105,9 @@ All files live in `/opt/recap`.
 
 ### Upgrade and rollback
 
-Read the release notes first. Migrations only add, so the previous release runs on the new schema.
+Read the release notes first. Migrations only add, so the previous release runs on the new schema. One exception:
+the release with migration `0002_several_sinks` changes a key, so going back to a release before it needs a database
+restore taken before the upgrade ([deployment.md](../reference/deployment.md) §6).
 
 ```sh
 cd /opt/recap

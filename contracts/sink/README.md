@@ -33,11 +33,11 @@ Built from the request and response shapes cited in `sinks.md` §3 (`suitenumeri
 
 ## Not implemented yet
 
-Written before the implementation of ADR-016 (several sinks, webhook and Matrix sinks); they fail until it lands:
-`TestWebhookSink` (CT-SINK-20 to 24), `TestMatrixSink` (CT-SINK-30 to 35), `TestSeveralSinks` (CT-SINK-13 to 19,
-CT-REG-10), and in `contracts/registration` `TestSinkList` (CT-META-07, CT-META-08, CT-REG-10). Against a service without them:
-the tool exits 2 on the unknown sink types; a list in `recap-sink` is held `invalid_metadata`; the contract
-environment does not start with `RECAP_CONTRACT_HOOKS_ADDR`.
+Several sinks and the webhook sink (ADR-016) are implemented. The Matrix sink is not: `TestMatrixSink` (CT-SINK-30
+to 35) fails, because the tool exits 2 on a profile of `type: matrix` ("matrix is not supported yet"). CT-SINK-18 and,
+in `contracts/registration`, CT-META-08 need the profile `matrix-contract`; with `RECAP_CONTRACT_HOOKS_ADDR` the
+contract environment adds it and the service does not start, without it both skip. They stay pending until the Matrix
+sink lands.
 
 ## Mock receiver and mock homeserver
 
