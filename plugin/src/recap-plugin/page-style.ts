@@ -18,7 +18,17 @@ export const HIDDEN_BBB_TOASTS = [
   "error-record-app.notification.recordingPaused",
 ];
 
+// BBB's recording pill in the nav bar (indicator and record button), for moderators and viewers. In recap meetings
+// the plugin's pill or chip replaces it. data-test="recordingIndicator" is on the wrapper of the pill only, in v4.0.0
+// and v4.0.2 (nav-bar-graphql/recording-indicator/component.tsx:389 @ 7d27e7e, :393 @ v4.0.2), and nowhere else in the
+// client; BBB's start confirmation and consent dialog are its siblings, not inside it. The bbb-recording-indicator
+// class exists only from v4.0.2. display:none here, unlike the toasts: no animation has to finish, and it takes the
+// button out of the layout, the tab order and the accessibility tree. The confirmation opens only from a click or
+// Enter on this button (component.tsx:184-191,318-329), so it cannot appear any more.
+export const HIDDEN_BBB_RECORDING_PILL = '[data-test="recordingIndicator"]';
+
 export const PAGE_CSS = [
+  `${HIDDEN_BBB_RECORDING_PILL} { display: none !important; }`,
   `${HIDDEN_BBB_TOASTS.map((id) => `[id="${id}"]`).join(", ")} ` +
     "{ position: absolute !important; visibility: hidden !important; pointer-events: none !important; }",
   // The plugin's own popovers are modal dialogs; like a popover, they do not dim the page.
