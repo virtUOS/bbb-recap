@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Changed
+
+- BBB plugin: the "AI summary" button is now an "AI minutes" control ("KI-Protokoll"): a pill like BBB's recording
+  pill with off, running and paused states and the active time, start and pause popovers, a status chip with an info
+  popover for everyone else, and toasts on each change. In recap meetings it hides BBB's own two "being recorded"
+  toasts ([install-plugin.md](docs/operations/install-plugin.md)).
+
 ## [0.2.1] - 2026-11-17
 
 ### Fixed

@@ -1,11 +1,11 @@
-# Install the BBB plugin
-
-The plugin adds an **AI summary** button to the BBB nav bar, right of BBB's recording indicator. It shows the state
-("AI summary: off" or "on") and, after a confirmation, starts or pauses the normal BBB recording like BBB's record
-button, which stays (without its "no microphone" warning). It shows only to users who may record (moderators, or users with the join parameter
-`userdata-bbb_record_permission=true`) and only in meetings with `record=true` and `allowStartStopRecording=true`. It
-is active only in meetings created with `meta_recap-enabled=true`. The plugin sends no data outside BBB; the summary
-comes from the recording through the exporter ([install-exporter.md](install-exporter.md)) as before.
+The plugin adds an **AI minutes** control ("KI-Protokoll" in German) to the BBB nav bar, right after BBB's recording
+indicator. The AI minutes are the normal BBB recording of the meeting: the plugin starts and pauses it with the same
+call as BBB's record button, which stays visible. Users who may record (moderators, or users with the join parameter
+`userdata-bbb_record_permission=true`, in meetings with `record=true` and `allowStartStopRecording=true`) get a pill
+that starts and pauses; everyone else gets a status chip once the minutes have been started. The plugin is active
+only in meetings created with `meta_recap-enabled=true`. It sends no data outside BBB; the minutes come from the
+recording through the exporter ([install-exporter.md](install-exporter.md)) as before. What it shows, per role and
+state, is in [What the plugin shows](#what-the-plugin-shows).
 
 You need BBB 4.0 (plugin SDK `1.0.0-beta.3`) and a static HTTPS host. The plugin is built and unit-tested but not
 yet tested on a BBB server.
@@ -80,9 +80,10 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
    ```
 
 4. Check: create a meeting with `meta_recap-enabled=true`, `record=true` and `allowStartStopRecording=true` (a front
-   end with recap does this) and join as moderator. The button "AI summary: off" appears right of the recording
-   indicator. A viewer does not see it. In a meeting without `meta_recap-enabled` the plugin is not loaded; with any
-   value other than `true` it loads but shows nothing.
+   end with recap does this) and join as moderator. The grey pill "Start AI minutes" appears right after the recording
+   indicator. A viewer sees nothing until the minutes are started, then the chip "Minutes are being taken". In a
+   meeting without `meta_recap-enabled` the plugin is not loaded; with any value other than `true` it loads but shows
+   nothing.
 
 ## Build it yourself
 
@@ -98,6 +99,70 @@ ls dist                                     # expect: RecapPlugin.js  manifest.j
 ```
 
 Continue with step 2, uploading the two files from `dist/`.
+
+## What the plugin shows
+
+The language follows the user's BBB locale: German for `de` and its regions, English for every other locale. The
+timer counts active time only (not the pauses) and is the same in every client: it is computed from the recording
+data on the server clock, with the formula of BBB's own recording timer.
+
+**Users who may record: the pill** (36 px high, like BBB's recording pill).
+
+| State   | Pill                                                                      | Click                       |
+| ------- | ------------------------------------------------------------------------- | --------------------------- |
+| Off     | grey, outline sparkle, "Start AI minutes"                                 | opens the start popover     |
+| Running | violet, filled sparkle with a pulsing ring, "AI minutes · mm:ss"          | opens the pause popover     |
+| Paused  | grey with a dashed violet border, pause sign, "AI minutes paused · mm:ss" | resumes at once, no popover |
+
+The start popover says what is recorded (everything said, with names and timestamps, no video in the minutes; chat,
+participant list and meeting data) and that everyone sees a notice; the pause popover says that nothing is
+transcribed until the minutes are resumed. Neither says where the minutes go.
+
+**Everyone else: the chip** (32 px, violet border), hidden while the minutes are off. Running: "Minutes are being
+taken" with a pulsing dot; paused: "Minutes paused" with a hollow dot. A click opens an info popover with what is
+recorded.
+
+**Toasts**, in every client, on a change only (not for the state found on joining):
+
+| Change      | Users who may record                    | Everyone else                       |
+| ----------- | --------------------------------------- | ----------------------------------- |
+| first start | "AI minutes are running"                | "This meeting is now being minuted" |
+| resume      | none (whoever resumed has just clicked) | "This meeting is now being minuted" |
+| pause       | "AI minutes paused"                     | "AI minutes paused"                 |
+
+**Motion and accessibility:** the pulse is an SVG animation and is left out when the system asks for reduced motion
+(`prefers-reduced-motion: reduce`); BBB's own "animations" setting is not available to plugins. The pill and the chip
+are buttons whose tooltip, which BBB also uses as the accessible name, states the state and what a click does (the
+nav bar passes no `aria-pressed`). The popovers are modal dialogs: the focus moves into them, Tab stays inside, Escape
+or a click outside closes them, and the focus returns to the pill or chip. BBB shows every toast with `role="alert"`;
+a plugin cannot change that.
+
+## CSS the plugin adds
+
+While active (only in recap meetings), the plugin adds one `<style data-recap-plugin>` element to the page and
+removes it when it stops:
+
+```css
+[id="success-record-app.notification.recordingStart"],
+[id="error-record-app.notification.recordingPaused"] {
+  display: none !important;
+}
+dialog[data-recap-popover]::backdrop {
+  background: transparent;
+}
+```
+
+- The first rule hides BBB's own toasts "This session is now being recorded" and "This session is not being
+  recorded anymore". In a recap meeting the recording is the AI minutes, and the plugin's own toasts already report
+  both changes. The selectors are the toast ids BBB builds from the server notification (type, icon, message id), so
+  each matches exactly one toast and nothing else. BBB's recording pill, its start confirmation, its consent dialog
+  (`notifyRecordingIsOn`) and every other toast stay as they are.
+- The second rule keeps the page undimmed behind the plugin's own popovers.
+
+If a BBB upgrade changes the toast ids, the rule matches nothing and BBB's toasts show again next to the plugin's;
+nothing else breaks. A Content Security Policy that forbids inline styles has the same effect. Sources (BBB v4.0.0
+`7d27e7e`, unchanged in v4.0.2): `SetRecordingStatusCmdMsgHdlr.scala` (the notifications), `bigbluebutton-html5/
+imports/ui/services/notification/index.js` (`generateToastId`), react-toastify 11.0.2 `Toast.tsx` (`id={toastId}`).
 
 ## How the plugin is limited to recap meetings
 
@@ -138,6 +203,12 @@ the plugin version, which BBB appends to the script URL, so browsers do not use 
 `pluginManifestCacheEnabled=true`, bbb-web may keep an old manifest for up to
 `pluginManifestCacheRefreshIntervalMinutes`.
 
-The plugin uses BBB's recording GraphQL fields, which are not part of the plugin SDK's contract. Test it after every
-BBB minor upgrade. `requiredSdkVersion` in the manifest (`^1.0.0-beta.3`) makes BBB refuse to load the plugin with an
-incompatible SDK.
+The plugin relies on BBB internals that are not part of the plugin SDK's contract: the recording GraphQL fields
+(`meeting_recording`, `current_time`), the nav bar rendering a label made of elements and the inline style of a
+nav bar button, and the toast ids above. Re-check after every BBB upgrade, in a recap meeting:
+
+- the pill in all three states and the chip look as described above, and the timer matches BBB's recording timer;
+- starting and pausing show the plugin's toasts and **not** BBB's "being recorded" toasts;
+- the pill keeps the keyboard focus while the timer runs.
+
+`requiredSdkVersion` in the manifest (`^1.0.0-beta.3`) makes BBB refuse to load the plugin with an incompatible SDK.
