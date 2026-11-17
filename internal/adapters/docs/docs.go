@@ -16,9 +16,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
-	"net/http/httptrace"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -113,11 +111,7 @@ func (c *Client) send(ctx context.Context, req sink.Request) (string, error) {
 	// wrote is set once any part of the request may have left this process;
 	// before that, a failure means Docs cannot have seen the request.
 	var wrote atomic.Bool
-	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
-		WroteHeaderField: func(string, []string) { wrote.Store(true) },
-		WroteHeaders:     func() { wrote.Store(true) },
-		WroteRequest:     func(httptrace.WroteRequestInfo) { wrote.Store(true) },
-	})
+	ctx = sink.TraceWrites(ctx, &wrote)
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
 	if err != nil {
 		return "", &sink.Error{Class: sink.Config, Code: "bad_url"}
@@ -129,7 +123,7 @@ func (c *Client) send(ctx context.Context, req sink.Request) (string, error) {
 
 	resp, err := c.client.Do(r)
 	if err != nil {
-		return "", transportError(err, wrote.Load())
+		return "", sink.TransportError(err, wrote.Load())
 	}
 	defer func() { _ = resp.Body.Close() }()
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
@@ -146,32 +140,12 @@ func (c *Client) send(ctx context.Context, req sink.Request) (string, error) {
 	return "", statusError(resp, b)
 }
 
-// transportError classifies a failed request: nothing written → not_sent
-// (connection refused, DNS failure, TLS failure before sending), else
-// uncertain (timeout or connection lost after sending).
-func transportError(err error, wrote bool) error {
-	timeout := errors.Is(err, context.DeadlineExceeded)
-	var ne net.Error
-	if errors.As(err, &ne) && ne.Timeout() {
-		timeout = true
-	}
-	switch {
-	case !wrote && timeout:
-		return &sink.Error{Class: sink.NotSent, Code: "connect_timeout"}
-	case !wrote:
-		return &sink.Error{Class: sink.NotSent, Code: "connect_failed"}
-	case timeout:
-		return &sink.Error{Class: sink.Uncertain, Code: "timeout"}
-	}
-	return &sink.Error{Class: sink.Uncertain, Code: "connection_lost"}
-}
-
 // statusError classifies a response other than 201 (sinks.md §1.6).
 func statusError(resp *http.Response, body []byte) error {
 	s := resp.StatusCode
 	switch {
 	case s == http.StatusTooManyRequests:
-		return &sink.Error{Class: sink.NotSent, Code: "throttled", RetryAfter: retryAfter(resp.Header.Get("Retry-After"))}
+		return &sink.Error{Class: sink.NotSent, Code: "throttled", RetryAfter: sink.RetryAfter(resp.Header.Get("Retry-After"))}
 	case s == http.StatusUnauthorized:
 		return &sink.Error{Class: sink.Config, Code: "unauthorized"}
 	case s == http.StatusForbidden:
@@ -197,19 +171,4 @@ func hasField(body []byte, field string) bool {
 	}
 	_, ok := m[field]
 	return ok
-}
-
-// retryAfter parses Retry-After in seconds or as an HTTP date; 0 if absent
-// or invalid.
-func retryAfter(v string) time.Duration {
-	if v == "" {
-		return 0
-	}
-	if n, err := strconv.Atoi(v); err == nil && n > 0 {
-		return time.Duration(n) * time.Second
-	}
-	if t, err := http.ParseTime(v); err == nil {
-		return max(time.Until(t), 0)
-	}
-	return 0
 }
