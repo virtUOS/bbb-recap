@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { popoverPosition } from "./popover";
+import { hideTooltipOf, popoverPosition } from "./popover";
 
 describe("popoverPosition", () => {
   it("opens below the anchor with the right edges aligned", () => {
@@ -18,5 +18,19 @@ describe("popoverPosition", () => {
 
   it("goes top right without an anchor", () => {
     expect(popoverPosition(null, 400, 1280)).toEqual({ top: 64, left: 864, width: 400 });
+  });
+});
+
+describe("hideTooltipOf", () => {
+  it("cancels a scheduled tooltip and hides a shown one", () => {
+    const tippy = { clearDelayTimeouts: vi.fn(), hide: vi.fn() };
+    hideTooltipOf({ _tippy: tippy } as unknown as Element);
+    expect(tippy.clearDelayTimeouts).toHaveBeenCalledOnce();
+    expect(tippy.hide).toHaveBeenCalledOnce();
+  });
+
+  it("does nothing without a button or a tooltip", () => {
+    expect(() => hideTooltipOf(null)).not.toThrow();
+    expect(() => hideTooltipOf({} as Element)).not.toThrow();
   });
 });
