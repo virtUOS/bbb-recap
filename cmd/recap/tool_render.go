@@ -187,7 +187,7 @@ func renderOnce(prog, formatsDir, outDir string, withSummarize bool, data []byte
 
 	sum, model := in.Summary, in.LLMModel
 	if withSummarize {
-		slides := mt.Inputs[config.InputSlides] && f.HasInput(summarize.InputSlides)
+		slides := mt.Inputs[format.InputSlides] && f.HasInput(format.InputSlides)
 		res, code := runSummarize(prog, f, in, polls, slides, lang, log, stderr)
 		if code >= 0 {
 			return code

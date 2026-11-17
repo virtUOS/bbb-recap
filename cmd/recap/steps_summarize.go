@@ -5,7 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/virtUOS/bbb-recap/internal/adapters/openaichat"
-	"github.com/virtUOS/bbb-recap/internal/config"
+	"github.com/virtUOS/bbb-recap/internal/format"
 	"github.com/virtUOS/bbb-recap/internal/providers"
 	"github.com/virtUOS/bbb-recap/internal/queue"
 	"github.com/virtUOS/bbb-recap/internal/steps/summarize"
@@ -26,7 +26,7 @@ func summarizeHandler(d *deps) (queue.Handler, error) {
 	slides := map[string]bool{}
 	for _, mt := range d.cfg.MeetingTypes {
 		types[mt.Name] = mt.Format
-		slides[mt.Name] = mt.Inputs[config.InputSlides]
+		slides[mt.Name] = mt.Inputs[format.InputSlides]
 	}
 	return summarize.Handler(summarize.Deps{
 		Pool:            d.pool,

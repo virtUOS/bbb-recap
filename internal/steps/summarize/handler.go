@@ -190,7 +190,7 @@ func (d Deps) load(ctx context.Context, jobID string) (*format.Format, Input, er
 	}
 	in := Input{MeetingName: m.MeetingName, Transcript: &tr, Polls: m.Polls}
 	// Slides only for a type that switches them on and a format that declares them (templates.md §3.1).
-	if d.SlideTypes[*meetingType] && f.HasInput(InputSlides) {
+	if d.SlideTypes[*meetingType] && f.HasInput(format.InputSlides) {
 		in.Slides = m.Slides
 	}
 	names := map[string]string{}

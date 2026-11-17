@@ -110,20 +110,21 @@ Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB pres
 6. Its text is `presentation/<presentationName>/textfiles/slide-<page>.txt`. A `presentationName` that does not match
    BBB's own check `^[a-z0-9-]+$` is never used in a path; its deck gives no slides. The page gives no slide when the
    file is missing or unreadable, or when its cleaned text is empty or equals BBB's placeholder
-   `No text could be retrieved for the slide`.
-7. Cleaning: decode UTF-8 (invalid bytes become U+FFFD); CRLF and CR become LF; every other control character
-   (Unicode `Cc`, including tab and form feed) becomes a space; in each line, runs of spaces become one space and the
-   line is trimmed; empty lines are dropped; lines are joined with LF. Only the first 64 KiB of a file are read, and
-   the cleaned text is stored cut to its first 1 000 Unicode code points (the most the LLM input uses, "Size" item
-   1).
+   `No text could be retrieved for the slide`. A failed read of a file that is in the package (a blob store failure,
+   including a hash mismatch) is not an unreadable file: it is a step error, and the step is retried.
+7. Cleaning: one leading UTF-8 byte order mark is dropped; decode UTF-8 (invalid bytes become U+FFFD); CRLF and CR
+   become LF; every other control character (Unicode `Cc`, including tab and form feed) becomes a space; in each line,
+   runs of spaces become one space and the line is trimmed; empty lines are dropped; lines are joined with LF. Only
+   the first 64 KiB of a file are read, and the cleaned text is stored cut to its first 1 000 Unicode code points (the
+   most the LLM input uses, "Size" item 1); trailing spaces and line feeds left by the cut are trimmed.
 8. A page shown in several pods or several times appears once, with its earliest `t_ms`.
 
-**Normalized meeting.** Version 4 adds `slides`: `[{t_ms, deck, page, text}]`, sorted by `t_ms`, then `deck`, then
-`page`; `[]` when there are none. `deck` is `d-<n>`, numbered from 1 in the order of the first
-`SharePresentationEvent` of each deck that has at least one slide; `page` is the 1-based page number. No presentation
-ID, path or file name is kept. The field is source-neutral (ADR-013): another source may fill it from its own slides
-or leave it empty. A reader of a version 3 blob treats it as `slides: []`. The meeting-type switch does not change
-what `normalize` writes: the switch is applied when the LLM input is built.
+**Normalized meeting.** Version 4 adds `slides`: `[{t_ms, deck, page, text}]`, sorted by `t_ms`, then deck number
+(the `n` of `d-<n>`), then `page`; `[]` when there are none. `deck` is `d-<n>`, numbered from 1 in the order of the
+first `SharePresentationEvent` of each deck that has at least one slide; `page` is the 1-based page number. No
+presentation ID, path or file name is kept. The field is source-neutral (ADR-013): another source may fill it from its
+own slides or leave it empty. A reader of a version 3 blob treats it as `slides: []`. The meeting-type switch does not
+change what `normalize` writes: the switch is applied when the LLM input is built.
 
 **LLM input.** Only when the job's meeting type has `inputs.slides: true` and there is at least one slide, the user
 message of the single `summarize` call and of the `consolidate` call gets a section `SLIDES`, after `POLLS`. It is

@@ -5,8 +5,8 @@
 //
 // # Format (internal, not pinned by a contract; field "version")
 //
-// version changes whenever a field changes its meaning, so a reader can tell
-// old blobs apart; adding a field does not change it. Readers decode the
+// version changes whenever a field is added or changes its meaning, so a
+// reader can tell old blobs apart. Readers decode the
 // blob with Decode, which accepts Version and version 3 and rejects any
 // other. Version 2 made chat plain text with edits and deletions applied and
 // added polls. Version 3 made participant roles neutral (moderator, viewer)
@@ -68,6 +68,18 @@
 //	                   text/markdown or text/html; null if absent.
 //	                   BBB: notes/notes.md, else notes/notes.html; null if
 //	                   notes/export_failed exists
+//	slides             [{t_ms, deck, page, text}]: the slides shown inside a
+//	                   recording period (templates.md §3.1), sorted by t_ms,
+//	                   then deck number, then page; [] when there are none.
+//	                   deck is an opaque ref d-<n>, page the 1-based page
+//	                   number, text the cleaned slide text (at most 1 000 code
+//	                   points), t_ms the start of the first showing that
+//	                   counts. Personal data possible (whatever the slides
+//	                   say). Whether the text reaches the LLM is decided by
+//	                   the meeting type, not here.
+//	                   BBB: replayed from the presentation events, text from
+//	                   presentation/<pres-id>/textfiles/slide-<page>.txt; no
+//	                   presentation ID or file name is kept
 package meeting
 
 import (

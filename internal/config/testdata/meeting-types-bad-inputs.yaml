@@ -2,8 +2,8 @@
 schema_version: "1.1.0"
 meeting_types:
   - name: meeting-summary
-    format: meeting-summary
-    inputs: { slides: true, video: true }
+    format: plain
+    inputs: { video: true }
   - name: plain
     format: plain
     inputs: { slides: false }

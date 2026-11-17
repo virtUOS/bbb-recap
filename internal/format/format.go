@@ -146,6 +146,10 @@ func load(fsys fs.FS, id string) (*Format, error) {
 	return f, nil
 }
 
+// InputSlides is the optional input slides (templates.md §1, §3.1): the name
+// in format.json and in the inputs of the meeting-types file.
+const InputSlides = "slides"
+
 // meta is format.json.
 type meta struct {
 	ID      string   `json:"id"`

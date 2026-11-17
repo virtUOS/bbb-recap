@@ -168,6 +168,20 @@ func TestSlideTextLimits(t *testing.T) {
 	if want := string([]rune(strings.Repeat("ä", 600) + "\n" + strings.Repeat("ö", 600))[:1000]); got != want {
 		t.Errorf("text has %d code points, want the first 1 000", len([]rune(got)))
 	}
+	// The cut never leaves trailing line feeds or spaces.
+	p, f = textFile(deckA, "3", strings.Repeat("a", 999)+"\nmore text")
+	if got, err := slideText(fstest.MapFS{p: f}, p); err != nil || got != strings.Repeat("a", 999) {
+		t.Errorf("text ends %q, want the 999 letters without the line feed", got[max(len(got)-5, 0):])
+	}
+	// One leading byte order mark is dropped, so a BOM before the placeholder gives no slide.
+	p, f = textFile(deckA, "4", "\ufeffNo text could be retrieved for the slide")
+	if got, err := slideText(fstest.MapFS{p: f}, p); err != nil || got != "" {
+		t.Errorf("BOM + placeholder: text = %q, %v; want \"\"", got, err)
+	}
+	p, f = textFile(deckA, "5", "\ufeffAgenda")
+	if got, _ := slideText(fstest.MapFS{p: f}, p); got != "Agenda" {
+		t.Errorf("BOM + text: text = %q, want \"Agenda\"", got)
+	}
 	// A placeholder after 64 KiB of spaces is never read.
 	p, f = textFile(deckA, "2", strings.Repeat(" ", 64<<10)+"hidden")
 	if got, err := slideText(fstest.MapFS{p: f}, p); err != nil || got != "" {

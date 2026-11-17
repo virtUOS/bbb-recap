@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/virtUOS/bbb-recap/internal/format"
 )
 
 // validEnv is a complete configuration for both roles, using the files under testdata/.
@@ -252,8 +254,8 @@ func TestLoadMeetingTypeInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if len(c.MeetingTypes) != 4 || c.MeetingTypes[0].Inputs[InputSlides] || !c.MeetingTypes[1].Inputs[InputSlides] ||
-		c.MeetingTypes[2].Inputs[InputSlides] {
+	if len(c.MeetingTypes) != 4 || c.MeetingTypes[0].Inputs[format.InputSlides] || !c.MeetingTypes[1].Inputs[format.InputSlides] ||
+		c.MeetingTypes[2].Inputs[format.InputSlides] {
 		t.Errorf("MeetingTypes = %+v", c.MeetingTypes)
 	}
 }

@@ -1,6 +1,7 @@
 package normalize
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"io/fs"
@@ -31,6 +32,9 @@ const (
 	// slidePlaceholder is the text BBB writes when it gets no text from a
 	// page (item 6).
 	slidePlaceholder = "No text could be retrieved for the slide"
+	// utf8BOM is the UTF-8 byte order mark, dropped once at the start of a
+	// text file (item 7).
+	utf8BOM = "\ufeff"
 )
 
 // presentationRE is BBB's own check of a presentation ID before it uses it
@@ -59,9 +63,9 @@ type pod struct {
 // file is missing, unreadable, empty or BBB's placeholder give no slide.
 // Decks get refs d-<n> in the order of their first SharePresentationEvent,
 // counting only decks with a slide. No presentation ID or file name is
-// returned. An error is returned only for a failed read other than a missing
-// or forbidden file (for example a blob store failure), so the step can be
-// retried.
+// returned. An error is returned for a failed read other than a missing or
+// forbidden file (a blob store failure, including a hash mismatch), so the
+// step fails as transient and is retried (templates.md §3.1 item 6).
 func slides(fsys fs.FS, ev *events.Events, origin int64, ps []meeting.Period) ([]meeting.Slide, error) {
 	first := map[pageKey]int64{} // earliest qualifying start per page
 	var shareOrder []string      // decks by first SharePresentationEvent
@@ -204,8 +208,11 @@ func shownFrom(from, to int64, ps []meeting.Period) []int64 {
 	return out
 }
 
-// slideText reads and cleans one slide text file (item 6, 7). A missing or
-// forbidden file, an empty cleaned text and BBB's placeholder give "".
+// slideText reads and cleans one slide text file (item 6, 7). One leading
+// UTF-8 byte order mark is dropped. A missing or forbidden file, an empty
+// cleaned text and BBB's placeholder give "". After the cut to slideMaxChars
+// code points, trailing spaces and line feeds are trimmed, so a block never
+// ends in an empty line.
 func slideText(fsys fs.FS, name string) (string, error) {
 	f, err := fsys.Open(name)
 	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) {
@@ -219,12 +226,12 @@ func slideText(fsys fs.FS, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	text := cleanSlide(b)
+	text := cleanSlide(bytes.TrimPrefix(b, []byte(utf8BOM)))
 	if text == slidePlaceholder {
 		return "", nil
 	}
 	if r := []rune(text); len(r) > slideMaxChars {
-		text = string(r[:slideMaxChars])
+		text = strings.TrimRight(string(r[:slideMaxChars]), " \n")
 	}
 	return text, nil
 }

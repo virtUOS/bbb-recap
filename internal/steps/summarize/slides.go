@@ -6,10 +6,6 @@ import (
 	"unicode/utf8"
 )
 
-// InputSlides is the name of the optional slide input in format.json and in
-// the meeting-types file (templates.md §1, §2).
-const InputSlides = "slides"
-
 // promptSlides is the format's slide rule, prompts/slides.md (templates.md
 // §3.1 "Prompt").
 const promptSlides = "slides"

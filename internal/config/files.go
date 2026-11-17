@@ -31,11 +31,8 @@ type MeetingType struct {
 	Inputs map[string]bool `yaml:"inputs,omitempty"`
 }
 
-// InputSlides is the optional input slides (templates.md §3.1, ADR-015).
-const InputSlides = "slides"
-
 // knownInputs are the optional inputs a meeting type can name (templates.md §1).
-var knownInputs = []string{InputSlides}
+var knownInputs = []string{format.InputSlides}
 
 // InputErrors checks the inputs of the meeting types (templates.md §1): an
 // unknown input name, or one the type's format does not declare in its
@@ -48,35 +45,26 @@ func InputErrors(name string, types []MeetingType, formatsDir string) []string {
 		if len(mt.Inputs) == 0 {
 			continue
 		}
-		keys := make([]string, 0, len(mt.Inputs))
-		for k := range mt.Inputs {
-			keys = append(keys, k)
-		}
-		slices.Sort(keys)
-		var known []string
-		for _, k := range keys {
-			if slices.Contains(knownInputs, k) {
-				known = append(known, k)
-				continue
-			}
-			errs = append(errs, fmt.Sprintf("%s: meeting_types[%d].inputs.%s: unknown input (known: %s)",
-				name, i, k, strings.Join(knownInputs, ", ")))
-		}
-		if len(known) == 0 {
-			continue
-		}
 		declared, err := format.DeclaredInputs(formatsDir, mt.Format)
 		if errors.Is(err, format.ErrNotFound) {
-			continue
+			continue // the job is held unknown_type
 		}
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s: meeting_types[%d].inputs: %v", name, i, err))
 			continue
 		}
-		for _, k := range known {
-			if !slices.Contains(declared, k) {
-				errs = append(errs, fmt.Sprintf("%s: meeting_types[%d].inputs.%s: format %q does not declare this input",
-					name, i, k, mt.Format))
+		keys := make([]string, 0, len(mt.Inputs))
+		for k := range mt.Inputs {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		for _, k := range keys {
+			at := fmt.Sprintf("%s: meeting_types[%d].inputs.%s", name, i, k)
+			switch {
+			case !slices.Contains(knownInputs, k):
+				errs = append(errs, fmt.Sprintf("%s: unknown input (known: %s)", at, strings.Join(knownInputs, ", ")))
+			case !slices.Contains(declared, k):
+				errs = append(errs, fmt.Sprintf("%s: format %q does not declare this input", at, mt.Format))
 			}
 		}
 	}
