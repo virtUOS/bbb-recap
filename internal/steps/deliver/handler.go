@@ -146,13 +146,6 @@ func Handler(d Deps) queue.Handler {
 			d.Log.Warn("deliver: cannot load the job", "job_id", run.JobID, "err", code)
 			return queue.Result{Outcome: queue.Transient, ErrorClass: errorClassInternal, ErrorCode: code}
 		}
-		for _, st := range j.sinks {
-			if _, ok := d.Sinks[st.Profile]; !ok {
-				d.Log.Error("deliver: sink profile not configured", "job_id", run.JobID, "profile", st.Profile)
-				return queue.Result{Outcome: queue.Permanent, Reason: ReasonConfigError,
-					ErrorClass: string(sink.Config), ErrorCode: "unknown_sink_profile"}
-			}
-		}
 		req, err := d.request(ctx, run.JobID, j)
 		if err != nil {
 			code := errorCode(err)
@@ -246,7 +239,15 @@ func done(status string) bool {
 // stops the attempt (the step is no longer claimed, the job is stopping, or
 // the database failed before the request).
 func (a *attempt) call(ctx context.Context, st queue.SinkStatus) bool {
-	s := a.d.Sinks[st.Profile]
+	s, ok := a.d.Sinks[st.Profile]
+	if !ok {
+		// The profile was removed from the configuration: the sink fails
+		// with config_error, the others are still called, and an admin can
+		// skip it (sinks.md §1.8).
+		a.d.Log.Error("deliver: sink profile not configured", "job_id", a.run.JobID, "profile", st.Profile)
+		a.results[st.Profile] = &result{err: &sink.Error{Class: sink.Config, Code: "unknown_sink_profile"}}
+		return true
+	}
 	req := a.req
 	req.SinkProfile = st.Profile
 	select {

@@ -215,3 +215,61 @@ func TestUncertainWebhookHolds(t *testing.T) {
 			r, e.docs.requests(), len(hook.calls()))
 	}
 }
+
+// A profile removed from the configuration fails only its own sink with
+// config_error; the other sinks are still called, and a done sink with a
+// removed profile is not looked at (sinks.md §1.8).
+func TestMissingProfile(t *testing.T) {
+	e, _, _ := newMultiEnv(t)
+	jobID := e.seedMulti(t, "frontend-main,removed-docs,docs-main", "")
+
+	run := e.claim(t, jobID)
+	r := Handler(e.deps)(ctx, run)
+	if r.Outcome != queue.Permanent || r.Reason != ReasonConfigError || r.ErrorCode != "unknown_sink_profile" {
+		t.Fatalf("%+v, want permanent config_error unknown_sink_profile", r)
+	}
+	e.complete(t, run, r)
+	expectStatuses(t, e.statuses(t, jobID), "frontend-main=sent", "removed-docs=failed", "docs-main=sent")
+	sinks, _ := queue.SinkStatuses(ctx, e.deps.Pool, jobID)
+	if s := sinks[1]; s.FailureReason == nil || *s.FailureReason != ReasonConfigError {
+		t.Errorf("removed sink %+v, want config_error", s)
+	}
+
+	// A sent sink whose profile is gone later does not stop the others.
+	other := e.seedMulti(t, "frontend-main,docs-main", "")
+	e.exec(t, `UPDATE jobs SET sink_profile = 'gone-main,docs-main' WHERE job_id = $1`, other)
+	e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state, sent_at) VALUES ($1, 'gone-main', 'sent', now())`, other)
+	run = e.claim(t, other)
+	if r = Handler(e.deps)(ctx, run); r.Outcome != queue.OK {
+		t.Fatalf("%+v, want ok", r)
+	}
+}
+
+// recipient_unresolved next to a frontend sink: the job holds
+// owner_unresolved with the frontend sink sent; after the resume the Docs
+// sink is sent and the frontend sink is not stored again.
+func TestOwnerUnresolvedWithFrontend(t *testing.T) {
+	e, results, _ := newMultiEnv(t)
+	e.docs.queue(status(http.StatusBadRequest, `{"email": ["mock-docs: two users"]}`))
+	jobID := e.seedMulti(t, "docs-main,frontend-main", "")
+
+	run := e.claim(t, jobID)
+	r := Handler(e.deps)(ctx, run)
+	if r.Outcome != queue.Hold || r.Reason != HeldOwnerUnresolved {
+		t.Fatalf("%+v, want hold owner_unresolved", r)
+	}
+	e.complete(t, run, r)
+	expectStatuses(t, e.statuses(t, jobID), "docs-main=pending", "frontend-main=sent")
+	if err := results.DeleteResults(ctx, jobID); err != nil { // picked up meanwhile
+		t.Fatal(err)
+	}
+	run = e.claim(t, jobID)
+	if r = Handler(e.deps)(ctx, run); r.Outcome != queue.OK {
+		t.Fatalf("after the resume: %+v, want ok", r)
+	}
+	e.complete(t, run, r)
+	expectStatuses(t, e.statuses(t, jobID), "docs-main=sent", "frontend-main=sent")
+	if _, ok := stored(t, results, jobID); ok {
+		t.Error("the frontend sink was stored again")
+	}
+}
