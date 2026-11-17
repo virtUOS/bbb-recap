@@ -147,6 +147,19 @@ func TestLoadCredentialsErrors(t *testing.T) {
 	}
 }
 
+// A file and its own .next with one token: a rotation hint, not the rename hint.
+func TestLoadCredentialsDuplicateTokenNext(t *testing.T) {
+	_, err := LoadCredentials(writeSecrets(t, map[string]string{
+		"frontend.pilos-fixture":      frontendToken,
+		"frontend.pilos-fixture.next": frontendToken + "\n",
+	}))
+	want := "client secrets: frontend.pilos-fixture and frontend.pilos-fixture.next hold the same token: " +
+		"during a rotation, .next must hold the new token"
+	if err == nil || err.Error() != want {
+		t.Fatalf("err = %v, want %q", err, want)
+	}
+}
+
 func TestCredentialsIDs(t *testing.T) {
 	c, err := LoadCredentials(writeSecrets(t, map[string]string{
 		"frontend.pilos-b":      "FIXTURE-NOT-A-SECRET-b",

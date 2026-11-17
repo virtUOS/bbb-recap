@@ -86,7 +86,13 @@ func LoadCredentials(dir string) (*Credentials, error) {
 		}
 		cr := credential{client: client, file: name, sum: sha256.Sum256([]byte(token))}
 		for _, other := range c.list {
-			if other.sum == cr.sum {
+			if other.sum != cr.sum {
+				continue
+			}
+			if other.client == cr.client { // a file and its own .next
+				errs = append(errs, fmt.Errorf("client secrets: %s and %s hold the same token: during a rotation, "+
+					".next must hold the new token", other.file, name))
+			} else {
 				errs = append(errs, fmt.Errorf("client secrets: %s and %s hold the same token; two clients cannot "+
 					"share a token: if a client ID was renamed, remove the file of the old ID", other.file, name))
 			}

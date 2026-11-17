@@ -101,9 +101,10 @@ this section is the layout they follow.
 - Validated in one pass at start, before any connection; all errors are printed together; exit `2`.
   `recap check-config [--role api|worker]` runs the same check (default: both roles). Unknown `RECAP_*` variables are
   errors, except `RECAP_EXPORTER_*`, `RECAP_CONTRACT_*` and `RECAP_BIN` (other programs on the same host).
-- The `api` role (at start and in `check-config`) also reads `RECAP_CLIENT_SECRETS_DIR`: a bad file name, an empty file
-  or one token in two files is an error; the duplicate-token error names both files and says to remove the file of the
-  old ID. It then logs one INFO line `front end access` per `frontend.<id>` file with the BBB servers, meeting types
+- The `api` role (at start and in `check-config`) also reads `RECAP_CLIENT_SECRETS_DIR`, after the variables are
+  valid (its errors are printed in a second pass): a bad file name, an empty file or one token in two files is an
+  error; the duplicate-token error names both files and says to remove the file of the old ID (for a file and its own
+  `.next`: that `.next` must hold the new token). It then logs one INFO line `front end access` per `frontend.<id>` file with the BBB servers, meeting types
   and sink profiles that front end may use (`all` where no list restricts it, `none` for servers when
   `RECAP_FRONTEND_SERVERS` is set without it), and a WARN for each front-end ID in `RECAP_FRONTEND_SERVERS`,
   `RECAP_FRONTEND_TYPES` or `RECAP_FRONTEND_SINKS` without a `frontend.<id>` file (likely a typo) and for each
