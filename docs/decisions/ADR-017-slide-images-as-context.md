@@ -55,8 +55,9 @@ a, with c as the fallback if go-pdfium fails on real decks. The step interface d
   credentials, wrong URL) fails the job, as for every other provider.
 - **One image per call (D6):** simple retries per image, small outputs, and it works with a server that allows one
   image per prompt.
-- **Caps (D7):** long edge 1 280 px, PNG, at most 50 page renders per job, at most 1 000 characters per description
-  (the existing per-slide cap), image uploads checked by their header against 50 megapixels before decoding. Constants, not settings, and **provisional** until the staging measurement (below).
+- **Caps (D7):** long edge 1 280 px, PNG, at most 50 render attempts per job, at most 1 000 characters per
+  description (the existing per-slide cap), image uploads checked by their header against 25 megapixels before
+  decoding. Constants, not settings, and **provisional** until the staging measurement (below).
 - **Steps (D8):** `normalize` renders (it is the BBB-specific step that reads `presentation/`); a new source-neutral
   step `describe` between `assemble` and `summarize` calls the vision model, one image per call, with progress per
   image in `step_items`.

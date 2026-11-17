@@ -96,8 +96,11 @@ this section is the layout they follow.
 - Slide images (ADR-017, `templates.md` §3.2): when a meeting type switches `slide_images` on, add 512 MiB to the
   `worker` memory request and limit (compose: `mem_limit` if one is set). A render run holds up to about 300 MB
   (measured on a synthetic deck; renderer cap 512 MiB), at most one per worker process at a time, and that memory is
-  returned only when the run ends. Rendering needs no `/tmp` and no new variable; the switch is the meeting-types file
-  and the vision profile is `defaults.vision` in the providers file. Estimates until measured on staging.
+  returned only when the run ends. Decoding an image upload runs on the Go heap outside that cap and may hold up to
+  about 400 MB at the 25-megapixel limit (estimate); the 512 MiB cover it because an open renderer instance is closed
+  before an upload is decoded (`templates.md` §3.2). Both are measured on staging. Rendering needs no `/tmp` and no new
+  variable; the switch is the meeting-types file and the vision profile is `defaults.vision` in the providers file.
+  Estimates until measured on staging.
 
 ## 5. Configuration
 

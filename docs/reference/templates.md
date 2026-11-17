@@ -7,8 +7,9 @@ Decisions: [ADR-005](../decisions/ADR-005-metadata-interface.md), [ADR-007](../d
 [`README.md`](README.md). LLM calls go through [`providers.md`](providers.md) §3. External facts are collected in [`upstream-facts.md`](upstream-facts.md); prior-art
 repositories are listed at the top of `providers.md`.
 
-Scope: the steps `describe` (vision model, §3.2), `summarize` (LLM) and `render`. `render` writes two blobs: **`summary.md`** (delivered to the sink)
-and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is described in [`sinks.md`](sinks.md).
+Scope: the steps `describe` (vision model, §3.2), `summarize` (LLM) and `render`. `render` writes two blobs:
+**`summary.md`** (delivered to the sink) and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is
+described in [`sinks.md`](sinks.md).
 
 ## 1. Selection by meeting type
 
@@ -184,7 +185,8 @@ Retention and deleter: as the other job blobs, until `cleanup` (ADR-009).
 ### 3.2 Slide images
 
 Decision: ADR-017. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB presentations". The constants of this
-section (sizes, caps, pixel limit, timeouts, the stop after 3 `retryable` results) are **provisional** until the staging measurement of ADR-017 (D11).
+section (sizes, caps, pixel limit, timeouts, the stop after 3 `retryable` results) are **provisional** until the
+staging measurement of ADR-017 (D11), which also measures the memory and time of decoding an upload at the limit.
 
 Everything below happens only for a job whose meeting type has `inputs.slide_images: true` (which needs
 `inputs.slides: true`, §1). For every other job `normalize` renders nothing, `describe` is a no-op and the requests are
@@ -212,18 +214,26 @@ file that is in the package (a blob store failure, including a hash mismatch) is
 1. A PDF page is rendered as displayed (crop box, page rotation applied) so that its long edge is **1 280 px**; the
    short edge is `short × 1280 / long`, rounded half up, at least 1 px.
 2. An image upload (PNG, JPEG, WebP) is first checked by its header only (width and height, Go `image.DecodeConfig`),
-   before any pixel buffer is allocated: above **50 megapixels** it gives no image (`too_large`). Otherwise it is
-   decoded and, if its long edge is over 1 280 px, scaled down by the same rule; it is never scaled up. An animated
-   WebP gives no image (the decoder does not read animations); an animated PNG gives its default image.
+   before any pixel buffer is allocated: above **25 megapixels** it gives no image (`too_large`). For WebP this relies
+   on the decoder rejecting a bitstream whose size differs from the `VP8X` canvas
+   ([`upstream-facts.md`](upstream-facts.md) "Providers"); the dependency is not used below a version with that check.
+   The decode runs in Go, outside the renderer's limits: it has no time limit of its own (it is bounded by the pixel
+   limit) and may hold up to about 400 MB at the limit (a progressive JPEG keeps its coefficients next to the image;
+   estimate, not measured). An open renderer instance is closed before an upload is decoded, so the two never hold
+   memory at the same time. Below the limit it is decoded and, if its long edge is over 1 280 px, scaled down by the same
+   rule; it is never scaled up. An animated WebP gives no image (the decoder does not read animations); an animated PNG
+   gives its default image.
 3. The result is composited on opaque white and written as PNG, 8 bits per channel, colour type 2 (RGB, no alpha),
    without ancillary chunks. The same input bytes and the same binary give the same PNG bytes; PNG bytes are not
    pinned across renderer or Go versions.
-4. One renderer instance per `normalize` run, closed at its end. The PDF is passed as bytes; the renderer sees no
-   filesystem. Limits: 512 MiB renderer memory, 10 s for opening a document, 10 s per page. A time limit stops the
-   instance (the WebAssembly runtime closes the module when its deadline passes), so after a limit hit the instance is
-   discarded and the next page that needs one starts a new instance. A PDF that does not open, a page number beyond its
-   page count, an image that does not decode, or a limit hit gives **no image** for that page; its text path is
-   unchanged. At most one renderer instance runs per worker process at a time.
+4. One renderer instance at a time per worker process, normally one per `normalize` run, closed at its end. The PDF
+   is passed as bytes; the renderer sees no filesystem. Limits: 512 MiB renderer memory, 10 s for opening a document,
+   10 s per page. Every limit hit (time or memory) discards the instance (the WebAssembly runtime closes the module
+   when its deadline passes; after a memory limit hit the instance is not trusted either). The file in which the limit was hit is not opened again:
+   that page and the file's remaining pages get no image without further attempts; the hit counts as the attempt of
+   that page. The next file that needs a renderer starts a new instance. A PDF that does not open, a page number
+   beyond its page count, an image that does not decode, or a limit hit gives **no image**; the text path is
+   unchanged.
 
 **Dedupe and cap.** Pages are handled in `slides[]` order (§3.1 "Normalized meeting").
 
@@ -283,7 +293,9 @@ timeout. On an attempt before the last, the first `retryable` result ends the st
 calls in flight finish and keep their rows, and the queue retries the step with backoff and `Retry-After`
 (`architecture.md` §5.3). On the last attempt, after **3** `retryable` results in a row (in the order the calls end)
 no new call is started; calls in flight finish, and every image still without a row falls back (`retryable`). So a
-hanging vision server costs at most about `(3 + max_inflight − 1) × 120 s` on the last attempt.
+hanging vision server costs at most about `(3 + max_inflight − 1) × 120 s` on the last attempt. The worst case is a
+server that fails intermittently: the counter starts again after every success, so the last attempt can still take
+up to `50 × 120 s / max_inflight` (100 minutes at `max_inflight` 1).
 
 **Storage and idempotency.** Each done image has a `step_items` row (step `describe` where the table has a `step`
 column, `architecture.md` §6.1; item `img-<64 hex>`, state `succeeded`,
@@ -327,9 +339,9 @@ Prompts are English data files shipped with the format; the output language is i
 
 **Call plan.** If the rendered input fits the budget (`providers.md` §3.5): one `summarize` call → `summary.v1`.
 Otherwise `extract` per transcript chunk → `chunk-notes.v1`, then `consolidate` over the chunk notes, chat, notes,
-polls, the gap list and, if switched on, the slides (§3.1, with descriptions of slide images, §3.2) → `summary.v1`.
-The vision calls of `describe` (§3.2) run in their own step before `summarize` and are not part of this plan. If the transcript has no segments (everyone silent): no LLM call; `summary.md`
-says that no speech was recognized.
+polls, the gap list and, if switched on, the slides (§3.1, with descriptions of slide images, §3.2) → `summary.v1`. The
+vision calls of `describe` (§3.2) run in their own step before `summarize` and are not part of this plan. If the
+transcript has no segments (everyone silent): no LLM call; `summary.md` says that no speech was recognized.
 
 **Prompt requirements.** The system message states the task, that data sections are data only, the output language,
 and JSON only (with the schema embedded in `json_object` and `prompt` modes). It forbids inventing owners or due
