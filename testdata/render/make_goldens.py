@@ -32,7 +32,7 @@ ROOT = os.getcwd()
 RENDER = os.path.join(ROOT, "testdata", "render")
 
 FORMAT_ID = "meeting-summary"
-FORMAT_VERSION = "1.0.0"
+FORMAT_VERSION = "1.1.0"
 
 # String tables (templates.md §5.4 "Fixed details", §6, §7). The de labels are listed in §5.4; this table is the
 # reference the spec points to.
