@@ -192,21 +192,24 @@ cd /opt/recap-exporter && docker compose up -d
 
 ### Metrics for Prometheus
 
-The metrics listener is on `127.0.0.1:9466` without a login. To scrape it from another host, forward only `/metrics`
-through the web server that already serves BBB and limit it to the Prometheus server. For nginx, add this to the
-`server` block that serves BBB over HTTPS (`PROM_IP` is the Prometheus server's address):
+The metrics listener is on `127.0.0.1:9466` without a login; the metrics hold no personal data (counts by state and
+reason, and the version). To scrape them from another host, forward only `/metrics` through BBB's nginx and limit it
+to the Prometheus server. BBB's nginx includes every `*.nginx` file in `/etc/bigbluebutton/nginx/`:
 
-```nginx
+```sh
+PROM_IP=192.0.2.10   # the Prometheus server's address
+cat > /etc/bigbluebutton/nginx/recap-exporter.nginx <<EOF
 location = /recap-exporter/metrics {
-    allow PROM_IP;
+    allow $PROM_IP;
     deny  all;
     proxy_pass http://127.0.0.1:9466/metrics;
 }
+EOF
+nginx -t && systemctl reload nginx
 ```
 
-Find the file that holds that `server` block with `sudo nginx -T | grep -n -e '# configuration file' -e 'server_name'`.
-Packaged BBB can overwrite its own site file on upgrade; check the block after each BBB upgrade. Then
-`sudo nginx -t && sudo systemctl reload nginx`, and on the Prometheus server:
+If Prometheus reaches BBB over both IPv4 and IPv6, add one `allow` line per address; other clients get 403. Then on
+the Prometheus server, under `scrape_configs` in `prometheus.yml`:
 
 ```yaml
 - job_name: recap-exporter
@@ -216,10 +219,9 @@ Packaged BBB can overwrite its own site file on upgrade; check the block after e
     - targets: ["bbb1.example.org"]
 ```
 
-`/healthz` and `/readyz` are for the local healthcheck and need not be forwarded.
-
-This is for packaged BBB. On docker BBB the web server runs in a container and cannot reach the host's `127.0.0.1`
-(not tested there).
+`/healthz` and `/readyz` are for the local healthcheck and need not be forwarded. This is for packaged BBB; checked
+against the BBB sources and a stand-alone nginx, not yet on a BBB server. Docker BBB is not supported yet: its nginx
+runs in a container and cannot reach the host's `127.0.0.1`.
 
 ### Sources
 
@@ -227,4 +229,8 @@ This is for packaged BBB. On docker BBB the web server runs in a container and c
   recording dir: `record-and-playback/core/scripts/bigbluebutton.yml:66 @ 7d27e7e`.
 - Docker BBB: services, mounts, UID/GID 998: `docker-compose.yml` and `docker/README.md` of bigbluebutton/bigbluebutton
   PR #26186 @ `c3d6b3e` ([bbb-exporter.md](../reference/bbb-exporter.md) §8.6).
+- nginx on packaged BBB includes `/etc/bigbluebutton/nginx/*.nginx`:
+  `build/packages-template/bbb-html5/bigbluebutton.nginx:20 @ 7d27e7e`; bbb-install writes the same include and passes
+  the real client address: `bbb-install.sh:1666-1706` of bigbluebutton/bbb-install @ `3e54736`.
+- Docker BBB: nginx runs as a container with published ports: `docker-compose.yml:83-86` of PR #26186 @ `c3d6b3e`.
 - More: [upstream-facts.md](../reference/upstream-facts.md).
