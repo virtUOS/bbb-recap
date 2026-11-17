@@ -28,13 +28,16 @@ export function toastFor(
   return null;
 }
 
-export function toastText(kind: ToastKind, messages: Messages): { title: string; body: string } {
+// BBB shows a plugin's content under a separator in another font and size than the message (common/toast/
+// component.jsx:57-65, styles.js:124-155 @ 7d27e7e), unlike its own toasts, which are one message next to the icon.
+// So title and body go into the message as two sentences.
+export function toastText(kind: ToastKind, messages: Messages): string {
   switch (kind) {
     case "startedModerator":
-      return { title: messages.toastStartedModeratorTitle, body: messages.toastStartedModeratorBody };
+      return `${messages.toastStartedModeratorTitle}. ${messages.toastStartedModeratorBody}`;
     case "startedParticipant":
-      return { title: messages.toastStartedParticipantTitle, body: messages.toastStartedParticipantBody };
+      return `${messages.toastStartedParticipantTitle}. ${messages.toastStartedParticipantBody}`;
     case "paused":
-      return { title: messages.toastPausedTitle, body: messages.toastPausedBody };
+      return `${messages.toastPausedTitle}. ${messages.toastPausedBody}`;
   }
 }

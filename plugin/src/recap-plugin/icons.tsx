@@ -128,7 +128,8 @@ export function infoIcon() {
 }
 
 // The toast avatar: a violet circle with a sparkle that fills BBB's 2rem icon slot (common/toast/styles.js:86-122)
-// and so covers its colour, which BBB takes from the toast type.
+// and so covers its colour, which BBB takes from the toast type. The sparkle is centred and about as large as BBB's
+// 1em icon glyph in that slot; its tips are thin, so it spans a little more than the glyph.
 export function toastIcon(): Svg {
   return (
     <svg
@@ -138,7 +139,7 @@ export function toastIcon(): Svg {
       style={{ width: "2rem", height: "2rem" }}
     >
       <circle cx="16" cy="16" r="16" fill={ACCENT} />
-      <g transform="translate(8 8) scale(0.666667)">
+      <g transform="translate(5 5.3)">
         <path d={SPARKLE_FILLED} fill={ON_ACCENT} />
       </g>
     </svg>
