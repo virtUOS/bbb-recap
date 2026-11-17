@@ -88,6 +88,66 @@ function pausedIcon() {
   );
 }
 
+// The chip's 8 px dot: filled and pulsing while running, hollow while paused.
+function dot(state: "running" | "paused", motion: boolean) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 8 8"
+      aria-hidden="true"
+      style={{ ...size(8), overflow: "visible" }}
+    >
+      {state === "running" && motion && pulse(4, 4, 4)}
+      {state === "running" ? (
+        <circle cx="4" cy="4" r="4" fill={ACCENT} />
+      ) : (
+        <circle cx="4" cy="4" r="3.25" fill="none" stroke={ACCENT} strokeWidth="1.5" />
+      )}
+    </svg>
+  );
+}
+
+// A 15 px info sign in the text colour, at the end of the chip's label.
+export function infoIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      style={size(15)}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </svg>
+  );
+}
+
+// The toast avatar: a violet circle with a sparkle that fills BBB's 2rem icon slot (common/toast/styles.js:86-122)
+// and so covers its colour, which BBB takes from the toast type.
+export function toastIcon(): Svg {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 32 32"
+      aria-hidden="true"
+      style={{ width: "2rem", height: "2rem" }}
+    >
+      <circle cx="16" cy="16" r="16" fill={ACCENT} />
+      <svg x="8" y="8" width="16" height="16" viewBox="0 0 24 24">
+        <path d={SPARKLE_FILLED} fill={ON_ACCENT} />
+      </svg>
+    </svg>
+  ) as Svg;
+}
+
+export function chipDot(state: "running" | "paused", reducedMotion: boolean): Svg {
+  return dot(state, !reducedMotion) as Svg;
+}
+
 // The SDK types an icon's svgContent as SVG props, but BBB renders it as a child (nav-bar/component.jsx:71-77), so it
 // is an <svg> element.
 export function pillIcon(state: MinutesState, reducedMotion: boolean): Svg {

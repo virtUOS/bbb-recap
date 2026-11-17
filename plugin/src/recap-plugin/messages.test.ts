@@ -24,4 +24,16 @@ describe("messagesFor", () => {
       expect(text).not.toBe("");
     }
   });
+
+  it("never says where the minutes go", () => {
+    for (const text of [...Object.values(messagesFor("en")), ...Object.values(messagesFor("de"))]) {
+      expect(text).not.toMatch(/mail|send|sent|versend|an alle\b|to everyone/i);
+    }
+  });
+
+  it("says that the minutes hold no video", () => {
+    expect(messagesFor("en").noVideo).toBe("No video in the minutes.");
+    expect(messagesFor("de").noVideo).toBe("Kein Video im Protokoll.");
+    expect(messagesFor("de").infoSpoken).toContain("kein Video im Protokoll");
+  });
 });

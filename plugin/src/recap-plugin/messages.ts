@@ -20,6 +20,20 @@ export interface Messages {
   startButton: string;
   pauseButton: string;
   cancel: string;
+  chipRunning: string;
+  chipPaused: string;
+  chipTooltipRunning: string;
+  chipTooltipPaused: string;
+  infoTitle: string;
+  infoSpoken: string;
+  infoData: string;
+  infoClose: string;
+  toastStartedModeratorTitle: string;
+  toastStartedModeratorBody: string;
+  toastStartedParticipantTitle: string;
+  toastStartedParticipantBody: string;
+  toastPausedTitle: string;
+  toastPausedBody: string;
 }
 
 const en: Messages = {
@@ -40,6 +54,20 @@ const en: Messages = {
   startButton: "Start",
   pauseButton: "Pause",
   cancel: "Cancel",
+  chipRunning: "Minutes are being taken",
+  chipPaused: "Minutes paused",
+  chipTooltipRunning: "AI minutes are being taken. Click for details.",
+  chipTooltipPaused: "AI minutes are paused. Click for details.",
+  infoTitle: "This meeting is being minuted",
+  infoSpoken: "What is said is transcribed with names, no video in the minutes",
+  infoData: "Chat, participant list and meeting data are included",
+  infoClose: "Got it",
+  toastStartedModeratorTitle: "AI minutes are running",
+  toastStartedModeratorBody: "All participants have been notified.",
+  toastStartedParticipantTitle: "This meeting is now being minuted",
+  toastStartedParticipantBody: "What is said is transcribed with names.",
+  toastPausedTitle: "AI minutes paused",
+  toastPausedBody: "Nothing is transcribed until they are resumed.",
 };
 
 const de: Messages = {
@@ -60,6 +88,20 @@ const de: Messages = {
   startButton: "Starten",
   pauseButton: "Pausieren",
   cancel: "Abbrechen",
+  chipRunning: "Wird protokolliert",
+  chipPaused: "Protokoll pausiert",
+  chipTooltipRunning: "KI-Protokoll läuft. Klicken für Details.",
+  chipTooltipPaused: "KI-Protokoll pausiert. Klicken für Details.",
+  infoTitle: "Dieses Meeting wird protokolliert",
+  infoSpoken: "Gesagtes wird mit Namen transkribiert, kein Video im Protokoll",
+  infoData: "Chat, Teilnehmerliste und Meeting-Daten fließen ein",
+  infoClose: "Verstanden",
+  toastStartedModeratorTitle: "KI-Protokoll läuft",
+  toastStartedModeratorBody: "Alle Teilnehmenden wurden informiert.",
+  toastStartedParticipantTitle: "Dieses Meeting wird jetzt protokolliert",
+  toastStartedParticipantBody: "Gesagtes wird mit Namen transkribiert.",
+  toastPausedTitle: "KI-Protokoll pausiert",
+  toastPausedBody: "Bis zum Fortsetzen wird nichts transkribiert.",
 };
 
 const catalog: Record<string, Messages> = { en, de };

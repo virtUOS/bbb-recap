@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { messagesFor } from "./messages";
-import { PILL_ID, pillItem, type PillInput, popoverOnClick, popoverStillFits } from "./nav-items";
+import {
+  CHIP_ID,
+  type NavBarButtonProps,
+  PILL_ID,
+  chipItem,
+  navView,
+  pillItem,
+  type PillInput,
+  popoverOnClick,
+  popoverStillFits,
+} from "./nav-items";
 import { elementsOf, textOf } from "./test-utils";
 
 const base: PillInput = {
@@ -14,7 +24,11 @@ const base: PillInput = {
 };
 
 function svgOf(input: PillInput) {
-  const icon = pillItem(input).icon;
+  return svgOfItem(pillItem(input));
+}
+
+function svgOfItem(item: NavBarButtonProps) {
+  const icon = item.icon;
   if (typeof icon !== "object" || !("svgContent" in icon)) {
     throw new Error("no svg icon");
   }
@@ -87,10 +101,68 @@ describe("popovers of the pill", () => {
   });
 
   it("close when the state changes under them or the user loses the control", () => {
-    expect(popoverStillFits("start", true, "off")).toBe(true);
-    expect(popoverStillFits("start", true, "running")).toBe(false);
-    expect(popoverStillFits("pause", true, "running")).toBe(true);
-    expect(popoverStillFits("pause", true, "paused")).toBe(false);
-    expect(popoverStillFits("start", false, "off")).toBe(false);
+    expect(popoverStillFits("start", "pill", "off")).toBe(true);
+    expect(popoverStillFits("start", "pill", "running")).toBe(false);
+    expect(popoverStillFits("pause", "pill", "running")).toBe(true);
+    expect(popoverStillFits("pause", "pill", "paused")).toBe(false);
+    expect(popoverStillFits("start", "chip", "off")).toBe(false);
+    expect(popoverStillFits("start", null, "off")).toBe(false);
+  });
+
+  it("info stays open while the chip shows, in both states", () => {
+    expect(popoverStillFits("info", "chip", "running")).toBe(true);
+    expect(popoverStillFits("info", "chip", "paused")).toBe(true);
+    expect(popoverStillFits("info", "pill", "running")).toBe(false);
+    expect(popoverStillFits("info", null, "off")).toBe(false);
+  });
+});
+
+describe("navView", () => {
+  it("shows the pill to users with the control, in every state", () => {
+    for (const state of ["off", "running", "paused"] as const) {
+      expect(navView(true, true, state)).toBe("pill");
+    }
+  });
+
+  it("shows the chip to everyone else, hidden while off", () => {
+    expect(navView(true, false, "off")).toBeNull();
+    expect(navView(true, false, "running")).toBe("chip");
+    expect(navView(true, false, "paused")).toBe("chip");
+  });
+
+  it("shows nothing while loading", () => {
+    expect(navView(false, false, "running")).toBeNull();
+    expect(navView(false, true, "off")).toBeNull();
+  });
+});
+
+describe("chipItem", () => {
+  const chip = { messages: messagesFor("en"), reducedMotion: false, onClick: () => {} };
+
+  it("running: label, details in the tooltip, pulsing dot", () => {
+    const item = chipItem({ ...chip, state: "running" });
+    expect(textOf(item.label)).toBe("Minutes are being taken");
+    expect(item.tooltip).toBe("AI minutes are being taken. Click for details.");
+    expect(item.id).toBe(CHIP_ID);
+    expect(item.style?.height).toBe("2rem");
+    expect(item.disabled).toBe(false);
+    expect(elementsOf(svgOfItem(item), "animate")).toHaveLength(2);
+  });
+
+  it("paused: hollow dot without pulse", () => {
+    const item = chipItem({ ...chip, state: "paused" });
+    expect(textOf(item.label)).toBe("Minutes paused");
+    expect(elementsOf(svgOfItem(item), "animate")).toHaveLength(0);
+    expect(elementsOf(svgOfItem(item), "circle")[0].fill).toBe("none");
+  });
+
+  it("does not pulse with prefers-reduced-motion", () => {
+    const item = chipItem({ ...chip, state: "running", reducedMotion: true });
+    expect(elementsOf(svgOfItem(item), "animate")).toHaveLength(0);
+  });
+
+  it("is German for a German locale", () => {
+    const item = chipItem({ ...chip, state: "running", messages: messagesFor("de") });
+    expect(textOf(item.label)).toBe("Wird protokolliert");
   });
 });

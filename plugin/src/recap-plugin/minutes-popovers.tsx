@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { chatIcon, eyeIcon, micIcon, pauseFilledIcon, sparkleFilledIcon, sparkleOutlineIcon } from "./icons";
 import type { Messages } from "./messages";
-import { PILL_DATA_TEST } from "./nav-items";
+import { CHIP_DATA_TEST, PILL_DATA_TEST } from "./nav-items";
 import Popover, { buttonStyles, closeDialogOf, colors } from "./popover";
 
 interface Props {
@@ -83,6 +83,42 @@ export function PausePopover(props: Props) {
       onClose={onClose}
     >
       <p style={{ margin: 0, fontSize: 15, lineHeight: 1.4, color: colors.body }}>{messages.pauseText}</p>
+    </Popover>
+  );
+}
+
+// For everyone without the control, from the chip: what is recorded. Opened from the paused chip, too: the meeting
+// is still minuted, only not at the moment.
+export function InfoPopover({ messages, onClose }: Omit<Props, "onConfirm">) {
+  return (
+    <Popover
+      anchor={CHIP_DATA_TEST}
+      width={360}
+      padding="20px 20px 16px"
+      title={messages.infoTitle}
+      titleStyle={{ fontSize: 17, fontWeight: 700 }}
+      actions={
+        <button type="button" style={buttonStyles.secondary} onClick={(e) => closeDialogOf(e.currentTarget)}>
+          {messages.infoClose}
+        </button>
+      }
+      onClose={onClose}
+    >
+      <ul
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          margin: 0,
+          paddingInlineStart: "1.1em",
+          fontSize: 14,
+          lineHeight: 1.4,
+          color: colors.body,
+        }}
+      >
+        <li>{messages.infoSpoken}</li>
+        <li>{messages.infoData}</li>
+      </ul>
     </Popover>
   );
 }
