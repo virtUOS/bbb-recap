@@ -26,7 +26,6 @@ and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is 
 
 - Optional inputs are switched on per type with `inputs` (a map of input name to boolean; missing means `false`).
   The only optional input is `slides` (§3.1); `schema_version` `1.1.0` adds the key, and `1.0.0` files stay valid.
-  **Status:** specified, not implemented yet; the current service rejects the `inputs` key and does not start.
 
   ```yaml
   schema_version: "1.1.0"
@@ -47,8 +46,6 @@ and **`transcript.vtt`** (WebVTT, not delivered; README "Outputs"). Delivery is 
   the exact format.
 
 ## 2. Format `meeting-summary` v1.1.0
-
-**Status:** version 1.1.0 is specified, not implemented yet; the shipped format is 1.0.0, without `inputs`.
 
 `format.json` names the format and the optional inputs it can use:
 `{ "id": "meeting-summary", "version": "1.1.0", "inputs": ["slides"] }`. Version 1.1.0 added the slide input (§3.1);
@@ -90,8 +87,7 @@ Data flow (inputs → LLM → render):
 
 ### 3.1 Slides
 
-**Status:** specified, not implemented yet. The current service does not read slides, and the `inputs` key of §1 is
-rejected. Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB presentations".
+Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md) "BBB presentations".
 
 **Selection (`normalize`, BBB source).** `normalize` replays the presentation events of `events.xml` in file order:
 
@@ -114,20 +110,21 @@ rejected. Decision: ADR-015. BBB facts: [`upstream-facts.md`](upstream-facts.md)
 6. Its text is `presentation/<presentationName>/textfiles/slide-<page>.txt`. A `presentationName` that does not match
    BBB's own check `^[a-z0-9-]+$` is never used in a path; its deck gives no slides. The page gives no slide when the
    file is missing or unreadable, or when its cleaned text is empty or equals BBB's placeholder
-   `No text could be retrieved for the slide`.
-7. Cleaning: decode UTF-8 (invalid bytes become U+FFFD); CRLF and CR become LF; every other control character
-   (Unicode `Cc`, including tab and form feed) becomes a space; in each line, runs of spaces become one space and the
-   line is trimmed; empty lines are dropped; lines are joined with LF. Only the first 64 KiB of a file are read, and
-   the cleaned text is stored cut to its first 1 000 Unicode code points (the most the LLM input uses, "Size" item
-   1).
+   `No text could be retrieved for the slide`. A failed read of a file that is in the package (a blob store failure,
+   including a hash mismatch) is not an unreadable file: it is a step error, and the step is retried.
+7. Cleaning: one leading UTF-8 byte order mark is dropped; decode UTF-8 (invalid bytes become U+FFFD); CRLF and CR
+   become LF; every other control character (Unicode `Cc`, including tab and form feed) becomes a space; in each line,
+   runs of spaces become one space and the line is trimmed; empty lines are dropped; lines are joined with LF. Only
+   the first 64 KiB of a file are read, and the cleaned text is stored cut to its first 1 000 Unicode code points (the
+   most the LLM input uses, "Size" item 1); trailing spaces and line feeds left by the cut are trimmed.
 8. A page shown in several pods or several times appears once, with its earliest `t_ms`.
 
-**Normalized meeting.** Version 4 adds `slides`: `[{t_ms, deck, page, text}]`, sorted by `t_ms`, then `deck`, then
-`page`; `[]` when there are none. `deck` is `d-<n>`, numbered from 1 in the order of the first
-`SharePresentationEvent` of each deck that has at least one slide; `page` is the 1-based page number. No presentation
-ID, path or file name is kept. The field is source-neutral (ADR-013): another source may fill it from its own slides
-or leave it empty. A reader of a version 3 blob treats it as `slides: []`. The meeting-type switch does not change
-what `normalize` writes: the switch is applied when the LLM input is built.
+**Normalized meeting.** Version 4 adds `slides`: `[{t_ms, deck, page, text}]`, sorted by `t_ms`, then deck number
+(the `n` of `d-<n>`), then `page`; `[]` when there are none. `deck` is `d-<n>`, numbered from 1 in the order of the
+first `SharePresentationEvent` of each deck that has at least one slide; `page` is the 1-based page number. No
+presentation ID, path or file name is kept. The field is source-neutral (ADR-013): another source may fill it from its
+own slides or leave it empty. A reader of a version 3 blob treats it as `slides: []`. The meeting-type switch does not
+change what `normalize` writes: the switch is applied when the LLM input is built.
 
 **LLM input.** Only when the job's meeting type has `inputs.slides: true` and there is at least one slide, the user
 message of the single `summarize` call and of the `consolidate` call gets a section `SLIDES`, after `POLLS`. It is
@@ -337,12 +334,12 @@ transkribierBAR also falls back to the transcription language (`backend/app/rout
 
 CT-TPL-01, the golden files of CT-TPL-02 and CT-TPL-08, CT-TPL-04, CT-TPL-06 and CT-TPL-09 were written before the
 implementation and are not changed to fit it. CT-TPL-12 to CT-TPL-15 were written before the implementation of §3.1
-and fail until it exists. Format version 1.1.0 (§2) changes protected goldens: the footer `meeting-summary 1.0.0` of
-`testdata/render/F-01/summary.md`, `F-01/summary.de.md`, `gap/summary.md` and `gap/summary.de.md` (and
-`FORMAT_VERSION` in `testdata/render/make_goldens.py`, which writes them), and the version CT-TPL-06 expects
-(`contracts/render/summarize_test.go:373-374`). That golden change is a dedicated fixture change (`fixtures.md` §7):
-its own commit, made by the golden script and not by the code under test, which comes first in the pull request that
-implements §3.1 and is reviewed on its own.
+and are not changed to fit it either. Format version 1.1.0 (§2) changed protected goldens: the footer
+`meeting-summary 1.0.0` of `testdata/render/F-01/summary.md`, `F-01/summary.de.md`, `gap/summary.md` and
+`gap/summary.de.md` (and `FORMAT_VERSION` in `testdata/render/make_goldens.py`, which writes them), and the version
+CT-TPL-06 expects (`contracts/render/summarize_test.go:371-372`). That golden change was a dedicated fixture change
+(`fixtures.md` §7): its own commit, made by the golden script and not by the code under test, ahead of the
+implementation of §3.1.
 
 ## 9. Later: admin-defined templates (not supported yet)
 

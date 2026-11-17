@@ -1,6 +1,6 @@
 // Package normalize implements the normalize step (docs/reference/architecture.md
-// §5.2): it turns events.xml and the microphone files of a package into the
-// normalized meeting, one JSON object that assemble, transcribe and
+// §5.2): it turns events.xml, the microphone files and the slide text files
+// of a package into the normalized meeting, one JSON object that assemble, transcribe and
 // summarize read instead of the raw package. The format is
 // defined in internal/meeting.
 package normalize
@@ -82,6 +82,9 @@ func Normalize(fsys fs.FS, files []manifest.File) (*meeting.Meeting, error) {
 	m.Polls = polls(ev, origin.TS, m.RecordingPeriods)
 	m.Participants = people.list
 	m.Notes = notes(files)
+	if m.Slides, err = slides(fsys, ev, origin.TS, m.RecordingPeriods); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 

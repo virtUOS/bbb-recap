@@ -1,0 +1,15 @@
+# Meeting types with optional inputs (docs/reference/templates.md §1). The
+# inputs of a type whose format is missing are not checked.
+schema_version: "1.1.0"
+meeting_types:
+  - name: meeting-summary
+    format: meeting-summary
+  - name: lecture
+    format: meeting-summary
+    inputs: { slides: true }
+  - name: seminar
+    format: meeting-summary
+    inputs: { slides: false }
+  - name: missing-format
+    format: no-such-format
+    inputs: { slides: true, video: true } # format missing: not checked

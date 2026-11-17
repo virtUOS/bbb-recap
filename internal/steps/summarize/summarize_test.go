@@ -335,13 +335,13 @@ func reduceSetup(t *testing.T, lines int) (*env, Input) {
 	in := longInput(t, lines, extract*3*7/10) // two lines do not fit one extract call
 	r.in = in
 	consolidate := r.budget(CallConsolidate, SchemaSummary)
-	one := llmplan.TextTokens(r.consolidateUser(wrapNotes([]json.RawMessage{note})))
-	two := llmplan.TextTokens(r.consolidateUser(wrapNotes([]json.RawMessage{note, note})))
+	one := llmplan.TextTokens(r.consolidateUser(wrapNotes([]json.RawMessage{note}), ""))
+	two := llmplan.TextTokens(r.consolidateUser(wrapNotes([]json.RawMessage{note, note}), ""))
 	if pad := consolidate - two + 1; pad > 0 {
 		in.Notes += " " + strings.Repeat("n", pad*3)
 		r.in = in
-		one = llmplan.TextTokens(r.consolidateUser(wrapNotes([]json.RawMessage{note})))
-		two = llmplan.TextTokens(r.consolidateUser(wrapNotes([]json.RawMessage{note, note})))
+		one = llmplan.TextTokens(r.consolidateUser(wrapNotes([]json.RawMessage{note}), ""))
+		two = llmplan.TextTokens(r.consolidateUser(wrapNotes([]json.RawMessage{note, note}), ""))
 	}
 	if one > consolidate || two <= consolidate || llmplan.TextTokens(strings.Repeat(e.fake.chunk+"\n", 3)) <= merge {
 		t.Fatalf("test sizing: consolidate budget %d, one note %d, two %d; merge budget %d", consolidate, one, two, merge)

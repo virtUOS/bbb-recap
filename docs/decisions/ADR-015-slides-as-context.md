@@ -59,8 +59,6 @@ a, with d's titles as the fallback when the size cap is hit.
   recordings show missing or poor `textfiles/`.
 - The format version in the summary footer changes, so the summary goldens change in a dedicated fixture change
   ahead of the implementation ([`templates.md` §8](../reference/templates.md)).
-- Until the implementation lands, this is specification only: the service does not read slides and rejects the
-  `inputs` key.
 
 ## Sources
 

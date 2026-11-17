@@ -73,6 +73,6 @@ func (d Deps) run(ctx context.Context, jobID string) (meeting.Output, error) {
 		}
 	}
 	d.Log.Debug("normalize: done", "job_id", jobID, "tracks", len(m.Tracks), "gaps", gaps,
-		"periods", len(m.RecordingPeriods), "bytes", len(data))
+		"periods", len(m.RecordingPeriods), "slides", len(m.Slides), "bytes", len(data))
 	return meeting.Output{NormalizedSHA256: key}, nil
 }

@@ -300,8 +300,8 @@ func TestNotesMediaType(t *testing.T) {
 // them; roles are the neutral ones.
 func TestTrackMediaTypeAndKind(t *testing.T) {
 	m, b := normalizeDir(t, caseDir(t, "F-01"))
-	if m.Version != 3 {
-		t.Errorf("version %d, want 3", m.Version)
+	if m.Version != 4 {
+		t.Errorf("version %d, want 4", m.Version)
 	}
 	for _, tr := range m.Tracks {
 		if tr.MediaType != "audio/webm" || tr.Kind != "microphone" {

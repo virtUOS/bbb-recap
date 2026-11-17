@@ -19,6 +19,9 @@ First release.
 - Providers: ASR dialects `whisperx-family` (whisperx-api-server) and `transkribierbar`; OpenAI-compatible chat
   completions for the language model, with structured output and chunking for long meetings.
 - Built-in output format `meeting-summary` (Markdown summary, WebVTT transcript), output in the meeting's language.
+- Slides as context (format `meeting-summary` 1.1.0): a meeting type can switch on `inputs: {slides: true}`; the text
+  of the slides shown during recording then goes, capped and fenced, to the summary call as prepared material. Off
+  by default.
 - Sinks: La Suite Docs (`create-for-owner`) and `frontend` (the front end fetches the Markdown); result record for
   front ends for `RECAP_RESULT_TTL`.
 - Admin API and admin web pages with OIDC login; actions `retry`, `release`, `rerun`, `purge`, `erase`; audit log.

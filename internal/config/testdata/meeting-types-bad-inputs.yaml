@@ -1,0 +1,9 @@
+# Meeting types with an unknown input and an undeclared one (docs/reference/templates.md §1).
+schema_version: "1.1.0"
+meeting_types:
+  - name: meeting-summary
+    format: plain
+    inputs: { video: true }
+  - name: plain
+    format: plain
+    inputs: { slides: false }

@@ -368,8 +368,8 @@ func TestFormatSelection(t *testing.T) {
 	t.Run("CT-TPL-06", func(t *testing.T) {
 		t.Run("meeting-summary", func(t *testing.T) {
 			res := renderOK(t, bin, run{input: loadCase(t, "F-01").input()})
-			if res.FormatID != "meeting-summary" || res.FormatVersion != "1.0.0" || !hex64.MatchString(res.FormatSHA256) {
-				t.Errorf("format = {%q, %q, %q}, want {meeting-summary, 1.0.0, <64 hex>}", res.FormatID, res.FormatVersion, res.FormatSHA256)
+			if res.FormatID != "meeting-summary" || res.FormatVersion != "1.1.0" || !hex64.MatchString(res.FormatSHA256) {
+				t.Errorf("format = {%q, %q, %q}, want {meeting-summary, 1.1.0, <64 hex>}", res.FormatID, res.FormatVersion, res.FormatSHA256)
 			}
 		})
 		manifest := loadObject(t, testdataDir, "meetings", "F-04", "expected", "manifest.json")

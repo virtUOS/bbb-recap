@@ -137,3 +137,34 @@ func TestParseChatAndPolls(t *testing.T) {
 		t.Errorf("published %+v", ev.Polls[3])
 	}
 }
+
+func TestParsePresentation(t *testing.T) {
+	doc := `<recording>
+  <event timestamp="10" module="PRESENTATION" eventname="ConversionCompletedEvent"><podId>pod</podId><presentationName>d1</presentationName><originalFilename>default.pdf</originalFilename></event>
+  <event timestamp="11" module="PRESENTATION" eventname="SharePresentationEvent"><podId>pod</podId><presentationName>d1</presentationName><share>true</share></event>
+  <event timestamp="12" module="PRESENTATION" eventname="GotoSlideEvent"><podId>pod</podId><presentationName>d1</presentationName><id>d1/2</id><slide>1</slide></event>
+  <event timestamp="13" module="PRESENTATION" eventname="RemovePresentationEvent"><podId>pod</podId><presentationName>d1</presentationName></event>
+  <event timestamp="14" module="PRESENTATION" eventname="RemovePresentationPodEvent"><podId>pod</podId></event>
+  <event timestamp="15" module="PRESENTATION" eventname="ResizeAndMoveSlideEvent"><podId>pod</podId></event>
+  <event timestamp="16" module="OTHER" eventname="GotoSlideEvent"><podId>pod</podId></event>
+</recording>`
+	ev, err := Parse(strings.NewReader(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Slide{
+		{TS: 10, Kind: EventConversionDone, PodID: "pod", Presentation: "d1", OriginalFilename: "default.pdf"},
+		{TS: 11, Kind: EventSharePresentation, PodID: "pod", Presentation: "d1", Share: "true"},
+		{TS: 12, Kind: EventGotoSlide, PodID: "pod", Presentation: "d1", Slide: "1"},
+		{TS: 13, Kind: EventRemovePresentation, PodID: "pod", Presentation: "d1"},
+		{TS: 14, Kind: EventRemovePod, PodID: "pod"},
+	}
+	if len(ev.Slides) != len(want) {
+		t.Fatalf("slides %+v", ev.Slides)
+	}
+	for i := range want {
+		if ev.Slides[i] != want[i] {
+			t.Errorf("slide event %d = %+v, want %+v", i, ev.Slides[i], want[i])
+		}
+	}
+}

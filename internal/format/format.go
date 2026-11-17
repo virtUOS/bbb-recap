@@ -30,6 +30,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -55,6 +56,8 @@ type Format struct {
 	ID      string
 	Version string
 	SHA256  string
+	// Inputs are the optional inputs the format declares (templates.md §2).
+	Inputs []string
 
 	prompts map[string]string
 	schemas map[string]json.RawMessage
@@ -112,17 +115,11 @@ func load(fsys fs.FS, id string) (*Format, error) {
 	}
 	f.SHA256 = hex.EncodeToString(h.Sum(nil))
 
-	var meta struct {
-		ID      string `json:"id"`
-		Version string `json:"version"`
+	md, err := parseMeta(f.files["format.json"], id)
+	if err != nil {
+		return nil, err
 	}
-	if err := json.Unmarshal(f.files["format.json"], &meta); err != nil {
-		return nil, fmt.Errorf("format %s: format.json: %v", id, err)
-	}
-	if meta.ID != id || !versionRE.MatchString(meta.Version) {
-		return nil, fmt.Errorf("format %s: format.json: want id %q and a semver version", id, id)
-	}
-	f.ID, f.Version = meta.ID, meta.Version
+	f.ID, f.Version, f.Inputs = md.ID, md.Version, md.Inputs
 
 	for _, n := range names {
 		dir, base := path.Split(n)
@@ -148,6 +145,52 @@ func load(fsys fs.FS, id string) (*Format, error) {
 	}
 	return f, nil
 }
+
+// InputSlides is the optional input slides (templates.md §1, §3.1): the name
+// in format.json and in the inputs of the meeting-types file.
+const InputSlides = "slides"
+
+// meta is format.json.
+type meta struct {
+	ID      string   `json:"id"`
+	Version string   `json:"version"`
+	Inputs  []string `json:"inputs"`
+}
+
+func parseMeta(b []byte, id string) (meta, error) {
+	var m meta
+	if err := json.Unmarshal(b, &m); err != nil {
+		return meta{}, fmt.Errorf("format %s: format.json: %v", id, err)
+	}
+	if m.ID != id || !versionRE.MatchString(m.Version) {
+		return meta{}, fmt.Errorf("format %s: format.json: want id %q and a semver version", id, id)
+	}
+	return m, nil
+}
+
+// DeclaredInputs reads only format.json of the format id in dir and returns
+// the optional inputs it declares. A missing directory is ErrNotFound.
+func DeclaredInputs(dir, id string) ([]string, error) {
+	if !idRE.MatchString(id) {
+		return nil, ErrNotFound
+	}
+	root := filepath.Join(dir, id)
+	if st, err := os.Stat(root); err != nil || !st.IsDir() {
+		return nil, ErrNotFound
+	}
+	b, err := os.ReadFile(filepath.Join(root, "format.json"))
+	if err != nil {
+		return nil, fmt.Errorf("format %s: cannot read format.json", id)
+	}
+	m, err := parseMeta(b, id)
+	if err != nil {
+		return nil, err
+	}
+	return m.Inputs, nil
+}
+
+// HasInput reports whether the format declares the optional input name.
+func (f *Format) HasInput(name string) bool { return slices.Contains(f.Inputs, name) }
 
 // Prompt returns the system prompt of an LLM call (prompts/<call>.md).
 func (f *Format) Prompt(call string) (string, bool) {

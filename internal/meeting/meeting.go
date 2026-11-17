@@ -5,12 +5,14 @@
 //
 // # Format (internal, not pinned by a contract; field "version")
 //
-// version changes whenever a field changes its meaning, so a reader can tell
-// old blobs apart; adding a field does not change it. Readers decode the
-// blob with Decode, which rejects any version but Version. Version 2 made
-// chat plain text with edits and deletions applied and added polls. Version
-// 3 made participant roles neutral (moderator, viewer) and span optional,
-// and added the media types and the track kind.
+// version changes whenever a field is added or changes its meaning, so a
+// reader can tell old blobs apart. Readers decode the
+// blob with Decode, which accepts Version and version 3 and rejects any
+// other. Version 2 made chat plain text with edits and deletions applied and
+// added polls. Version 3 made participant roles neutral (moderator, viewer)
+// and span optional, and added the media types and the track kind. Version 4
+// added slides (templates.md §3.1); a version 3 blob is read as one without
+// slides.
 //
 // The JSON is RFC 8785 canonical (sorted keys, no whitespace), so the same
 // meeting always gives the same bytes. Times are integer ms on the meeting
@@ -21,7 +23,7 @@
 // Each field below says what it means; "BBB:" names what the BBB source
 // (internal/steps/normalize) fills in.
 //
-//	version            3
+//	version            4
 //	meeting_name       the meeting's name (personal data possible).
 //	                   BBB: <meeting name> of events.xml
 //	time_base          {origin_event_ts, origin_utc}: the origin of the meeting
@@ -66,6 +68,18 @@
 //	                   text/markdown or text/html; null if absent.
 //	                   BBB: notes/notes.md, else notes/notes.html; null if
 //	                   notes/export_failed exists
+//	slides             [{t_ms, deck, page, text}]: the slides shown inside a
+//	                   recording period (templates.md §3.1), sorted by t_ms,
+//	                   then deck number, then page; [] when there are none.
+//	                   deck is an opaque ref d-<n>, page the 1-based page
+//	                   number, text the cleaned slide text (at most 1 000 code
+//	                   points), t_ms the start of the first showing that
+//	                   counts. Personal data possible (whatever the slides
+//	                   say). Whether the text reaches the LLM is decided by
+//	                   the meeting type, not here.
+//	                   BBB: replayed from the presentation events, text from
+//	                   presentation/<pres-id>/textfiles/slide-<page>.txt; no
+//	                   presentation ID or file name is kept
 package meeting
 
 import (
@@ -77,7 +91,10 @@ import (
 )
 
 // Version is the format version of the normalized meeting.
-const Version = 3
+const Version = 4
+
+// versionNoSlides is the last version without slides; Decode still reads it.
+const versionNoSlides = 3
 
 // ErrVersion means a normalized meeting blob has a version this build
 // cannot read, for example one written before an upgrade.
@@ -128,6 +145,7 @@ type Meeting struct {
 	Chat             []Chat        `json:"chat"`
 	Polls            []Poll        `json:"polls"`
 	Notes            *FileRef      `json:"notes"`
+	Slides           []Slide       `json:"slides"`
 }
 
 // TimeBase is the origin of the meeting axis (providers.md §4.3 item 1).
@@ -198,6 +216,15 @@ type PollOption struct {
 	Votes int    `json:"votes"`
 }
 
+// Slide is one slide shown inside a recording period (templates.md §3.1).
+// Deck is an opaque ref d-<n>, Page the 1-based page number.
+type Slide struct {
+	TMS  int64  `json:"t_ms"`
+	Deck string `json:"deck"`
+	Page int    `json:"page"`
+	Text string `json:"text"`
+}
+
 // Marshal returns the canonical JSON of m (RFC 8785, see the package
 // documentation).
 func Marshal(m *Meeting) ([]byte, error) {
@@ -208,17 +235,25 @@ func Marshal(m *Meeting) ([]byte, error) {
 	return jcs.Canonicalize(b)
 }
 
-// Decode parses a normalized meeting blob. It returns an error wrapping
-// ErrVersion when the blob's version is not Version, so a reader never
-// takes an old or newer format for the current one. Every pipeline step
-// reads the normalized meeting through Decode.
+// Decode parses a normalized meeting blob. A version 3 blob is read as a
+// meeting without slides. It returns an error wrapping ErrVersion for any
+// other version but Version, so a reader never takes an old or newer format
+// for the current one. Every pipeline step reads the normalized meeting
+// through Decode.
 func Decode(data []byte) (*Meeting, error) {
 	var m Meeting
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, fmt.Errorf("normalized meeting: %w", err)
 	}
-	if m.Version != Version {
-		return nil, fmt.Errorf("%w %d (want %d)", ErrVersion, m.Version, Version)
+	switch m.Version {
+	case Version:
+	case versionNoSlides:
+		m.Slides = nil
+	default:
+		return nil, fmt.Errorf("%w %d (want %d or %d)", ErrVersion, m.Version, versionNoSlides, Version)
+	}
+	if m.Slides == nil {
+		m.Slides = []Slide{}
 	}
 	return &m, nil
 }
