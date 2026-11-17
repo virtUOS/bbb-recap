@@ -24,7 +24,7 @@ func (a *API) getSummary(w http.ResponseWriter, r *http.Request, frontendID stri
 	case err != nil:
 		a.fail(w, r, recordID, err)
 		return
-	case !found || resp.FrontendID != frontendID || resp.Job == nil || !resp.Job.summaryDue || a.results == nil:
+	case !found || resp.FrontendID != frontendID || resp.Job == nil || resp.Job.summaryDue < 0 || a.results == nil:
 		a.fail(w, r, recordID, errNoSummary)
 		return
 	}
@@ -57,9 +57,9 @@ func (a *API) getSummary(w http.ResponseWriter, r *http.Request, frontendID stri
 // deleteSummary serves DELETE …/{record_id}/summary: the front end confirms
 // the pickup and the summary is deleted (§2.7). 204 also when nothing was
 // there; the result record stays until its TTL. Only the summary of a job
-// delivered to a frontend profile is deleted, so a confirmation sent too
-// early cannot remove one that deliver is writing, and a job delivered to
-// another sink has nothing to pick up (no delete, no pickup log line).
+// whose frontend sink is sent is deleted, so a confirmation sent too early
+// cannot remove one that deliver is writing, and a job without a frontend
+// sink has nothing to pick up (no delete, no pickup log line).
 func (a *API) deleteSummary(w http.ResponseWriter, r *http.Request, frontendID string) {
 	recordID := r.PathValue("record_id")
 	resp, found, err := a.load(r.Context(), a.pool, recordID)
@@ -71,7 +71,7 @@ func (a *API) deleteSummary(w http.ResponseWriter, r *http.Request, frontendID s
 		a.fail(w, r, recordID, errNoSummary)
 		return
 	}
-	if resp.Job != nil && resp.Job.summaryDue && a.results != nil {
+	if resp.Job != nil && resp.Job.summaryDue >= 0 && a.results != nil {
 		if err := a.results.DeleteResults(r.Context(), resp.Job.JobID); err != nil {
 			a.fail(w, r, recordID, err)
 			return

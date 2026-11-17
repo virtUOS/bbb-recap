@@ -189,6 +189,9 @@ func (a *API) ListJobs(ctx context.Context, f JobFilter) (JobPage, error) {
 	}
 	page := JobPage{Jobs: []Job{}}
 	for _, it := range items[:min(len(items), limit)] {
+		if err := withDeliveries(ctx, a.pool, &it.job); err != nil {
+			return JobPage{}, err
+		}
 		page.Jobs = append(page.Jobs, it.job)
 	}
 	if len(items) > limit {

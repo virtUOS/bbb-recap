@@ -32,10 +32,13 @@ import (
 
 // Constants of metadata-interface.md §2.1 and §2.6.
 const (
-	maxBody       = 8 << 10 // bytes
-	rateLimit     = 600     // requests per front end and rateWindow
-	rateWindow    = time.Minute
-	schemaVersion = "1.2.0" // of the responses (§2.3: 1.1.0 adds the result fields, 1.2.0 the record_id pattern)
+	maxBody    = 8 << 10 // bytes
+	rateLimit  = 600     // requests per front end and rateWindow
+	rateWindow = time.Minute
+	// schemaVersion is that of the responses (§2.3: 1.1.0 adds the result
+	// fields, 1.2.0 the record_id pattern, 1.3.0 job.deliveries and
+	// result_url).
+	schemaVersion = "1.3.0"
 )
 
 // Sink is what the API needs to know of a sink profile to show a result
@@ -110,6 +113,9 @@ type request struct {
 		Sub   string `json:"sub"`
 		Email string `json:"email"`
 	} `json:"owner"`
+	// ResultURL is the front end's link to the summary (request 1.1.0);
+	// nil when the request has none.
+	ResultURL *string `json:"result_url"`
 }
 
 var semverRE = regexp.MustCompile(`^([0-9]+)\.[0-9]+\.[0-9]+$`)
@@ -264,7 +270,7 @@ func (a *API) store(ctx context.Context, tx pgx.Tx, frontendID string, req reque
 			return 0, errCancelled
 		}
 		return http.StatusOK, reactivate(ctx, tx, reg.id, req, a.ttl)
-	case reg.ownerSub == req.Owner.Sub && reg.ownerEmail == req.Owner.Email:
+	case reg.ownerSub == req.Owner.Sub && reg.ownerEmail == req.Owner.Email && reg.resultURL == deref(req.ResultURL):
 		return http.StatusOK, nil // identical: nothing changes, not even updated_at
 	}
 	locked, err := deliveryStarted(ctx, tx, reg.id, req.RecordID)
@@ -275,6 +281,13 @@ func (a *API) store(ctx context.Context, tx pgx.Tx, frontendID string, req reque
 		return 0, errLocked
 	}
 	return http.StatusOK, replaceOwner(ctx, tx, reg.id, req, a.ttl)
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func (a *API) get(w http.ResponseWriter, r *http.Request, frontendID string) {

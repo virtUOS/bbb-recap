@@ -7,8 +7,17 @@
 {{- end}}
 <form method="post" action="/admin/jobs/{{.Job.JobID}}/{{.Action}}">
 <input type="hidden" name="csrf_token" value="{{$.Session.CSRF}}">
+{{- if .Sinks}}
+<p><label>Sink<br>
+<select name="sink">
+<option value="">every failed or sending sink</option>
+{{- range .Sinks}}
+<option value="{{.SinkProfile}}">{{.SinkProfile}} ({{.State}})</option>
+{{- end}}
+</select></label></p>
+{{- end}}
 {{- if .DocumentIDField}}
-<p><label>Docs document ID (optional)<br>
+<p><label>Document ID (optional; only when one sink is in sending)<br>
 <input type="text" name="document_id" maxlength="255" autocomplete="off"></label></p>
 {{- end}}
 <p><button type="submit">Confirm {{.Action}}</button> <a href="/admin/jobs/{{.Job.JobID}}">Cancel</a></p>

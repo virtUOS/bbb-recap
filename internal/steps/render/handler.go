@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -59,9 +60,28 @@ type Deps struct {
 	Log        *slog.Logger
 	FormatsDir string         // RECAP_FORMATS_DIR
 	Zone       *time.Location // RECAP_DISPLAY_TZ
-	// MaxDocumentBytes maps a sink profile name to its max_document_bytes;
-	// a missing or zero entry means DefaultMaxDocumentBytes.
+	// MaxDocumentBytes maps the name of a sink profile that carries the
+	// summary to its max_document_bytes. A job's limit is the smallest of
+	// its sinks' entries; without one it is DefaultMaxDocumentBytes.
 	MaxDocumentBytes map[string]int64
+}
+
+// limit is the document limit of a job's sink list (jobs.sink_profile,
+// comma-separated): the smallest max_document_bytes of its sinks that carry
+// the summary (sinks.md §2.4).
+func (d Deps) limit(sinks *string) int64 {
+	limit := int64(0)
+	if sinks != nil {
+		for _, name := range strings.Split(*sinks, ",") {
+			if n := d.MaxDocumentBytes[name]; n > 0 && (limit == 0 || n < limit) {
+				limit = n
+			}
+		}
+	}
+	if limit == 0 {
+		return DefaultMaxDocumentBytes
+	}
+	return limit
 }
 
 // Output is the step output stored in steps.output: blob keys and the
@@ -74,6 +94,9 @@ type Output struct {
 	FormatVersion    string `json:"format_version"`
 	FormatSHA256     string `json:"format_sha256"`
 	Language         string `json:"language"`
+	// RenderedAt is when this output was rendered, RFC 3339 UTC: the
+	// delivery request's rendered_at (sinks.md §1.2).
+	RenderedAt string `json:"rendered_at,omitempty"`
 }
 
 // job is what the handler reads from the database.
@@ -115,10 +138,7 @@ func Handler(d Deps) queue.Handler {
 			d.Log.Error("render: bad transcript time base", "job_id", run.JobID)
 			return internalError("time_base")
 		}
-		limit := int64(DefaultMaxDocumentBytes)
-		if j.sinkProfile != nil && d.MaxDocumentBytes[*j.sinkProfile] > 0 {
-			limit = d.MaxDocumentBytes[*j.sinkProfile]
-		}
+		limit := d.limit(j.sinkProfile)
 		if int64(len(doc.SummaryMD)) > limit {
 			d.Log.Info("render: document over the sink's limit", "job_id", run.JobID, "bytes", len(doc.SummaryMD),
 				"max_document_bytes", limit)
@@ -126,7 +146,8 @@ func Handler(d Deps) queue.Handler {
 				ErrorClass: "rejected", ErrorCode: "document_too_large"}
 		}
 		f := j.in.Format
-		out := Output{FormatID: f.ID, FormatVersion: f.Version, FormatSHA256: f.SHA256, Language: j.in.Language}
+		out := Output{FormatID: f.ID, FormatVersion: f.Version, FormatSHA256: f.SHA256, Language: j.in.Language,
+			RenderedAt: time.Now().UTC().Format(time.RFC3339)}
 		for _, b := range []struct {
 			key  *string
 			data []byte

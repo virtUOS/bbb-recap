@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -86,14 +87,19 @@ type Declaration struct {
 	Deletion       string   `yaml:"deletion"`
 }
 
-// SinkProfile is one entry of RECAP_SINKS_FILE (sinks.md §3.1), checked
-// by loadSinks. Optional settings get their defaults there.
+// SinkProfile is one entry of RECAP_SINKS_FILE (sinks.md §3.1, §4a, §4b),
+// checked by loadSinks. Optional settings get their defaults there.
 type SinkProfile struct {
 	Name                string       `yaml:"name"`
 	Type                string       `yaml:"type"`
 	DocsBaseURL         string       `yaml:"docs_base_url"`
 	APIKeyFile          string       `yaml:"api_key_file"`
 	DocumentURLTemplate string       `yaml:"document_url_template"`
+	URL                 string       `yaml:"url"`
+	SigningSecretFile   string       `yaml:"signing_secret_file"`
+	Content             string       `yaml:"content"`
+	HomeserverURL       string       `yaml:"homeserver_url"`
+	AccessTokenFile     string       `yaml:"access_token_file"`
 	RequestTimeout      string       `yaml:"request_timeout"`
 	MaxInflight         int          `yaml:"max_inflight"`
 	MaxDocumentBytes    int64        `yaml:"max_document_bytes"`
@@ -104,20 +110,42 @@ type SinkProfile struct {
 	// APIKey is the content of APIKeyFile, trimmed of one trailing
 	// newline; read for the worker role only. Never logged.
 	APIKey string `yaml:"-"`
+	// SigningKeys are the decoded keys of SigningSecretFile, one per line
+	// in file order (sinks.md §4b.1); read for the worker role only. Never
+	// logged.
+	SigningKeys [][]byte `yaml:"-"`
 }
 
-// Sink profile types: the Docs sink (sinks.md §3) and the front-end sink
-// (§4a, ADR-014).
+// Sink profile types: the Docs sink (sinks.md §3), the front-end sink
+// (§4a, ADR-014), the webhook sink (§4b) and the Matrix sink (§4c,
+// ADR-016), which is not implemented yet.
 const (
 	SinkTypeDocs     = "docs"
 	SinkTypeFrontend = "frontend"
+	SinkTypeWebhook  = "webhook"
+	SinkTypeMatrix   = "matrix"
 )
 
-// Defaults of the sink profile settings (sinks.md §2.4, §3.1).
+// Values of a webhook profile's content (sinks.md §4b.1).
 const (
-	DefaultSinkRequestTimeout   = 60 * time.Second
-	DefaultSinkMaxInflight      = 2
-	DefaultSinkMaxDocumentBytes = 2 << 20
+	WebhookContentNotice  = "notice"
+	WebhookContentSummary = "summary"
+)
+
+// Defaults of the sink profile settings (sinks.md §2.4, §3.1, §4b.1).
+const (
+	DefaultSinkRequestTimeout    = 60 * time.Second
+	DefaultWebhookRequestTimeout = 30 * time.Second
+	DefaultSinkMaxInflight       = 2
+	DefaultSinkMaxDocumentBytes  = 2 << 20
+)
+
+// Bounds of a webhook signing key after base64 decoding (sinks.md §4b.1,
+// Standard Webhooks "Signature scheme").
+const (
+	minSigningKeyBytes = 24
+	maxSigningKeyBytes = 64
+	maxSigningKeys     = 2
 )
 
 type sinksFile struct {
@@ -186,11 +214,14 @@ func loadMeetingTypes(l *loader, c *Config, name string) []MeetingType {
 	return f.MeetingTypes
 }
 
-// loadSinks reads and checks the sinks file (sinks.md §1.5, §3.1, §4a):
-// names, type (docs or frontend), for docs docs_base_url, api_key_file (read when readKeys is set, the worker
-// role), request_timeout, max_inflight, max_document_bytes and the
-// declaration, which is optional but complete when present (privacy.md §7). A relative api_key_file is relative to the
-// directory of the sinks file. Each problem names its key.
+// loadSinks reads and checks the sinks file (sinks.md §1.5, §3.1, §4a,
+// §4b): names, type (docs, frontend or webhook; matrix is refused as not
+// supported yet), the keys of each type, request_timeout, max_inflight,
+// max_document_bytes and the declaration, which is optional but complete
+// when present (privacy.md §7) and required for a webhook profile (§11). Key
+// and secret files are read when readKeys is set (the worker role); a
+// relative path is relative to the directory of the sinks file. Each problem
+// names its key.
 func loadSinks(l *loader, c *Config, name string, readKeys bool) []SinkProfile {
 	var f sinksFile
 	if !readYAML(l, c, name, &f, true) {
@@ -209,19 +240,22 @@ func loadSinks(l *loader, c *Config, name string, readKeys bool) []SinkProfile {
 		seen[s.Name] = true
 		switch s.Type {
 		case SinkTypeDocs:
+			notAllowed(l, at, s, "url", "signing_secret_file", "content")
 			checkDocsSink(l, at, name, s, readKeys)
 		case SinkTypeFrontend:
 			// sinks.md §4a: no URL, key or timeout; nothing leaves the service.
-			for _, k := range []struct{ key, value string }{
-				{"docs_base_url", s.DocsBaseURL}, {"api_key_file", s.APIKeyFile},
-				{"document_url_template", s.DocumentURLTemplate}, {"request_timeout", s.RequestTimeout},
-			} {
-				if k.value != "" {
-					l.errorf("%s.%s: not allowed for type frontend", at, k.key)
-				}
-			}
+			notAllowed(l, at, s, "docs_base_url", "api_key_file", "document_url_template", "request_timeout",
+				"url", "signing_secret_file", "content")
+		case SinkTypeWebhook:
+			notAllowed(l, at, s, "docs_base_url", "api_key_file", "document_url_template")
+			checkWebhookSink(l, at, name, s, readKeys)
+		case SinkTypeMatrix:
+			l.errorf("%s.type: matrix is not supported yet", at)
 		default:
-			l.errorf("%s.type: want docs or frontend, got %q", at, s.Type)
+			l.errorf("%s.type: want docs, frontend or webhook, got %q", at, s.Type)
+		}
+		if s.Type != SinkTypeMatrix {
+			notAllowed(l, at, s, "homeserver_url", "access_token_file")
 		}
 		switch {
 		case s.MaxInflight < 0:
@@ -235,11 +269,117 @@ func loadSinks(l *loader, c *Config, name string, readKeys bool) []SinkProfile {
 		case s.MaxDocumentBytes == 0:
 			s.MaxDocumentBytes = DefaultSinkMaxDocumentBytes
 		}
-		if s.Declaration != nil {
+		switch {
+		case s.Declaration != nil:
 			checkDeclaration(l, at+".declaration", s.Declaration)
+		case s.Type == SinkTypeWebhook:
+			// privacy.md §7, §11: a webhook reaches beyond the owner.
+			l.errorf("%s.declaration: required for type %s (privacy.md §7, §11)", at, s.Type)
 		}
 	}
 	return f.Sinks
+}
+
+// notAllowed reports each of keys that is set in s although its type has
+// no use for it.
+func notAllowed(l *loader, at string, s *SinkProfile, keys ...string) {
+	values := map[string]string{
+		"docs_base_url": s.DocsBaseURL, "api_key_file": s.APIKeyFile, "document_url_template": s.DocumentURLTemplate,
+		"request_timeout": s.RequestTimeout, "url": s.URL, "signing_secret_file": s.SigningSecretFile,
+		"content": s.Content, "homeserver_url": s.HomeserverURL, "access_token_file": s.AccessTokenFile,
+	}
+	for _, k := range keys {
+		if values[k] != "" {
+			l.errorf("%s.%s: not allowed for type %s", at, k, s.Type)
+		}
+	}
+}
+
+// checkWebhookSink checks the keys of a webhook profile (sinks.md §4b.1,
+// §4b.4) and reads its signing secrets when readKeys is set. It sets
+// Timeout and, when empty, Content to notice.
+func checkWebhookSink(l *loader, at, name string, s *SinkProfile, readKeys bool) {
+	// The URL is configuration, not a secret, but it is never logged
+	// (sinks.md §4b.1), so the problem does not quote it.
+	if u, err := url.Parse(s.URL); err != nil || (u.Scheme != "https" && u.Scheme != "http") ||
+		u.Host == "" || u.User != nil || u.Fragment != "" {
+		l.errorf("%s.url: want an absolute http(s) URL without user info or fragment", at)
+	}
+	switch s.Content {
+	case "":
+		s.Content = WebhookContentNotice
+	case WebhookContentNotice, WebhookContentSummary:
+	default:
+		l.errorf("%s.content: want notice or summary, got %q", at, s.Content)
+	}
+	switch {
+	case s.SigningSecretFile == "":
+		l.errorf("%s.signing_secret_file: required", at)
+	case readKeys:
+		b, err := os.ReadFile(resolve(l, name, s.SigningSecretFile))
+		if err != nil {
+			l.errorf("%s.signing_secret_file: cannot read file %s", at, s.SigningSecretFile)
+			break
+		}
+		keys, problem := parseSigningSecrets(string(b))
+		if problem != "" {
+			l.errorf("%s.signing_secret_file: file %s: %s", at, s.SigningSecretFile, problem)
+		}
+		s.SigningKeys = keys
+	}
+	s.Timeout = requestTimeout(l, at, s.RequestTimeout, DefaultWebhookRequestTimeout)
+}
+
+// parseSigningSecrets decodes one or two lines whsec_<base64>, each 24 to
+// 64 bytes after decoding (sinks.md §4b.1). Empty lines are ignored. The
+// problem never quotes the file.
+func parseSigningSecrets(text string) ([][]byte, string) {
+	var keys [][]byte
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		b64, ok := strings.CutPrefix(line, "whsec_")
+		if !ok {
+			return nil, fmt.Sprintf("line %d: want whsec_<base64>", len(keys)+1)
+		}
+		key, err := base64.StdEncoding.DecodeString(b64)
+		if err != nil {
+			return nil, fmt.Sprintf("line %d: not valid base64", len(keys)+1)
+		}
+		if len(key) < minSigningKeyBytes || len(key) > maxSigningKeyBytes {
+			return nil, fmt.Sprintf("line %d: want %d to %d bytes after decoding", len(keys)+1,
+				minSigningKeyBytes, maxSigningKeyBytes)
+		}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 || len(keys) > maxSigningKeys {
+		return nil, fmt.Sprintf("want one or two secret lines, got %d", len(keys))
+	}
+	return keys, ""
+}
+
+// resolve returns path, relative to the directory of the file of variable
+// name unless it is absolute.
+func resolve(l *loader, name, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(filepath.Dir(l.get(name)), path)
+}
+
+// requestTimeout parses a request_timeout; empty gives def.
+func requestTimeout(l *loader, at, v string, def time.Duration) time.Duration {
+	if v == "" {
+		return def
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		l.errorf("%s.request_timeout: want a positive duration such as 60s, got %q", at, v)
+		return def
+	}
+	return d
 }
 
 // checkDocsSink checks the keys of a docs profile (sinks.md §3.1) and reads
@@ -261,11 +401,7 @@ func checkDocsSink(l *loader, at, name string, s *SinkProfile, readKeys bool) {
 	case s.APIKeyFile == "":
 		l.errorf("%s.api_key_file: required", at)
 	case readKeys:
-		path := s.APIKeyFile
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(filepath.Dir(l.get(name)), path)
-		}
-		b, err := os.ReadFile(path)
+		b, err := os.ReadFile(resolve(l, name, s.APIKeyFile))
 		s.APIKey = strings.TrimSuffix(string(b), "\n")
 		if err != nil {
 			l.errorf("%s.api_key_file: cannot read file %s", at, s.APIKeyFile)
@@ -273,15 +409,7 @@ func checkDocsSink(l *loader, at, name string, s *SinkProfile, readKeys bool) {
 			l.errorf("%s.api_key_file: file %s is empty", at, s.APIKeyFile)
 		}
 	}
-	s.Timeout = DefaultSinkRequestTimeout
-	if s.RequestTimeout != "" {
-		d, err := time.ParseDuration(s.RequestTimeout)
-		if err != nil || d <= 0 {
-			l.errorf("%s.request_timeout: want a positive duration such as 60s, got %q", at, s.RequestTimeout)
-		} else {
-			s.Timeout = d
-		}
-	}
+	s.Timeout = requestTimeout(l, at, s.RequestTimeout, DefaultSinkRequestTimeout)
 }
 
 // checkDeclaration checks that every field of a declaration is set and
@@ -324,13 +452,15 @@ func LoadSinks(path string) ([]SinkProfile, error) {
 	return sinks, nil
 }
 
-// LogSinkWarnings logs a WARN for each sink profile whose docs_base_url is
-// not https (sinks.md §3.4: TLS in production; http stays allowed for dev
-// and tests), that has no declaration, or that declares a third-country
-// location (privacy.md §7).
+// LogSinkWarnings logs a WARN for each sink profile whose docs_base_url or
+// url is not https (sinks.md §3.4: TLS in production; http stays allowed
+// for dev and tests), that has no declaration, or that declares a
+// third-country location (privacy.md §7). It names the profile, never the
+// URL.
 func LogSinkWarnings(log *slog.Logger, sinks []SinkProfile) {
 	for _, s := range sinks {
-		if s.Type == SinkTypeDocs && !strings.HasPrefix(s.DocsBaseURL, "https://") {
+		if (s.Type == SinkTypeDocs && !strings.HasPrefix(s.DocsBaseURL, "https://")) ||
+			(s.Type == SinkTypeWebhook && !strings.HasPrefix(s.URL, "https://")) {
 			log.Warn("sink profile does not use https", "profile", s.Name)
 		}
 		if s.Declaration == nil {

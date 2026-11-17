@@ -8,8 +8,7 @@
 {{- with .Outcome}}<dt>Outcome</dt><dd>{{.}}</dd>{{end}}
 {{- with .Detail}}<dt>Detail</dt><dd><code>{{.}}</code></dd>{{end}}
 {{- with .CurrentStep}}<dt>Current step</dt><dd>{{.}}</dd>{{end}}
-<dt>Delivery</dt><dd>{{with .Delivery}}{{.State}}{{else}}none{{end}}</dd>
-{{- with .Delivery}}{{with .DocumentID}}<dt>Docs document ID</dt><dd><code>{{.}}</code></dd>{{end}}{{end}}
+{{- with .MatrixRoom}}<dt>Matrix room</dt><dd><code>{{.}}</code></dd>{{end}}
 <dt>Rerun of</dt><dd>{{with .RerunOf}}<a href="/admin/jobs/{{.}}"><code>{{.}}</code></a>{{else}}none{{end}}</dd>
 <dt>Record ID</dt><dd><code>{{.RecordID}}</code></dd>
 <dt>Meeting ID</dt><dd><code>{{.MeetingID}}</code></dd>
@@ -17,6 +16,23 @@
 <dt>Created (UTC)</dt><dd>{{.CreatedAt}}</dd>
 <dt>Updated (UTC)</dt><dd>{{.UpdatedAt}}</dd>
 </dl>
+<h2>Sinks</h2>
+{{- if .Deliveries}}
+<div class="scroll">
+<table>
+<thead><tr><th>Sink profile</th><th>Status</th><th>Document ID</th><th>Target</th><th>Failure</th></tr></thead>
+<tbody>
+{{- range .Deliveries}}
+<tr><td><code>{{.SinkProfile}}</code></td><td>{{.State}}</td><td>{{with .DocumentID}}<code>{{.}}</code>{{end}}</td>
+<td>{{with .Target}}<code>{{.}}</code>{{end}}</td>
+<td>{{with .FailureReason}}{{.}}{{end}} {{with .Detail}}<code>{{.}}</code>{{end}}</td></tr>
+{{- end}}
+</tbody>
+</table>
+</div>
+{{- else}}
+<p>None yet: validate has not stored the job's sinks.</p>
+{{- end}}
 <h2>Steps</h2>
 <div class="scroll">
 <table>

@@ -335,15 +335,20 @@ func TestOutcomes(t *testing.T) {
 			if got := e.row(t, jobID); got != c.after {
 				t.Errorf("row after: %q, want %q", got, c.after)
 			}
-			if c.outcome == queue.OK && string(r.Output) != `{"delivery_state":"sent","document_id":"doc-1"}` {
+			if c.outcome == queue.OK && string(r.Output) != `{"deliveries":[{"sink_profile":"docs-main","state":"sent"}]}` {
 				t.Errorf("output %s", r.Output)
 			}
-			// The next attempt sends again only where the row was deleted.
+			// The next attempt sends again only where the row was deleted and
+			// the sink is not failed (sinks.md §1.8: only an admin resets a
+			// failed sink).
 			run = e.claim(t, jobID)
 			r = Handler(e.deps)(ctx, run)
 			want := c.requests
-			if c.after == "" && c.requests == 1 {
+			if c.after == "" && c.requests == 1 && c.outcome != queue.Permanent {
 				want++
+			}
+			if c.outcome == queue.Permanent && (r.Outcome != queue.Permanent || r.Reason != c.reason) {
+				t.Errorf("second attempt: %+v, want the failed sink's %s again", r, c.reason)
 			}
 			if e.docs.requests() != want {
 				t.Errorf("second attempt: %d requests, want %d", e.docs.requests(), want)

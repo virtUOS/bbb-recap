@@ -30,6 +30,21 @@ type Request struct {
 	SummaryMD     string `json:"summary_md"`
 	SummarySHA256 string `json:"summary_sha256"`
 	Owner         Owner  `json:"owner"`
+	// Links are where the summary can be read, in delivery order (§1.2):
+	// used by the webhook and Matrix sinks.
+	Links []Link `json:"links"`
+	// RenderedAt is the RFC 3339 UTC time at which render produced
+	// summary.md, the same on every attempt (§1.2, §4b.2).
+	RenderedAt string `json:"rendered_at"`
+	// MatrixRoom is the job's Matrix room; nil unless the job lists a
+	// matrix profile (§1.2).
+	MatrixRoom *string `json:"matrix_room"`
+}
+
+// Link is one entry of Request.Links.
+type Link struct {
+	SinkProfile string `json:"sink_profile"`
+	URL         string `json:"url"`
 }
 
 // Record states (§1.3).
@@ -37,6 +52,7 @@ const (
 	StateSending          = "sending"
 	StateSent             = "sent"
 	StateConfirmedByAdmin = "confirmed_by_admin"
+	StateSkippedByAdmin   = "skipped_by_admin"
 )
 
 // Record is the delivery record (§1.3): the deliveries row. It holds no
@@ -46,7 +62,8 @@ type Record struct {
 	SinkProfile string  `json:"sink_profile"`
 	State       string  `json:"state"`
 	DocumentID  *string `json:"document_id"`
-	SentAt      *string `json:"sent_at"` // RFC 3339 UTC
+	Target      *string `json:"target,omitempty"` // Matrix room ID (§1.3)
+	SentAt      *string `json:"sent_at"`          // RFC 3339 UTC
 }
 
 // Class is a sink error class (§1.6).
@@ -77,6 +94,21 @@ type Sender interface {
 	Send(ctx context.Context, req Request) (documentID string, err error)
 }
 
+// Prechecker is a Sender with its own checks before sending, run instead of
+// Check: the webhook sink checks the summary only when it sends it
+// (§4b.3).
+type Prechecker interface {
+	Precheck(req Request, maxBytes int64) *Error
+}
+
+// precheck runs s's own checks, or Check.
+func precheck(s Sender, req Request, maxBytes int64) *Error {
+	if p, ok := s.(Prechecker); ok {
+		return p.Precheck(req, maxBytes)
+	}
+	return Check(req, maxBytes)
+}
+
 // ErrRecordExists is what a begin function returns when a delivery record
 // exists already: another run got there first, so this one must not send.
 var ErrRecordExists = errors.New("sink: delivery record exists")
@@ -89,8 +121,8 @@ var ErrRecordExists = errors.New("sink: delivery record exists")
 //
 // It returns the record the caller commits after the call and nil, or a
 // record (Uncertain only) and an *Error, or nil and another error:
-//   - a record in sent or confirmed_by_admin: nothing is sent, the record
-//     is returned unchanged;
+//   - a record in sent, confirmed_by_admin or skipped_by_admin: nothing is
+//     sent, the record is returned unchanged;
 //   - a record in sending (re-entry): nothing is sent, Uncertain;
 //   - a §2.4 violation: Rejected before any request and before begin;
 //   - 201: a sent record with the document ID;
@@ -105,7 +137,7 @@ func Deliver(ctx context.Context, s Sender, req Request, prior *Record, maxBytes
 		}
 		return prior, nil
 	}
-	if err := Check(req, maxBytes); err != nil {
+	if err := precheck(s, req, maxBytes); err != nil {
 		return nil, err
 	}
 	if begin != nil {

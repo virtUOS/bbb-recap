@@ -1,12 +1,13 @@
 // Package deliver implements the deliver step (docs/reference/architecture.md
-// §5.2, §6.4; sinks.md §1.4): it builds the delivery request from the
-// render blobs and the owner of the job's registration, commits the
-// deliveries row in sending before the one request, and records the
-// result with the step's completion.
+// §5.2, §6.4; sinks.md §1.4, §1.8): it builds the delivery request from the
+// render blobs and the job's registration, calls each sink of the job that
+// is not done yet in delivery order, commits a sink's deliveries row in
+// sending before its one request, and records the results with the step's
+// completion.
 //
-// The request (title, content, owner sub and email) lives in memory only.
-// The step output and the deliveries row hold IDs and states, and the log
-// holds IDs and codes (privacy.md §6).
+// The request (title, content, owner sub and email, links) lives in memory
+// only. The step output, the deliveries rows and the step items hold IDs,
+// states and codes, and the log holds IDs and codes (privacy.md §6).
 package deliver
 
 import (
@@ -16,6 +17,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -39,42 +42,82 @@ const (
 	ReasonInternalError   = "internal_error"
 )
 
+// Sink types of the two delivery groups (sinks.md §1.1).
+const (
+	TypeFrontend = "frontend"
+	TypeDocs     = "docs"
+	TypeWebhook  = "webhook"
+	TypeMatrix   = "matrix"
+)
+
 const (
 	errorClassInternal = "internal"
+	errorClassWait     = "wait"
 	defaultMaxInflight = 2
 )
 
 // Sink is one sink profile as the step uses it.
 type Sink struct {
+	// Type is the profile's type; it picks the delivery group (sinks.md
+	// §1.1): frontend and docs first, then webhook and matrix.
+	Type   string
 	Sender sink.Sender
 	// Idempotent marks a sender whose Send may repeat without harm, the
 	// frontend sink (sinks.md §4a): no sending row before, no uncertain case.
 	Idempotent       bool
 	MaxDocumentBytes int64 // 0: sink.DefaultMaxDocumentBytes
 	MaxInflight      int   // requests at once in this process; 0: 2
+	// DocumentURLTemplate is the link for humans with {id} (docs,
+	// sinks.md §3.1); empty: the sink has no link.
+	DocumentURLTemplate string
+}
+
+// group is the delivery group of a sink type (sinks.md §1.1).
+func group(typ string) int {
+	if typ == TypeWebhook || typ == TypeMatrix {
+		return 2
+	}
+	return 1
 }
 
 // Deps are what the deliver handler needs.
 type Deps struct {
 	Pool  *pgxpool.Pool
 	Blobs blob.Store
-	Log   *slog.Logger
-	Sinks map[string]Sink // by profile name
+	// Results holds the frontend sink's summaries; nil when the backend
+	// keeps none. Group 2 waits while a summary waits for pickup there.
+	Results blob.Results
+	Log     *slog.Logger
+	Sinks   map[string]Sink // by profile name
 }
 
-// Output is the step output: the delivery state and document ID only.
+// Output is the step output: the sinks with their final statuses, IDs and
+// states only.
 type Output struct {
-	State      string `json:"delivery_state"`
-	DocumentID string `json:"document_id,omitempty"`
+	Deliveries []OutputSink `json:"deliveries"`
+}
+
+// OutputSink is one sink in Output.
+type OutputSink struct {
+	SinkProfile string `json:"sink_profile"`
+	State       string `json:"state"`
 }
 
 // job is what the handler reads before sending.
 type job struct {
-	profile        string
+	sinks          []queue.SinkStatus // in delivery order
 	registrationID int64
 	owner          sink.Owner
+	resultURL      string
+	matrixRoom     *string
+	createdAt      time.Time
 	render         render.Output
-	prior          *sink.Record
+}
+
+// result is what one attempt did to one sink it called.
+type result struct {
+	rec *sink.Record // the record to commit (sent) or kept (uncertain)
+	err *sink.Error  // the sink's error class, nil on success
 }
 
 // Handler returns the deliver step handler. max_inflight is a semaphore
@@ -103,11 +146,12 @@ func Handler(d Deps) queue.Handler {
 			d.Log.Warn("deliver: cannot load the job", "job_id", run.JobID, "err", code)
 			return queue.Result{Outcome: queue.Transient, ErrorClass: errorClassInternal, ErrorCode: code}
 		}
-		s, ok := d.Sinks[j.profile]
-		if !ok {
-			d.Log.Error("deliver: sink profile not configured", "job_id", run.JobID, "profile", j.profile)
-			return queue.Result{Outcome: queue.Permanent, Reason: ReasonConfigError, ErrorClass: string(sink.Config),
-				ErrorCode: "unknown_sink_profile"}
+		for _, st := range j.sinks {
+			if _, ok := d.Sinks[st.Profile]; !ok {
+				d.Log.Error("deliver: sink profile not configured", "job_id", run.JobID, "profile", st.Profile)
+				return queue.Result{Outcome: queue.Permanent, Reason: ReasonConfigError,
+					ErrorClass: string(sink.Config), ErrorCode: "unknown_sink_profile"}
+			}
 		}
 		req, err := d.request(ctx, run.JobID, j)
 		if err != nil {
@@ -116,59 +160,266 @@ func Handler(d Deps) queue.Handler {
 			return queue.Result{Outcome: queue.Transient, ErrorClass: errorClassInternal, ErrorCode: code}
 		}
 
-		select {
-		case slots[j.profile] <- struct{}{}:
-			defer func() { <-slots[j.profile] }()
-		case <-ctx.Done():
-			return queue.Result{Outcome: queue.Transient, ErrorClass: errorClassInternal, ErrorCode: "cancelled"}
-		}
-		var rec *sink.Record
-		if s.Idempotent {
-			// The guard of markSending, without the row: a reaped or
-			// replaced run stores nothing. A summary stored by a run whose
-			// completion then fails is replaced by the next attempt, or
-			// deleted by cleanup if the job does not end delivered.
-			if err = d.checkActive(ctx, run, j); err == nil {
-				rec, err = sink.Keep(ctx, s.Sender, req, j.prior, s.MaxDocumentBytes)
-			}
-		} else {
-			begin := func(ctx context.Context) error { return d.markSending(ctx, run, j) }
-			rec, err = sink.Deliver(ctx, s.Sender, req, j.prior, s.MaxDocumentBytes, begin)
-		}
-		res := Result(rec, err)
-		if res.Outcome == queue.Transient && res.ErrorClass == errorClassInternal {
+		a := &attempt{d: d, run: run, j: j, req: req, slots: slots, results: map[string]*result{}}
+		a.deliver(ctx)
+		res := a.outcome()
+		if res.ErrorClass == errorClassInternal && len(a.results) == 0 {
 			d.Log.Warn("deliver: not sent", "job_id", run.JobID, "err", res.ErrorCode)
 			return res
 		}
-		d.Log.Info("deliver: done", "job_id", run.JobID, "profile", j.profile, "outcome", string(res.Outcome),
+		d.Log.Info("deliver: done", "job_id", run.JobID, "outcome", string(res.Outcome), "reason", res.Reason,
 			"error_class", res.ErrorClass, "error_code", res.ErrorCode)
-		res.Commit = commit(run.JobID, rec, err)
+		res.Commit = a.commit()
 		return res
 	}
 }
 
-// Result maps the result of sink.Deliver to the step outcome of
-// docs/reference/README.md "Adapter error classes → step outcome" (the table of
-// contracts/sink/README.md). An error that is not a *sink.Error is an
-// internal failure before sending: transient.
+// attempt is one run of the step (sinks.md §1.8).
+type attempt struct {
+	d       Deps
+	run     queue.Run
+	j       *job
+	req     sink.Request
+	slots   map[string]chan struct{}
+	results map[string]*result
+	// internal is the code of an internal failure that stopped the
+	// attempt; wait is why group 2 was not called ("" if it was or had
+	// nothing to do).
+	internal, wait string
+}
+
+// status returns the sink's status after what this attempt did.
+func (a *attempt) status(st queue.SinkStatus) string {
+	r, ok := a.results[st.Profile]
+	if !ok {
+		return st.Status
+	}
+	switch {
+	case r.err == nil:
+		return r.rec.State
+	case r.err.Class == sink.Uncertain:
+		return queue.SinkSending
+	case r.err.Class == sink.Config, r.err.Class == sink.Rejected:
+		return queue.SinkFailed
+	}
+	return queue.SinkPending
+}
+
+// deliver calls every pending sink of group 1 in delivery order, then, when
+// group 1 is done and nothing waits for the pickup, those of group 2.
+func (a *attempt) deliver(ctx context.Context) {
+	for g := 1; g <= 2; g++ {
+		if g == 2 {
+			for _, st := range a.j.sinks {
+				if group(a.d.Sinks[st.Profile].Type) == 1 && !done(a.status(st)) {
+					a.wait = "group_pending"
+					return
+				}
+			}
+			waiting, err := a.pickupPending(ctx)
+			if err != nil {
+				a.internal = errorCode(err)
+				return
+			}
+			if waiting {
+				a.wait = "pickup_pending"
+				return
+			}
+			a.req.Links = a.links()
+		}
+		for _, st := range a.j.sinks {
+			if group(a.d.Sinks[st.Profile].Type) != g || st.Status != queue.SinkPending {
+				continue
+			}
+			if !a.call(ctx, st) {
+				return
+			}
+		}
+	}
+}
+
+func done(status string) bool {
+	return status == queue.SinkSent || status == queue.SinkConfirmedByAdmin || status == queue.SinkSkippedByAdmin
+}
+
+// call delivers to one sink. It returns false when an internal failure
+// stops the attempt (the step is no longer claimed, the job is stopping, or
+// the database failed before the request).
+func (a *attempt) call(ctx context.Context, st queue.SinkStatus) bool {
+	s := a.d.Sinks[st.Profile]
+	req := a.req
+	req.SinkProfile = st.Profile
+	select {
+	case a.slots[st.Profile] <- struct{}{}:
+		defer func() { <-a.slots[st.Profile] }()
+	case <-ctx.Done():
+		a.internal = "cancelled"
+		return false
+	}
+	var rec *sink.Record
+	var err error
+	if s.Idempotent {
+		// The guard of markSending, without the row: a reaped or replaced
+		// run stores nothing. A summary stored by a run whose completion
+		// then fails is replaced by the next attempt, or deleted by cleanup
+		// if the job does not end delivered.
+		if err = a.d.checkActive(ctx, a.run, a.j); err == nil {
+			rec, err = sink.Keep(ctx, s.Sender, req, nil, s.MaxDocumentBytes)
+		}
+	} else {
+		begin := func(ctx context.Context) error { return a.d.markSending(ctx, a.run, a.j, st.Profile) }
+		rec, err = sink.Deliver(ctx, s.Sender, req, nil, s.MaxDocumentBytes, begin)
+	}
+	var serr *sink.Error
+	if err != nil && !errors.As(err, &serr) {
+		a.internal = internalCode(err)
+		return false
+	}
+	a.results[st.Profile] = &result{rec: rec, err: serr}
+	attrs := []any{"job_id", a.run.JobID, "profile", st.Profile, "status", a.status(st)}
+	if serr != nil {
+		attrs = append(attrs, "error_class", string(serr.Class), "error_code", serr.Code)
+	}
+	a.d.Log.Info("deliver: sink called", attrs...)
+	return true
+}
+
+// links builds the request's links (sinks.md §1.2): the registration's
+// result_url under the name of the job's frontend sink when that sink is
+// sent, then the document link of every other done sink that has one, in
+// delivery order.
+func (a *attempt) links() []sink.Link {
+	links := []sink.Link{}
+	for _, st := range a.j.sinks {
+		s := a.d.Sinks[st.Profile]
+		if s.Type == TypeFrontend && a.j.resultURL != "" && a.status(st) == queue.SinkSent {
+			links = append(links, sink.Link{SinkProfile: st.Profile, URL: a.j.resultURL})
+		}
+	}
+	for _, st := range a.j.sinks {
+		s := a.d.Sinks[st.Profile]
+		if s.Type == TypeFrontend || s.DocumentURLTemplate == "" || !done(a.status(st)) {
+			continue
+		}
+		id := st.DocumentID
+		if r := a.results[st.Profile]; r != nil && r.err == nil {
+			id = r.rec.DocumentID
+		}
+		if id != nil && *id != "" {
+			links = append(links, sink.Link{SinkProfile: st.Profile,
+				URL: strings.ReplaceAll(s.DocumentURLTemplate, "{id}", url.PathEscape(*id))})
+		}
+	}
+	return links
+}
+
+// pickupPending reports whether group 2 waits for the front end's pickup
+// (sinks.md §1.8): the registration has a result_url and the job's frontend
+// sink is sent and its summary still waits in the blob store.
+func (a *attempt) pickupPending(ctx context.Context) (bool, error) {
+	if a.j.resultURL == "" || a.d.Results == nil {
+		return false, nil
+	}
+	for _, st := range a.j.sinks {
+		if a.d.Sinks[st.Profile].Type != TypeFrontend || a.status(st) != queue.SinkSent {
+			continue
+		}
+		rc, err := a.d.Results.GetSummary(ctx, a.run.JobID)
+		if errors.Is(err, blob.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		_ = rc.Close()
+		return true, nil
+	}
+	return false, nil
+}
+
+// outcome is the step outcome from the sink statuses, by the first rule of
+// sinks.md §1.8 that applies.
+func (a *attempt) outcome() queue.Result {
+	var sending, unresolved, pending bool
+	var notSent *sink.Error
+	for _, st := range a.j.sinks {
+		status, r := a.status(st), a.results[st.Profile]
+		switch status {
+		case queue.SinkFailed:
+			reason, class, code := "", "", ""
+			switch {
+			case r != nil:
+				reason, class, code = failureReason(r.err.Class), string(r.err.Class), r.err.Code
+			case st.FailureReason != nil:
+				reason = *st.FailureReason
+			}
+			return queue.Result{Outcome: queue.Permanent, Reason: reason, ErrorClass: class, ErrorCode: code}
+		case queue.SinkSending:
+			sending = true
+		case queue.SinkPending:
+			pending = true
+			if r != nil && r.err.Class == sink.RecipientUnresolved {
+				unresolved = true
+			}
+			if r != nil && r.err.Class == sink.NotSent && (notSent == nil || r.err.RetryAfter > notSent.RetryAfter) {
+				notSent = r.err
+			}
+		}
+	}
+	switch {
+	case sending:
+		return a.classed(queue.Result{Outcome: queue.Hold, Reason: HeldDeliveryUncertain}, sink.Uncertain)
+	case unresolved:
+		return a.classed(queue.Result{Outcome: queue.Hold, Reason: HeldOwnerUnresolved}, sink.RecipientUnresolved)
+	case a.internal != "":
+		return queue.Result{Outcome: queue.Transient, ErrorClass: errorClassInternal, ErrorCode: a.internal}
+	case notSent != nil:
+		return queue.Result{Outcome: queue.Transient, ErrorClass: string(notSent.Class), ErrorCode: notSent.Code,
+			RetryAfter: notSent.RetryAfter}
+	case pending:
+		return queue.Result{Outcome: queue.Transient, ErrorClass: errorClassWait, ErrorCode: a.wait}
+	}
+	out := Output{}
+	for _, st := range a.j.sinks {
+		out.Deliveries = append(out.Deliveries, OutputSink{SinkProfile: st.Profile, State: a.status(st)})
+	}
+	b, _ := json.Marshal(out)
+	return queue.Result{Outcome: queue.OK, Output: b}
+}
+
+// classed adds the error class and code of the first sink of this attempt
+// with that class.
+func (a *attempt) classed(r queue.Result, class sink.Class) queue.Result {
+	for _, st := range a.j.sinks {
+		if x := a.results[st.Profile]; x != nil && x.err != nil && x.err.Class == class {
+			r.ErrorClass, r.ErrorCode = string(class), x.err.Code
+			return r
+		}
+	}
+	return r
+}
+
+// failureReason maps a permanent sink error class to the failure reason.
+func failureReason(c sink.Class) string {
+	if c == sink.Config {
+		return ReasonConfigError
+	}
+	return ReasonRejectedBySink
+}
+
+// Result maps the result of one sink.Deliver call to the step outcome of
+// docs/reference/README.md "Adapter error classes → step outcome" (the table
+// of contracts/sink/README.md), as for a job with this one sink. An error
+// that is not a *sink.Error is an internal failure before sending:
+// transient.
 func Result(rec *sink.Record, err error) queue.Result {
 	if err == nil {
-		out := Output{State: rec.State}
-		if rec.DocumentID != nil {
-			out.DocumentID = *rec.DocumentID
-		}
-		b, _ := json.Marshal(out)
+		b, _ := json.Marshal(Output{Deliveries: []OutputSink{{SinkProfile: rec.SinkProfile, State: rec.State}}})
 		return queue.Result{Outcome: queue.OK, Output: b}
 	}
 	var serr *sink.Error
 	if !errors.As(err, &serr) {
-		code := "send_not_started"
-		if errors.Is(err, errNotClaimed) {
-			code = "not_claimed"
-		} else if errors.Is(err, errStopping) {
-			code = "job_stopping"
-		}
-		return queue.Result{Outcome: queue.Transient, ErrorClass: errorClassInternal, ErrorCode: code}
+		return queue.Result{Outcome: queue.Transient, ErrorClass: errorClassInternal, ErrorCode: internalCode(err)}
 	}
 	r := queue.Result{ErrorClass: string(serr.Class), ErrorCode: serr.Code}
 	switch serr.Class {
@@ -176,39 +427,81 @@ func Result(rec *sink.Record, err error) queue.Result {
 		r.Outcome, r.RetryAfter = queue.Transient, serr.RetryAfter
 	case sink.Uncertain:
 		r.Outcome, r.Reason = queue.Hold, HeldDeliveryUncertain
-	case sink.Config:
-		r.Outcome, r.Reason = queue.Permanent, ReasonConfigError
 	case sink.RecipientUnresolved:
 		r.Outcome, r.Reason = queue.Hold, HeldOwnerUnresolved
 	default:
-		r.Outcome, r.Reason = queue.Permanent, ReasonRejectedBySink
+		r.Outcome, r.Reason = queue.Permanent, failureReason(serr.Class)
 	}
 	return r
 }
 
-// commit returns what the completion transaction writes (sinks.md §1.4):
-// a 201 sets the row to sent; uncertain keeps it in sending; every other
-// class deletes it, so a later attempt may send. Nothing is written for an
-// internal failure before begin.
-func commit(jobID string, rec *sink.Record, err error) func(context.Context, pgx.Tx) error {
-	var serr *sink.Error
+// internalCode names an internal failure before sending.
+func internalCode(err error) string {
 	switch {
-	case err == nil && rec.State == sink.StateSent:
-		return func(ctx context.Context, tx pgx.Tx) error {
-			_, err := tx.Exec(ctx, `
-				INSERT INTO deliveries (job_id, sink_profile, state, document_id, sent_at)
-				VALUES ($1, $2, 'sent', $3, $4)
-				ON CONFLICT (job_id) DO UPDATE SET state = 'sent', document_id = $3, sent_at = $4`,
-				jobID, rec.SinkProfile, rec.DocumentID, rec.SentAt)
-			return err
+	case errors.Is(err, errNotClaimed):
+		return "not_claimed"
+	case errors.Is(err, errStopping):
+		return "job_stopping"
+	}
+	return "send_not_started"
+}
+
+// commit returns what the completion transaction writes (sinks.md §1.4,
+// §1.8), per sink called in this attempt: a success sets the row to sent;
+// uncertain keeps it in sending; every other class deletes it, so a later
+// attempt may send, and config and rejected also mark the sink failed. When
+// the step runs out of attempts, the engine marks the sinks still pending
+// failed (internal/queue).
+func (a *attempt) commit() func(context.Context, pgx.Tx) error {
+	jobID := a.run.JobID
+	return func(ctx context.Context, tx pgx.Tx) error {
+		for _, st := range a.j.sinks {
+			r := a.results[st.Profile]
+			var err error
+			switch {
+			case r == nil:
+			case r.err == nil:
+				_, err = tx.Exec(ctx, `
+					INSERT INTO deliveries (job_id, sink_profile, state, document_id, target, sent_at)
+					VALUES ($1, $2, $3, $4, $5, $6)
+					ON CONFLICT (job_id, sink_profile) DO UPDATE
+					SET state = $3, document_id = $4, target = coalesce($5, deliveries.target), sent_at = $6`,
+					jobID, st.Profile, r.rec.State, nullIfEmpty(r.rec.DocumentID), r.rec.Target, r.rec.SentAt)
+			case r.err.Class != sink.Uncertain:
+				_, err = tx.Exec(ctx, `DELETE FROM deliveries WHERE job_id = $1 AND sink_profile = $2 AND state = 'sending'`,
+					jobID, st.Profile)
+				if err == nil && (r.err.Class == sink.Config || r.err.Class == sink.Rejected) {
+					err = markFailed(ctx, tx, jobID, st.Profile, failureReason(r.err.Class), r.err.Code)
+				}
+			}
+			if err != nil {
+				return err
+			}
 		}
-	case err == nil, !errors.As(err, &serr), serr.Class == sink.Uncertain:
 		return nil
 	}
-	return func(ctx context.Context, tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `DELETE FROM deliveries WHERE job_id = $1 AND state = 'sending'`, jobID)
-		return err
+}
+
+// markFailed records a failed sink as a deliver step item with its failure
+// reason and code (sinks.md §1.8).
+func markFailed(ctx context.Context, tx pgx.Tx, jobID, profile, reason, code string) error {
+	var detail *string
+	if code != "" {
+		detail = &code
 	}
+	_, err := tx.Exec(ctx, `
+		INSERT INTO step_items (job_id, step, item, state, failure_reason, detail)
+		VALUES ($1, 'deliver', $2, 'failed', $3, $4)
+		ON CONFLICT (job_id, step, item) DO UPDATE SET state = 'failed', failure_reason = $3, detail = $4`,
+		jobID, profile, reason, detail)
+	return err
+}
+
+func nullIfEmpty(s *string) *string {
+	if s == nil || *s == "" {
+		return nil
+	}
+	return s
 }
 
 var (
@@ -223,47 +516,43 @@ var (
 	errStopping = errors.New("deliver: job stopping")
 )
 
-// load reads the job's sink profile, the owner of its registration, the
-// render output and the delivery record. One registration has one active
-// job: the one whose registration_id references it (architecture.md §5.4).
+// load reads the job's sinks with their statuses, the owner and result_url
+// of its registration, the Matrix room and the render output. One
+// registration has one active job: the one whose registration_id references
+// it (architecture.md §5.4).
 func (d Deps) load(ctx context.Context, jobID string) (*job, error) {
 	j := &job{}
-	var profile *string
 	var regID *int64
-	var sub, email *string
+	var sub, email, resultURL *string
 	var out []byte
-	var state, docID *string
-	var sentAt *time.Time
 	err := d.Pool.QueryRow(ctx, `
-		SELECT j.sink_profile, j.registration_id, r.owner_sub, r.owner_email, s.output,
-			dl.state, dl.document_id, dl.sent_at
+		SELECT j.matrix_room, j.created_at, j.registration_id, r.owner_sub, r.owner_email, r.result_url, s.output
 		FROM jobs j
 		JOIN steps s ON s.job_id = j.job_id AND s.name = 'render'
 		LEFT JOIN registrations r ON r.registration_id = j.registration_id AND r.status = 'registered'
-		LEFT JOIN deliveries dl ON dl.job_id = j.job_id
-		WHERE j.job_id = $1`, jobID).Scan(&profile, &regID, &sub, &email, &out, &state, &docID, &sentAt)
+		WHERE j.job_id = $1`, jobID).Scan(&j.matrixRoom, &j.createdAt, &regID, &sub, &email, &resultURL, &out)
 	if err != nil {
 		return nil, fmt.Errorf("job: %w", err)
 	}
-	if profile == nil || regID == nil || sub == nil || email == nil || *sub == "" || *email == "" {
+	if j.sinks, err = queue.SinkStatuses(ctx, d.Pool, jobID); err != nil {
+		return nil, fmt.Errorf("sinks: %w", err)
+	}
+	if len(j.sinks) == 0 || regID == nil || sub == nil || email == nil || *sub == "" || *email == "" {
 		return nil, errNoOwner
 	}
 	if out == nil || json.Unmarshal(out, &j.render) != nil || j.render.SummarySHA256 == "" || j.render.TitleSHA256 == "" {
 		return nil, errStored
 	}
-	j.profile, j.registrationID = *profile, *regID
+	j.registrationID = *regID
 	j.owner = sink.Owner{Sub: *sub, Email: *email}
-	if state != nil {
-		j.prior = &sink.Record{JobID: jobID, SinkProfile: j.profile, State: *state, DocumentID: docID}
-		if sentAt != nil {
-			at := sentAt.UTC().Format(time.RFC3339)
-			j.prior.SentAt = &at
-		}
+	if resultURL != nil {
+		j.resultURL = *resultURL
 	}
 	return j, nil
 }
 
-// request builds the delivery request from the render blobs (sinks.md §1.2).
+// request builds the delivery request from the render blobs (sinks.md
+// §1.2), without sink_profile and links, which each call sets.
 func (d Deps) request(ctx context.Context, jobID string, j *job) (sink.Request, error) {
 	md, err := d.read(ctx, jobID, j.render.SummarySHA256)
 	if err != nil {
@@ -273,8 +562,15 @@ func (d Deps) request(ctx context.Context, jobID string, j *job) (sink.Request, 
 	if err != nil {
 		return sink.Request{}, err
 	}
-	return sink.Request{JobID: jobID, SinkProfile: j.profile, Title: string(title), SummaryMD: string(md),
-		SummarySHA256: j.render.SummarySHA256, Owner: j.owner}, nil
+	renderedAt := j.render.RenderedAt
+	if renderedAt == "" {
+		// Rendered before render recorded the time: the job's creation,
+		// a fixed time of the job, stands in.
+		renderedAt = j.createdAt.UTC().Format(time.RFC3339)
+	}
+	return sink.Request{JobID: jobID, Title: string(title), SummaryMD: string(md),
+		SummarySHA256: j.render.SummarySHA256, Owner: j.owner, Links: []sink.Link{}, RenderedAt: renderedAt,
+		MatrixRoom: j.matrixRoom}, nil
 }
 
 func (d Deps) read(ctx context.Context, jobID, key string) ([]byte, error) {
@@ -286,16 +582,16 @@ func (d Deps) read(ctx context.Context, jobID, key string) ([]byte, error) {
 	return io.ReadAll(rc)
 }
 
-// markSending commits the deliveries row in sending before the request
-// (sinks.md §1.4 step 1), in its own transaction, guarded by guard.
-func (d Deps) markSending(ctx context.Context, run queue.Run, j *job) error {
+// markSending commits the sink's deliveries row in sending before the
+// request (sinks.md §1.4 step 1), in its own transaction, guarded by guard.
+func (d Deps) markSending(ctx context.Context, run queue.Run, j *job, profile string) error {
 	return pgx.BeginFunc(ctx, d.Pool, func(tx pgx.Tx) error {
 		if err := guard(ctx, tx, run, j); err != nil {
 			return err
 		}
 		tag, err := tx.Exec(ctx, `
 			INSERT INTO deliveries (job_id, sink_profile, state) VALUES ($1, $2, 'sending')
-			ON CONFLICT (job_id) DO NOTHING`, run.JobID, j.profile)
+			ON CONFLICT (job_id, sink_profile) DO NOTHING`, run.JobID, profile)
 		if err != nil {
 			return err
 		}

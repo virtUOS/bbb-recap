@@ -199,7 +199,7 @@ func expectReg(t *testing.T, r result, code int, status string) response {
 		t.Fatal(err)
 	}
 	want := []string{"schema_version", "record_id", "meeting_id", "frontend_id", "status", "created_at",
-		"updated_at", "expires_at", "job"}
+		"updated_at", "expires_at", "result_url", "job"}
 	if len(keys) != len(want) {
 		t.Fatalf("response keys %v, want %v", keys, want)
 	}

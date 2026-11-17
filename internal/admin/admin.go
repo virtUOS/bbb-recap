@@ -68,24 +68,59 @@ func (a *API) Mount(mux *http.ServeMux, creds *httpapi.Credentials) {
 // Job is the admin job body (architecture.md §4). Values that do not apply
 // are null.
 type Job struct {
-	JobID         string    `json:"job_id"`
-	RecordID      string    `json:"record_id"`
-	MeetingID     string    `json:"meeting_id"`
-	BBBServerID   string    `json:"bbb_server_id"`
-	State         string    `json:"state"`
-	HeldReason    *string   `json:"held_reason"`
-	FailureReason *string   `json:"failure_reason"`
-	Outcome       *string   `json:"outcome"`
-	Detail        *string   `json:"detail"`
-	Delivery      *Delivery `json:"delivery"`
-	CreatedAt     string    `json:"created_at"`
-	UpdatedAt     string    `json:"updated_at"`
+	JobID         string  `json:"job_id"`
+	RecordID      string  `json:"record_id"`
+	MeetingID     string  `json:"meeting_id"`
+	BBBServerID   string  `json:"bbb_server_id"`
+	State         string  `json:"state"`
+	HeldReason    *string `json:"held_reason"`
+	FailureReason *string `json:"failure_reason"`
+	Outcome       *string `json:"outcome"`
+	Detail        *string `json:"detail"`
+	// Delivery is the record of the job's first sink in delivery order.
+	Delivery *Delivery `json:"delivery"`
+	// Deliveries has one entry per sink of the job in delivery order, []
+	// before validate stored them (sinks.md §1.8).
+	Deliveries []SinkDelivery `json:"deliveries"`
+	MatrixRoom *string        `json:"matrix_room"`
+	CreatedAt  string         `json:"created_at"`
+	UpdatedAt  string         `json:"updated_at"`
 }
 
-// Delivery is the deliveries row of a job.
+// Delivery is a deliveries row of a job.
 type Delivery struct {
 	State      string  `json:"state"`
 	DocumentID *string `json:"document_id"`
+}
+
+// SinkDelivery is one sink of a job with its status (sinks.md §1.8).
+// Target is the Matrix room ID the event went to; FailureReason is set only
+// for failed, Detail is the sink's allow-listed code.
+type SinkDelivery struct {
+	SinkProfile   string  `json:"sink_profile"`
+	State         string  `json:"state"`
+	DocumentID    *string `json:"document_id"`
+	Target        *string `json:"target"`
+	FailureReason *string `json:"failure_reason"`
+	Detail        *string `json:"detail"`
+}
+
+// withDeliveries sets the job's deliveries and delivery from its sink
+// statuses.
+func withDeliveries(ctx context.Context, q queue.Querier, j *Job) error {
+	sinks, err := queue.SinkStatuses(ctx, q, j.JobID)
+	if err != nil {
+		return err
+	}
+	j.Deliveries = []SinkDelivery{}
+	for _, s := range sinks {
+		j.Deliveries = append(j.Deliveries, SinkDelivery{SinkProfile: s.Profile, State: s.Status,
+			DocumentID: s.DocumentID, Target: s.Target, FailureReason: s.FailureReason, Detail: s.Detail})
+	}
+	if len(sinks) > 0 && sinks[0].Status != queue.SinkPending && sinks[0].Status != queue.SinkFailed {
+		j.Delivery = &Delivery{State: sinks[0].Status, DocumentID: sinks[0].DocumentID}
+	}
+	return nil
 }
 
 // jobIDRE is a UUID in canonical form, so a malformed path never reaches the
@@ -98,6 +133,8 @@ var (
 	ErrNotFound             = queue.ErrNotFound             // unknown or malformed job ID: 404
 	ErrInvalidState         = queue.ErrInvalidState         // action not allowed in the job's state: 409
 	ErrDocumentIDNotAllowed = queue.ErrDocumentIDNotAllowed // 400
+	ErrSinkNotInJob         = queue.ErrSinkNotInJob         // 400
+	ErrSinkNotAllowed       = errors.New("admin: sink applies to retry and release only")
 	ErrInvalidDocumentID    = errors.New("admin: document_id must be 1 to 255 bytes")
 	ErrInvalidFilter        = errors.New("admin: invalid filter, limit or cursor")
 	ErrUnknownAction        = errors.New("admin: unknown action")
@@ -116,7 +153,15 @@ func (a *API) Job(ctx context.Context, jobID string) (Job, error) {
 	if !ok {
 		return Job{}, ErrNotFound
 	}
-	j, _, err := scanJob(a.pool.QueryRow(ctx, jobSelect+` WHERE j.job_id = $1::uuid`, jobID))
+	var j Job
+	err := pgx.BeginTxFunc(ctx, a.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
+		func(tx pgx.Tx) error {
+			var err error
+			if j, _, err = scanJob(tx.QueryRow(ctx, jobSelect+` WHERE j.job_id = $1::uuid`, jobID)); err != nil {
+				return err
+			}
+			return withDeliveries(ctx, tx, &j)
+		})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Job{}, ErrNotFound
 	}
@@ -142,33 +187,29 @@ func (a *API) writeJob(w http.ResponseWriter, r *http.Request, jobID string) {
 }
 
 // jobSelect reads the columns of the job body; scanJob scans them.
+// withDeliveries adds the sinks.
 const jobSelect = `
 	SELECT j.job_id::text, p.record_id, p.meeting_id, p.bbb_server_id, j.state,
-		j.held_reason, j.failure_reason, j.outcome, j.detail, d.state, d.document_id,
+		j.held_reason, j.failure_reason, j.outcome, j.detail, j.matrix_room,
 		j.created_at, j.updated_at
 	FROM jobs j
-	JOIN packages p ON p.package_id = j.package_id
-	LEFT JOIN deliveries d ON d.job_id = j.job_id`
+	JOIN packages p ON p.package_id = j.package_id`
 
 // scanJob scans one row of jobSelect. It also returns created_at at full
 // precision, for the list cursor.
 func scanJob(row pgx.Row) (Job, time.Time, error) {
 	var (
-		j          Job
-		created    time.Time
-		updated    time.Time
-		deliverySt *string
-		documentID *string
+		j       Job
+		created time.Time
+		updated time.Time
 	)
 	err := row.Scan(&j.JobID, &j.RecordID, &j.MeetingID, &j.BBBServerID, &j.State,
-		&j.HeldReason, &j.FailureReason, &j.Outcome, &j.Detail, &deliverySt, &documentID,
+		&j.HeldReason, &j.FailureReason, &j.Outcome, &j.Detail, &j.MatrixRoom,
 		&created, &updated)
 	if err != nil {
 		return j, created, err
 	}
-	if deliverySt != nil {
-		j.Delivery = &Delivery{State: *deliverySt, DocumentID: documentID}
-	}
+	j.Deliveries = []SinkDelivery{}
 	j.CreatedAt = formatTime(created)
 	j.UpdatedAt = formatTime(updated)
 	return j, created, nil

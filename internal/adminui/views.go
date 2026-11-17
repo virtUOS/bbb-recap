@@ -162,9 +162,12 @@ type jobPage struct {
 // confirmation page says they do (architecture.md §5.4).
 var actions = []struct{ name, effect string }{
 	{"retry", "Runs the failed or held step again: attempts reset, earlier outputs kept. For delivery_uncertain: " +
-		"only after you checked Docs and found no document; deliver sends again."},
-	{"release", "Lifts the hold. For delivery_uncertain: you found the document in Docs; the job is marked " +
-		"delivered without sending again, optionally with the document ID. Any other reason: the held step runs again."},
+		"only after you checked Docs (or the webhook receiver) and found nothing; deliver sends again. With a sink: " +
+		"only that failed or sending sink is sent again."},
+	{"release", "Lifts the hold. For delivery_uncertain: you found the document in Docs (or the receiver got the " +
+		"webhook); the sink is confirmed without sending again, optionally with the document ID. With a failed " +
+		"sink of a failed job: that sink is skipped (nothing is delivered there). Any other reason: the held step " +
+		"runs again."},
 	{"rerun", "Creates a new job from the same package, starting at validate, and a new Docs document. " +
 		"This job then ends as cleaned (purged)."},
 	{"purge", "Runs cleanup only: the job's content is deleted and the job ends as cleaned (purged)."},
@@ -187,9 +190,11 @@ func actionEffect(name string) (string, bool) {
 func actionsFor(j admin.Job) []string {
 	held := j.State == "held"
 	uncertain := held && j.HeldReason != nil && *j.HeldReason == "delivery_uncertain"
+	// A failed job with several sinks may have a sink to skip (release
+	// with sink, sinks.md §1.8).
 	allowed := map[string]bool{
 		"retry":   j.State == "failed" || uncertain,
-		"release": held,
+		"release": held || j.State == "failed" && len(j.Deliveries) > 1,
 		"rerun":   j.State != "cleaned",
 		"purge":   held || j.State == "failed",
 		"erase":   j.State == "cleaned",
@@ -217,12 +222,24 @@ func (u *UI) confirm(w http.ResponseWriter, r *http.Request) {
 		u.fail(w, r, err, "")
 		return
 	}
-	docField := action == "release" && j.State == "held" && j.HeldReason != nil && *j.HeldReason == "delivery_uncertain"
+	uncertain := j.State == "held" && j.HeldReason != nil && *j.HeldReason == "delivery_uncertain"
+	sending := false
+	for _, d := range j.Deliveries {
+		sending = sending || d.State == "sending"
+	}
+	// retry and release take a sink for a job with several sinks
+	// (sinks.md §1.8); the empty choice means every failed or sending sink.
+	var sinks []admin.SinkDelivery
+	if (action == "retry" || action == "release") && (uncertain || j.State == "failed") && len(j.Deliveries) > 1 {
+		sinks = j.Deliveries
+	}
+	docField := action == "release" && (uncertain || j.State == "failed") && sending
 	u.render(w, http.StatusOK, "confirm", view{Title: "Confirm " + action, Session: session(r), Data: struct {
 		Job             admin.Job
 		Action, Effect  string
 		DocumentIDField bool
-	}{j, action, effect, docField}})
+		Sinks           []admin.SinkDelivery
+	}{j, action, effect, docField, sinks}})
 }
 
 // act runs a confirmed action (Protect checked the CSRF token) and
@@ -242,12 +259,14 @@ func (u *UI) act(w http.ResponseWriter, r *http.Request) {
 			u.fail(w, r, err, back)
 			return
 		}
-		u.setFlash(w, flash{Action: action, JobID: jobID, DocumentID: res.DocumentID, SinkProfile: res.SinkProfile})
+		u.setFlash(w, flash{Action: action, JobID: jobID, DocumentID: res.DocumentID, SinkProfile: res.SinkProfile,
+			Deliveries: res.Deliveries})
 		http.Redirect(w, r, "/admin/erased", http.StatusSeeOther)
 		return
 	}
-	documentID := strings.TrimSpace(r.PostFormValue("document_id"))
-	shown, err := u.cfg.Admin.Action(r.Context(), by, jobID, action, documentID)
+	req := admin.Request{DocumentID: strings.TrimSpace(r.PostFormValue("document_id")),
+		Sink: strings.TrimSpace(r.PostFormValue("sink"))}
+	shown, err := u.cfg.Admin.Action(r.Context(), by, jobID, action, req)
 	if err != nil {
 		u.fail(w, r, err, back)
 		return
@@ -301,7 +320,9 @@ func (u *UI) fail(w http.ResponseWriter, r *http.Request, err error, back string
 		status, v.Title, v.Message = http.StatusConflict, "Not possible in this state",
 			"The job's state does not allow this action (409 invalid-job-state). Nothing was changed."
 	case errors.Is(err, admin.ErrDocumentIDNotAllowed):
-		v.Title, v.Message = "Invalid request", "A document ID applies only to release of a delivery_uncertain job (400 invalid-request)."
+		v.Title, v.Message = "Invalid request", "A document ID applies only to release of one sink in sending (400 invalid-request)."
+	case errors.Is(err, admin.ErrSinkNotInJob), errors.Is(err, admin.ErrSinkNotAllowed):
+		v.Title, v.Message = "Invalid request", "The sink is not a sink of this job, or the action takes no sink (400 invalid-request)."
 	case errors.Is(err, admin.ErrInvalidDocumentID):
 		v.Title, v.Message = "Invalid request", "The document ID must be 1 to 255 bytes (400 invalid-request)."
 	case errors.Is(err, admin.ErrInvalidFilter):

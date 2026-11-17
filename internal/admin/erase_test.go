@@ -80,7 +80,7 @@ func decodeErased(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	if strings.Join(keys, ",") != "document_id,erased,sink_profile" {
+	if strings.Join(keys, ",") != "deliveries,document_id,erased,sink_profile" {
 		t.Fatalf("keys %v", keys)
 	}
 	if m["erased"] != true {
@@ -97,7 +97,7 @@ func (e *env) cleanAfterDelivery(t *testing.T, id string) {
 	e.exec(t, `UPDATE steps SET state = 'succeeded', run_after = now() WHERE job_id = $1 AND name = 'cleanup'`, id)
 	e.exec(t, `UPDATE jobs SET state = 'cleaned', outcome = 'delivered', cleaned_at = now() WHERE job_id = $1`, id)
 	e.exec(t, `INSERT INTO audit (actor_kind, action, job_id, detail) VALUES ('system', 'job_state', $1, 'cleaned')`, id)
-	e.exec(t, `INSERT INTO step_items (job_id, item, state) VALUES ($1, 'trk-0', 'succeeded')`, id)
+	e.exec(t, `INSERT INTO step_items (job_id, step, item, state) VALUES ($1, 'transcribe', 'trk-0', 'succeeded')`, id)
 }
 
 // Erase of a cleaned, delivered job leaves no row with its job_id,

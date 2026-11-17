@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/virtUOS/bbb-recap/internal/adapters/docs"
+	"github.com/virtUOS/bbb-recap/internal/adapters/webhook"
 	"github.com/virtUOS/bbb-recap/internal/config"
 	"github.com/virtUOS/bbb-recap/internal/queue"
 	"github.com/virtUOS/bbb-recap/internal/sink"
@@ -22,7 +23,8 @@ func deliverHandler(d *deps) (queue.Handler, error) {
 		}
 		sinks[p.Name] = s
 	}
-	return deliver.Handler(deliver.Deps{Pool: d.pool, Blobs: d.blobs, Log: d.log, Sinks: sinks}), nil
+	return deliver.Handler(deliver.Deps{Pool: d.pool, Blobs: d.blobs, Results: d.results, Log: d.log,
+		Sinks: sinks}), nil
 }
 
 // newSink returns the step's view of a sink profile with the adapter of
@@ -31,17 +33,27 @@ func newSink(p config.SinkProfile, d *deps) (deliver.Sink, error) {
 	switch p.Type {
 	case docs.Type:
 		return deliver.Sink{
-			Sender:           docs.New(p.Name, p.DocsBaseURL, p.APIKey, p.Timeout, d.log),
-			MaxDocumentBytes: p.MaxDocumentBytes,
-			MaxInflight:      p.MaxInflight,
+			Type:                deliver.TypeDocs,
+			Sender:              docs.New(p.Name, p.DocsBaseURL, p.APIKey, p.Timeout, d.log),
+			MaxDocumentBytes:    p.MaxDocumentBytes,
+			MaxInflight:         p.MaxInflight,
+			DocumentURLTemplate: p.DocumentURLTemplate,
 		}, nil
 	case config.SinkTypeFrontend:
 		if d.results == nil {
 			return deliver.Sink{}, fmt.Errorf("sink profile %s: type frontend needs a blob backend that keeps results", p.Name)
 		}
 		return deliver.Sink{
+			Type:             deliver.TypeFrontend,
 			Sender:           sink.Frontend{Results: d.results},
 			Idempotent:       true,
+			MaxDocumentBytes: p.MaxDocumentBytes,
+			MaxInflight:      p.MaxInflight,
+		}, nil
+	case webhook.Type:
+		return deliver.Sink{
+			Type:             deliver.TypeWebhook,
+			Sender:           webhook.New(p.Name, p.URL, p.SigningKeys, p.Content, p.Timeout, d.log),
 			MaxDocumentBytes: p.MaxDocumentBytes,
 			MaxInflight:      p.MaxInflight,
 		}, nil

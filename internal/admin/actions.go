@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 
 	"github.com/jackc/pgx/v5"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/virtUOS/bbb-recap/internal/queue"
 )
 
-// maxActionBody bounds the action body: {} or {"document_id": …}.
+// maxActionBody bounds the action body: {}, {"document_id": …} or {"sink": …}.
 const maxActionBody = 8 << 10
 
 // maxDocumentIDLen bounds the Docs document ID an admin passes to release.
@@ -24,6 +25,15 @@ const maxDocumentIDLen = 255
 // actionBody is the body of POST …/{action} (architecture.md §4).
 type actionBody struct {
 	DocumentID *string `json:"document_id"`
+	Sink       *string `json:"sink"`
+}
+
+// Request is what an action takes besides the job: the sink of a job with
+// several sinks (retry and release, sinks.md §1.8) and the document ID of a
+// release. Empty means none.
+type Request struct {
+	Sink       string
+	DocumentID string
 }
 
 // postAction serves POST /api/v1/admin/jobs/{job_id}/{action} (architecture.md
@@ -42,12 +52,16 @@ func (a *API) postAction(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteProblem(w, http.StatusNotFound, "not-found", "")
 		return
 	}
-	documentID, ok := readActionBody(w, r)
+	req, ok := readActionBody(w, r)
 	if !ok {
 		return
 	}
-	if documentID != "" && action != "release" {
+	if req.DocumentID != "" && action != "release" {
 		httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request", "document_id applies to release only")
+		return
+	}
+	if req.Sink != "" && action != "retry" && action != "release" {
+		httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request", "sink applies to retry and release only")
 		return
 	}
 	if action == "erase" {
@@ -55,7 +69,7 @@ func (a *API) postAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client, _ := httpapi.ClientFrom(r.Context())
-	answer, err := a.Action(r.Context(), queue.Actor{Kind: "admin", ID: client.ID}, jobID, action, documentID)
+	answer, err := a.Action(r.Context(), queue.Actor{Kind: "admin", ID: client.ID}, jobID, action, req)
 	switch {
 	case errors.Is(err, ErrNotFound):
 		httpapi.WriteProblem(w, http.StatusNotFound, "not-found", "")
@@ -64,7 +78,11 @@ func (a *API) postAction(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteProblem(w, http.StatusConflict, "invalid-job-state", "")
 		return
 	case errors.Is(err, ErrDocumentIDNotAllowed):
-		httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request", "document_id applies to delivery_uncertain only")
+		httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request",
+			"document_id applies to release of one sink in sending only")
+		return
+	case errors.Is(err, ErrSinkNotInJob):
+		httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request", "sink is not a sink of the job")
 		return
 	case err != nil:
 		a.internal(w, r, "admin action failed", err, "job_id", jobID, "action", action)
@@ -74,30 +92,34 @@ func (a *API) postAction(w http.ResponseWriter, r *http.Request) {
 }
 
 // Action runs retry, release, purge or rerun on a job as by, with its audit
-// row (architecture.md §5.4). documentID applies to release of a
-// delivery_uncertain job only; "" means none. It returns the job ID to show:
-// the new job for rerun, else jobID. Errors: ErrNotFound, ErrInvalidState,
-// ErrDocumentIDNotAllowed, ErrInvalidDocumentID, ErrUnknownAction, or an unexpected error that the
-// caller logs by its class.
-func (a *API) Action(ctx context.Context, by queue.Actor, jobID, action, documentID string) (string, error) {
+// row (architecture.md §5.4). req.DocumentID applies to release of a sink in
+// sending only, req.Sink to retry and release (sinks.md §1.8); "" means
+// none. It returns the job ID to show: the new job for rerun, else jobID.
+// Errors: ErrNotFound, ErrInvalidState, ErrDocumentIDNotAllowed,
+// ErrInvalidDocumentID, ErrSinkNotInJob, ErrSinkNotAllowed, ErrUnknownAction,
+// or an unexpected error that the caller logs by its class.
+func (a *API) Action(ctx context.Context, by queue.Actor, jobID, action string, req Request) (string, error) {
 	jobID, ok := normalizeJobID(jobID)
 	if !ok {
 		return "", ErrNotFound
 	}
-	if documentID != "" && action != "release" {
+	if req.DocumentID != "" && action != "release" {
 		return "", ErrDocumentIDNotAllowed
 	}
-	if len(documentID) > maxDocumentIDLen {
+	if len(req.DocumentID) > maxDocumentIDLen {
 		return "", ErrInvalidDocumentID
+	}
+	if req.Sink != "" && action != "retry" && action != "release" {
+		return "", ErrSinkNotAllowed
 	}
 	answer := jobID
 	var err error
 	switch action {
 	case "retry":
-		err = a.inTx(ctx, func(tx pgx.Tx) error { return queue.Retry(ctx, tx, by, jobID) })
+		err = a.inTx(ctx, func(tx pgx.Tx) error { return queue.Retry(ctx, tx, by, jobID, req.Sink, a.retention) })
 	case "release":
 		err = a.inTx(ctx, func(tx pgx.Tx) error {
-			return queue.Release(ctx, tx, by, jobID, documentID, a.retention)
+			return queue.Release(ctx, tx, by, jobID, req.Sink, req.DocumentID, a.retention)
 		})
 	case "purge":
 		err = a.inTx(ctx, func(tx pgx.Tx) error { return queue.Purge(ctx, tx, by, jobID) })
@@ -109,40 +131,56 @@ func (a *API) Action(ctx context.Context, by queue.Actor, jobID, action, documen
 	if err != nil {
 		return "", err
 	}
-	if answer != jobID {
+	switch {
+	case answer != jobID:
 		a.log.InfoContext(ctx, "admin action", "job_id", jobID, "action", action, "new_job_id", answer)
-	} else {
+	case req.Sink != "":
+		a.log.InfoContext(ctx, "admin action", "job_id", jobID, "action", action, "profile", req.Sink)
+	default:
 		a.log.InfoContext(ctx, "admin action", "job_id", jobID, "action", action)
 	}
 	return answer, nil
 }
 
-// readActionBody reads {} or {"document_id": "…"}; an empty body counts as
-// {}. On a bad body it answers 400 (413 if too large) and returns false.
-func readActionBody(w http.ResponseWriter, r *http.Request) (string, bool) {
+// readActionBody reads {} or an object with "document_id" and "sink"
+// (strings); an empty body counts as {}. On a bad body it answers 400 (413
+// if too large) and returns false.
+func readActionBody(w http.ResponseWriter, r *http.Request) (Request, bool) {
 	b, ok := httpapi.ReadBody(w, r, maxActionBody)
 	if !ok {
-		return "", false
+		return Request{}, false
 	}
 	if len(bytes.TrimSpace(b)) == 0 {
-		return "", true
+		return Request{}, true
 	}
 	var body actionBody
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil || dec.More() {
-		httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request", "body must be {} or {\"document_id\": string}")
-		return "", false
+		httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request",
+			"body must be {} or an object with document_id and sink (strings)")
+		return Request{}, false
 	}
-	if body.DocumentID == nil {
-		return "", true
+	var req Request
+	if body.DocumentID != nil {
+		if *body.DocumentID == "" || len(*body.DocumentID) > maxDocumentIDLen {
+			httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request", "document_id must be 1 to 255 bytes")
+			return Request{}, false
+		}
+		req.DocumentID = *body.DocumentID
 	}
-	if *body.DocumentID == "" || len(*body.DocumentID) > maxDocumentIDLen {
-		httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request", "document_id must be 1 to 255 bytes")
-		return "", false
+	if body.Sink != nil {
+		if !sinkNameRE.MatchString(*body.Sink) {
+			httpapi.WriteProblem(w, http.StatusBadRequest, "invalid-request", "sink must be a sink profile name")
+			return Request{}, false
+		}
+		req.Sink = *body.Sink
 	}
-	return *body.DocumentID, true
+	return req, true
 }
+
+// sinkNameRE is the grammar of sink profile names (README "Grammars").
+var sinkNameRE = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 
 func (a *API) inTx(ctx context.Context, f func(pgx.Tx) error) error {
 	return pgx.BeginFunc(ctx, a.pool, f)

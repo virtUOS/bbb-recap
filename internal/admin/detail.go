@@ -45,6 +45,9 @@ func (a *API) JobDetail(ctx context.Context, jobID string) (Detail, error) {
 			if d.Job, _, err = scanJob(tx.QueryRow(ctx, jobSelect+` WHERE j.job_id = $1::uuid`, jobID)); err != nil {
 				return err
 			}
+			if err := withDeliveries(ctx, tx, &d.Job); err != nil {
+				return err
+			}
 			if err := tx.QueryRow(ctx, `SELECT rerun_of::text, current_step FROM jobs WHERE job_id = $1::uuid`, jobID).
 				Scan(&d.RerunOf, &d.CurrentStep); err != nil {
 				return err

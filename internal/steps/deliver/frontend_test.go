@@ -56,7 +56,7 @@ func TestFrontendDeliver(t *testing.T) {
 
 	run := e.claim(t, jobID)
 	r := Handler(e.deps)(ctx, run)
-	if r.Outcome != queue.OK || string(r.Output) != `{"delivery_state":"sent"}` {
+	if r.Outcome != queue.OK || string(r.Output) != `{"deliveries":[{"sink_profile":"frontend-main","state":"sent"}]}` {
 		t.Fatalf("result %+v output %s", r, r.Output)
 	}
 	if got, ok := stored(t, results, jobID); !ok || got != summaryMD {

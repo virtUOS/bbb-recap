@@ -66,6 +66,7 @@ func indexOf(step string) int {
 func toUncertain(t *testing.T, pool *pgxpool.Pool, e *Engine, id string) {
 	t.Helper()
 	run := toDeliver(t, e, id)
+	exec(t, pool, `UPDATE jobs SET sink_profile = 'docs-test' WHERE job_id = $1`, id) // as validate does
 	exec(t, pool, `INSERT INTO deliveries (job_id, sink_profile, state) VALUES ($1, 'docs-test', 'sending')`, id)
 	mustFinish(t, e, run, Result{Outcome: Hold, Reason: "delivery_uncertain"})
 }
@@ -77,7 +78,7 @@ func TestRetryFailedJob(t *testing.T) {
 	mustFinish(t, e, mustClaim(t, e, id, "validate"), Result{Outcome: OK})
 	mustFinish(t, e, mustClaim(t, e, id, "normalize"), Result{Outcome: Permanent, Reason: "events_mismatch",
 		ErrorClass: "input", ErrorCode: "x"})
-	if err := inTx(t, pool, func(tx pgx.Tx) error { return Retry(ctx, tx, admin, id) }); err != nil {
+	if err := inTx(t, pool, func(tx pgx.Tx) error { return Retry(ctx, tx, admin, id, "", 0) }); err != nil {
 		t.Fatal(err)
 	}
 	if j := getJob(t, pool, id); j.State != "running" || j.Step != "normalize" || j.Failure != "" {
@@ -103,7 +104,7 @@ func TestRetryDeliveryUncertainDeletesSending(t *testing.T) {
 	id := seedJob(t, pool)
 	e := newEngine(pool, "w1", Steps...)
 	toUncertain(t, pool, e, id)
-	if err := inTx(t, pool, func(tx pgx.Tx) error { return Retry(ctx, tx, admin, id) }); err != nil {
+	if err := inTx(t, pool, func(tx pgx.Tx) error { return Retry(ctx, tx, admin, id, "", 0) }); err != nil {
 		t.Fatal(err)
 	}
 	var n int
@@ -120,7 +121,7 @@ func TestReleaseDeliveryUncertain(t *testing.T) {
 			id := seedJob(t, pool)
 			e := newEngine(pool, "w1", Steps...)
 			toUncertain(t, pool, e, id)
-			err := inTx(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, doc, 2*time.Hour) })
+			err := inTx(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, "", doc, 2*time.Hour) })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -157,11 +158,11 @@ func TestReleaseOtherHold(t *testing.T) {
 	id := seedJob(t, pool)
 	e := newEngine(pool, "w1", Steps...)
 	toHeld(t, e, id, "validate", "unknown_type")
-	err := inTx(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, "doc-1", 0) })
+	err := inTx(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, "", "doc-1", 0) })
 	if !errors.Is(err, ErrDocumentIDNotAllowed) {
 		t.Fatalf("release with document_id: %v, want ErrDocumentIDNotAllowed", err)
 	}
-	if err := inTx(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, "", 0) }); err != nil {
+	if err := inTx(t, pool, func(tx pgx.Tx) error { return Release(ctx, tx, admin, id, "", "", 0) }); err != nil {
 		t.Fatal(err)
 	}
 	if j := getJob(t, pool, id); j.State != "running" || j.Held != "" {
