@@ -27,6 +27,7 @@ func registrationSinks(profiles []config.SinkProfile) map[string]registration.Si
 		sinks[p.Name] = registration.Sink{
 			Frontend:            p.Type == config.SinkTypeFrontend,
 			DocumentURLTemplate: p.DocumentURLTemplate,
+			WithoutOwner:        p.Type == config.SinkTypeFrontend || p.Type == config.SinkTypeWebhook,
 		}
 	}
 	return sinks

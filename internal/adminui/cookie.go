@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/virtUOS/bbb-recap/internal/admin"
 )
 
 // Cookie names. Both have Path=/admin/.
@@ -142,12 +144,13 @@ func equal(a, b string) bool {
 // flash is the one-line result of an action, shown once by the next page.
 // It lives in a signed cookie for one minute, so no value travels in a URL.
 type flash struct {
-	Action      string  `json:"action"`
-	JobID       string  `json:"job_id"`         // the job whose page shows it
-	From        string  `json:"from,omitempty"` // rerun: the old job
-	DocumentID  *string `json:"document_id,omitempty"`
-	SinkProfile *string `json:"sink_profile,omitempty"`
-	Expires     int64   `json:"exp"`
+	Action      string             `json:"action"`
+	JobID       string             `json:"job_id"`         // the job whose page shows it
+	From        string             `json:"from,omitempty"` // rerun: the old job
+	DocumentID  *string            `json:"document_id,omitempty"`
+	SinkProfile *string            `json:"sink_profile,omitempty"`
+	Deliveries  []admin.ErasedSink `json:"deliveries,omitempty"` // erase: every delivery record
+	Expires     int64              `json:"exp"`
 }
 
 const (

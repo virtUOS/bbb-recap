@@ -11,13 +11,25 @@ import (
 	"github.com/virtUOS/bbb-recap/internal/queue"
 )
 
-// Erased is the answer of erase (privacy.md §5.4): what the Docs operator
-// needs to delete the document, which the service has no rights on
-// (ADR-007). Both are null when the job has no delivery record.
+// Erased is the answer of erase (privacy.md §5.4, §11.3): what the Docs
+// operator or a room moderator needs to delete what the sinks hold, which
+// the service has no rights on (ADR-007). DocumentID and SinkProfile are
+// those of the first delivery record in delivery order that has a document
+// ID (else of the first record); both are null when the job has no
+// delivery record. Deliveries lists every delivery record in delivery
+// order.
 type Erased struct {
-	Erased      bool    `json:"erased"`
+	Erased      bool         `json:"erased"`
+	DocumentID  *string      `json:"document_id"`
+	SinkProfile *string      `json:"sink_profile"`
+	Deliveries  []ErasedSink `json:"deliveries"`
+}
+
+// ErasedSink is one delivery record of an erased job.
+type ErasedSink struct {
+	SinkProfile string  `json:"sink_profile"`
 	DocumentID  *string `json:"document_id"`
-	SinkProfile *string `json:"sink_profile"`
+	Target      *string `json:"target"`
 }
 
 // postErase serves POST /api/v1/admin/jobs/{job_id}/erase after postAction
@@ -121,11 +133,22 @@ func erase(ctx context.Context, tx pgx.Tx, by queue.Actor, jobID string) (Erased
 		return Erased{}, err
 	}
 
-	answer := Erased{Erased: true}
-	err = tx.QueryRow(ctx, `SELECT document_id, sink_profile FROM deliveries WHERE job_id = $1`, jobID).
-		Scan(&answer.DocumentID, &answer.SinkProfile)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	answer := Erased{Erased: true, Deliveries: []ErasedSink{}}
+	sinks, err := queue.SinkStatuses(ctx, tx, jobID)
+	if err != nil {
 		return Erased{}, err
+	}
+	for _, s := range sinks {
+		if s.Status == queue.SinkPending || s.Status == queue.SinkFailed {
+			continue // no record
+		}
+		answer.Deliveries = append(answer.Deliveries, ErasedSink{SinkProfile: s.Profile, DocumentID: s.DocumentID,
+			Target: s.Target})
+	}
+	for i := range answer.Deliveries {
+		if d := answer.Deliveries[i]; answer.SinkProfile == nil || answer.DocumentID == nil && d.DocumentID != nil {
+			answer.SinkProfile, answer.DocumentID = &d.SinkProfile, d.DocumentID
+		}
 	}
 
 	for _, q := range []string{

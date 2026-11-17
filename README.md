@@ -32,8 +32,8 @@ A longer walk-through: [docs/overview.md](docs/overview.md).
 - Speaker-attributed transcripts from BBB's per-speaker audio tracks (LiveKit audio bridge).
 - Providers are configuration: ASR dialects `whisperx-family` and `transkribierbar`, any OpenAI-compatible chat
   completions endpoint for the language model. No vendor SDKs.
-- Sinks: La Suite Docs (`create-for-owner`, the owner gets the document) and `frontend` (the front end fetches the
-  Markdown).
+- Sinks: La Suite Docs (`create-for-owner`, the owner gets the document), `frontend` (the front end fetches the
+  Markdown) and a signed webhook (Standard Webhooks) with a notice and the links; up to four per meeting.
 - Postgres job queue with retries, holds and admin actions (`retry`, `release`, `rerun`, `purge`, `erase`); admin
   API and admin web pages with OIDC login.
 - Privacy by default: content is deleted after delivery, logs never contain meeting content, retention is
@@ -45,6 +45,7 @@ A longer walk-through: [docs/overview.md](docs/overview.md).
 - BBB 4.0 or later with the LiveKit audio bridge only; no diarization, so a shared room microphone is one speaker.
 - One built-in output format (`meeting-summary`); admin-defined templates are not supported yet.
 - The transcript (`transcript.vtt`) is produced but not delivered.
+- The Matrix sink is specified ([sinks.md](docs/reference/sinks.md) §4c) but not supported yet.
 - Front ends need a small integration; PILOS releases do not include one yet.
 - No Debian package for the exporter, no Kubernetes manifests and no `linux/arm64` images yet.
 - Not tested with real meetings at scale. Whether the service may be used with real meetings is the deploying

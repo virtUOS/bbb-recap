@@ -124,7 +124,7 @@ func job(t *testing.T, l *Loop, jobID, packageID, state string, age time.Duratio
 			CASE WHEN $3 = 'cleaned' THEN now() - $4 * interval '1 microsecond' END)`,
 		jobID, packageID, state, age.Microseconds())
 	exec(t, l.Pool, `INSERT INTO steps (job_id, name, state) VALUES ($1, 'cleanup', 'succeeded')`, jobID)
-	exec(t, l.Pool, `INSERT INTO step_items (job_id, item, state) VALUES ($1, 'trk-1', 'succeeded')`, jobID)
+	exec(t, l.Pool, `INSERT INTO step_items (job_id, step, item, state) VALUES ($1, 'transcribe', 'trk-1', 'succeeded')`, jobID)
 	exec(t, l.Pool, `INSERT INTO deliveries (job_id, sink_profile, state, document_id)
 		VALUES ($1, 'docs-main', 'sent', 'fixture-doc')`, jobID)
 	exec(t, l.Pool, `INSERT INTO audit (actor_kind, action, job_id, detail)

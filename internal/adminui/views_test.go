@@ -200,7 +200,8 @@ func (e *viewEnv) setState(t *testing.T, id, state string) {
 			WHERE job_id = $1`, id)
 	case "held/delivery_uncertain":
 		done("deliver")
-		e.exec(t, `UPDATE jobs SET state = 'held', held_reason = 'delivery_uncertain' WHERE job_id = $1`, id)
+		e.exec(t, `UPDATE jobs SET state = 'held', held_reason = 'delivery_uncertain', sink_profile = 'docs-test'
+			WHERE job_id = $1`, id)
 		e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state) VALUES ($1, 'docs-test', 'sending')`, id)
 	case "failed":
 		done("normalize")
@@ -212,7 +213,8 @@ func (e *viewEnv) setState(t *testing.T, id, state string) {
 	case "delivered":
 		done("cleanup")
 		e.exec(t, `UPDATE steps SET run_after = now() + interval '1 hour' WHERE job_id = $1 AND name = 'cleanup'`, id)
-		e.exec(t, `UPDATE jobs SET state = 'delivered', delivered_at = now() WHERE job_id = $1`, id)
+		e.exec(t, `UPDATE jobs SET state = 'delivered', delivered_at = now(), sink_profile = 'docs-test'
+			WHERE job_id = $1`, id)
 		e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state, document_id, sent_at)
 			VALUES ($1, 'docs-test', 'sent', $2, now())`, id, testDocID)
 	case "cleaned":
@@ -553,7 +555,7 @@ func TestReleaseDocumentID(t *testing.T) {
 		t.Fatalf("release = %d", code)
 	}
 	_, page := e.page(t, loc)
-	if !strings.Contains(page, "<dd>confirmed_by_admin</dd>") || !strings.Contains(page, "<code>doc-found-1</code>") {
+	if !strings.Contains(page, "<td>confirmed_by_admin</td>") || !strings.Contains(page, "<code>doc-found-1</code>") {
 		t.Fatalf("job page after release:\n%s", page)
 	}
 
@@ -631,5 +633,126 @@ func TestViewsNeedSession(t *testing.T) {
 	}
 	if e.snapshot(t, id) != before {
 		t.Error("POST without session changed the job")
+	}
+}
+
+// A job with several sinks: the job page lists them, the confirmation page
+// offers the sink, and release with a failed sink skips it (sinks.md §1.8).
+func TestSinkChoice(t *testing.T) {
+	e := newViewEnv(t)
+	csrf := e.login(t)
+	id := e.seed(t)
+	e.setState(t, id, "held/delivery_uncertain")
+	e.exec(t, `UPDATE jobs SET state = 'failed', held_reason = NULL, failure_reason = 'rejected_by_sink',
+		sink_profile = 'docs-test,frontend-test' WHERE job_id = $1`, id)
+	e.exec(t, `UPDATE steps SET state = 'failed' WHERE job_id = $1 AND name = 'deliver'`, id)
+	e.exec(t, `DELETE FROM deliveries WHERE job_id = $1`, id)
+	e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state, sent_at) VALUES ($1, 'frontend-test', 'sent', now())`, id)
+	e.exec(t, `INSERT INTO step_items (job_id, step, item, state, failure_reason, detail)
+		VALUES ($1, 'deliver', 'docs-test', 'failed', 'rejected_by_sink', 'http_400')`, id)
+
+	_, page := e.page(t, "/admin/jobs/"+id)
+	for _, want := range []string{"<code>docs-test</code></td><td>failed</td>", "rejected_by_sink", "<code>http_400</code>",
+		"<code>frontend-test</code></td><td>sent</td>", "/admin/jobs/" + id + "/release"} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("job page lacks %q:\n%s", want, page)
+		}
+	}
+	_, page = e.page(t, "/admin/jobs/"+id+"/release")
+	if !strings.Contains(page, `<select name="sink">`) || !strings.Contains(page, `<option value="docs-test">docs-test (failed)</option>`) {
+		t.Fatalf("confirmation page without the sink choice:\n%s", page)
+	}
+	// release of a failed job needs a sink: no empty choice; a sent sink is
+	// not offered.
+	if strings.Contains(page, `<option value="">`) || strings.Contains(page, `value="frontend-test"`) {
+		t.Fatalf("release of a failed job offers an empty or a sent sink:\n%s", page)
+	}
+	_, page = e.page(t, "/admin/jobs/"+id+"/retry")
+	if !strings.Contains(page, `<option value="">every failed or sending sink</option>`) {
+		t.Fatalf("retry without the choice of every failed sink:\n%s", page)
+	}
+	code, loc, _ := e.submit(t, "/admin/jobs/"+id+"/release", url.Values{csrfField: {csrf}, "sink": {"docs-test"}})
+	if code != http.StatusSeeOther {
+		t.Fatalf("release with sink = %d", code)
+	}
+	if _, page = e.page(t, loc); !strings.Contains(page, "<td>skipped_by_admin</td>") || !strings.Contains(page, "<dd>delivered</dd>") {
+		t.Fatalf("job page after the skip:\n%s", page)
+	}
+}
+
+// A job that failed outside deliver has no failed or sending sink: release
+// is not offered and retry has no sink choice.
+func TestNoSinkChoiceWithoutOpenSinks(t *testing.T) {
+	e := newViewEnv(t)
+	e.login(t)
+	id := e.seed(t)
+	e.setState(t, id, "failed")
+	e.exec(t, `UPDATE jobs SET sink_profile = 'docs-test,frontend-test' WHERE job_id = $1`, id)
+	_, page := e.page(t, "/admin/jobs/"+id)
+	if strings.Contains(page, "/admin/jobs/"+id+"/release") {
+		t.Fatalf("release offered without a failed or sending sink:\n%s", page)
+	}
+	if _, page = e.page(t, "/admin/jobs/"+id+"/retry"); strings.Contains(page, `<select name="sink">`) {
+		t.Fatalf("sink choice without a failed or sending sink:\n%s", page)
+	}
+}
+
+// The erase page lists every delivery record, also without a Docs
+// document ID.
+func TestErasePageListsRecords(t *testing.T) {
+	e := newViewEnv(t)
+	csrf := e.login(t)
+	id := e.seed(t)
+	e.setState(t, id, "cleaned")
+	e.exec(t, `UPDATE jobs SET sink_profile = 'frontend-test,hook-test' WHERE job_id = $1`, id)
+	e.exec(t, `DELETE FROM deliveries WHERE job_id = $1`, id)
+	e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state, sent_at) VALUES
+		($1, 'frontend-test', 'sent', now()), ($1, 'hook-test', 'sent', now())`, id)
+	code, loc, _ := e.submit(t, "/admin/jobs/"+id+"/erase", url.Values{csrfField: {csrf}})
+	if code != http.StatusSeeOther {
+		t.Fatalf("erase = %d", code)
+	}
+	_, page := e.page(t, loc)
+	if !strings.Contains(page, "<code>frontend-test</code>") || !strings.Contains(page, "<code>hook-test</code>") ||
+		strings.Contains(page, "no delivery record") {
+		t.Fatalf("erase page:\n%s", page)
+	}
+}
+
+// A job held owner_unresolved with several sinks: release offers the
+// pending sink to skip; a failed job whose failed sink is the last not
+// skipped is not offered release.
+func TestSinkChoiceOwnerUnresolved(t *testing.T) {
+	e := newViewEnv(t)
+	csrf := e.login(t)
+	id := e.seed(t)
+	e.setState(t, id, "held/delivery_uncertain")
+	e.exec(t, `UPDATE jobs SET held_reason = 'owner_unresolved', sink_profile = 'docs-test,docs-other' WHERE job_id = $1`, id)
+	e.exec(t, `DELETE FROM deliveries WHERE job_id = $1`, id)
+	e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state, document_id, sent_at)
+		VALUES ($1, 'docs-test', 'sent', 'doc-1', now())`, id)
+	_, page := e.page(t, "/admin/jobs/"+id+"/release")
+	if !strings.Contains(page, `<option value="">no sink: run the held step again</option>`) ||
+		!strings.Contains(page, `<option value="docs-other">docs-other (pending)</option>`) ||
+		strings.Contains(page, `value="docs-test"`) {
+		t.Fatalf("confirmation page:\n%s", page)
+	}
+	code, loc, _ := e.submit(t, "/admin/jobs/"+id+"/release", url.Values{csrfField: {csrf}, "sink": {"docs-other"}})
+	if code != http.StatusSeeOther {
+		t.Fatalf("release with sink = %d", code)
+	}
+	if _, page = e.page(t, loc); !strings.Contains(page, "<td>skipped_by_admin</td>") || !strings.Contains(page, "<dd>delivered</dd>") {
+		t.Fatalf("job page after the skip:\n%s", page)
+	}
+
+	last := e.seed(t)
+	e.setState(t, last, "failed")
+	e.exec(t, `UPDATE jobs SET current_step = 'deliver', failure_reason = 'rejected_by_sink',
+		sink_profile = 'docs-test,docs-other' WHERE job_id = $1`, last)
+	e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state) VALUES ($1, 'docs-other', 'skipped_by_admin')`, last)
+	e.exec(t, `INSERT INTO step_items (job_id, step, item, state, failure_reason)
+		VALUES ($1, 'deliver', 'docs-test', 'failed', 'rejected_by_sink')`, last)
+	if _, page = e.page(t, "/admin/jobs/"+last); strings.Contains(page, "/admin/jobs/"+last+"/release") {
+		t.Fatalf("release offered for the last sink not skipped:\n%s", page)
 	}
 }

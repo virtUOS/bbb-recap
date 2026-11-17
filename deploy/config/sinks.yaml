@@ -52,11 +52,12 @@ sinks:
   #     location: on_prem
   #     retention: "REPLACE: the receiver's retention"
   #     deletion: manual
-  # Matrix: a bot account posts a short notice (title and links, never the
-  # summary) to the room the room owner chose (meta_recap-matrix-room). It
-  # posts to any room it is in or invited to: keep it out of rooms that must
-  # not receive notices from other meetings (docs/reference/sinks.md §4c).
-  # The declaration is required for this type.
+  # Matrix (not supported yet: the service refuses to start with a profile
+  # of type matrix): a bot account posts a short notice (title and links,
+  # never the summary) to the room the room owner chose
+  # (meta_recap-matrix-room). It posts to any room it is in or invited to:
+  # keep it out of rooms that must not receive notices from other meetings
+  # (docs/reference/sinks.md §4c). The declaration is required for this type.
   # - name: matrix-main
   #   type: matrix
   #   homeserver_url: https://matrix.example.org # REPLACE

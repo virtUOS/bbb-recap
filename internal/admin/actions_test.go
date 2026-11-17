@@ -156,7 +156,8 @@ func (e *env) setState(t *testing.T, id, state string) {
 			WHERE job_id = $1`, id)
 	case "held/delivery_uncertain":
 		done("deliver")
-		e.exec(t, `UPDATE jobs SET state = 'held', held_reason = 'delivery_uncertain' WHERE job_id = $1`, id)
+		e.exec(t, `UPDATE jobs SET state = 'held', held_reason = 'delivery_uncertain', sink_profile = 'docs-test'
+			WHERE job_id = $1`, id)
 		e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state) VALUES ($1, 'docs-test', 'sending')`, id)
 	case "failed":
 		done("normalize")
@@ -165,7 +166,8 @@ func (e *env) setState(t *testing.T, id, state string) {
 	case "delivered":
 		done("cleanup")
 		e.exec(t, `UPDATE steps SET run_after = now() + interval '1 hour' WHERE job_id = $1 AND name = 'cleanup'`, id)
-		e.exec(t, `UPDATE jobs SET state = 'delivered', delivered_at = now() WHERE job_id = $1`, id)
+		e.exec(t, `UPDATE jobs SET state = 'delivered', delivered_at = now(), sink_profile = 'docs-test'
+			WHERE job_id = $1`, id)
 		e.exec(t, `INSERT INTO deliveries (job_id, sink_profile, state, document_id, sent_at)
 			VALUES ($1, 'docs-test', 'sent', 'doc-test-1', now())`, id)
 	case "cleaned":
@@ -396,6 +398,13 @@ func TestActionBadRequests(t *testing.T) {
 		{"empty-document-id", id, "release", tokenAdmin, `{"document_id": ""}`, "invalid-request", 400},
 		{"document-id-on-retry", id, "retry", tokenAdmin, `{"document_id": "d"}`, "invalid-request", 400},
 		{"document-id-other-hold", id, "release", tokenAdmin, `{"document_id": "d"}`, "invalid-request", 400},
+		{"sink-not-a-name", id, "release", tokenAdmin, `{"sink": "Docs Test"}`, "invalid-request", 400},
+		{"sink-not-a-string", id, "release", tokenAdmin, `{"sink": 1}`, "invalid-request", 400},
+		{"sink-on-purge", id, "purge", tokenAdmin, `{"sink": "docs-test"}`, "invalid-request", 400},
+		{"sink-on-rerun", id, "rerun", tokenAdmin, `{"sink": "docs-test"}`, "invalid-request", 400},
+		{"sink-on-erase", id, "erase", tokenAdmin, `{"sink": "docs-test"}`, "invalid-request", 400},
+		{"sink-not-in-job", id, "release", tokenAdmin, `{"sink": "no-such-sink"}`, "invalid-request", 400},
+		{"sink-other-hold", id, "release", tokenAdmin, `{"sink": "docs-test"}`, "invalid-job-state", 409},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			before := e.snapshot(t, id)
@@ -440,5 +449,33 @@ func TestUppercaseJobID(t *testing.T) {
 	}
 	if m := decode(t, e.post(strings.ToUpper(id), "retry", "{}")); m["job_id"] != id {
 		t.Fatalf("POST: job_id %v", m["job_id"])
+	}
+}
+
+// retry and release take a sink (sinks.md §1.8); the job body shows each
+// sink's status (architecture.md §4).
+func TestActionWithSink(t *testing.T) {
+	e := newEnv(t)
+	id := e.seed(t, "bbb-test-a")
+	e.setState(t, id, "held/delivery_uncertain")
+	rec := e.post(id, "release", `{"sink": "docs-test", "document_id": "doc-found-2"}`)
+	m := decode(t, rec)
+	if m["state"] != "delivered" {
+		t.Fatalf("state %v, want delivered", m["state"])
+	}
+	d, _ := m["deliveries"].([]any)
+	if len(d) != 1 {
+		t.Fatalf("deliveries %v", m["deliveries"])
+	}
+	entry := d[0].(map[string]any)
+	if entry["sink_profile"] != "docs-test" || entry["state"] != "confirmed_by_admin" ||
+		entry["document_id"] != "doc-found-2" || entry["failure_reason"] != nil || entry["target"] != nil {
+		t.Errorf("entry %v", entry)
+	}
+	if e.auditCount(t, id, "release") != 1 {
+		t.Error("no release audit row")
+	}
+	if !strings.Contains(e.logs.String(), `"profile":"docs-test"`) {
+		t.Errorf("the action log line does not name the sink: %s", e.logs)
 	}
 }

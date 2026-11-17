@@ -44,6 +44,13 @@ On the recap host, as a user who may run docker:
    chmod -R a+rX secrets                # the containers read them; /opt/recap itself stays 0700
    ```
 
+   With a webhook sink, create its signing secret and give the same line to the receiver's operator:
+
+   ```sh
+   printf 'whsec_%s\n' "$(head -c 32 /dev/urandom | base64)" > secrets/sinks/webhook-signing.key
+   chmod a+r secrets/sinks/webhook-signing.key
+   ```
+
 4. Check the config and start:
 
    ```sh
@@ -69,7 +76,7 @@ All files live in `/opt/recap`.
 | `compose.yaml`              | the four services; take it unchanged from the release                                           |
 | `.env`                      | every setting, one comment each; empty means the default                                        |
 | `config/providers.yaml`     | ASR and LLM endpoints ([providers.md](../reference/providers.md) §4.1)                          |
-| `config/sinks.yaml`         | where summaries go: Docs or the front end ([sinks.md](../reference/sinks.md))                   |
+| `config/sinks.yaml`         | where summaries go: Docs, the front end, a webhook ([sinks.md](../reference/sinks.md))          |
 | `config/meeting-types.yaml` | meeting type to output format; nothing to change ([templates.md](../reference/templates.md) §1) |
 | `secrets/`                  | one file per secret, see below                                                                  |
 
@@ -81,6 +88,7 @@ All files live in `/opt/recap`.
 | `clients/admin.<name>`                     | token for the admin API                     | optional                          |
 | `providers/asr.key`, `providers/llm.key`   | provider API keys                           | as named in `providers.yaml`      |
 | `sinks/docs.key`                           | Docs server-to-server key                   | with the Docs sink                |
+| `sinks/webhook-signing.key`                | webhook signing secret, `whsec_…`           | with a webhook sink               |
 | `oidc-client-secret`, `session-key`        | admin UI client secret, cookie key (≥ 32 B) | with the admin UI                 |
 | `s3-access-key-id`, `s3-secret-access-key` | S3 credentials                              | only with `RECAP_BLOB_BACKEND=s3` |
 
@@ -97,7 +105,9 @@ All files live in `/opt/recap`.
 
 ### Upgrade and rollback
 
-Read the release notes first. Migrations only add, so the previous release runs on the new schema.
+Read the release notes first. Migrations only add, so the previous release runs on the new schema. One exception:
+the release with migration `0002_several_sinks` changes a key, so going back to a release before it needs a database
+restore taken before the upgrade ([deployment.md](../reference/deployment.md) §6).
 
 ```sh
 cd /opt/recap

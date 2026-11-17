@@ -28,8 +28,8 @@ func (f Frontend) Send(ctx context.Context, req Request) (string, error) {
 // Keep runs one delivery to a sink whose Send is idempotent, the frontend
 // sink (§4a). It differs from Deliver in what an earlier attempt means:
 // there is no uncertain case, so a record in sending is sent again, and no
-// sending record is committed before. A record in sent or
-// confirmed_by_admin is returned unchanged without sending. The §2.4 checks
+// sending record is committed before. A record in sent, confirmed_by_admin
+// or skipped_by_admin is returned unchanged without sending. The §2.4 checks
 // run first; a violation is Rejected with nothing stored. Success is a sent
 // record without a document ID.
 func Keep(ctx context.Context, s Sender, req Request, prior *Record, maxBytes int64) (*Record, error) {

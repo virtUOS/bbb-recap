@@ -170,7 +170,7 @@ func (d Deps) load(ctx context.Context, jobID string) ([]*item, int, error) {
 		attempt int
 	}
 	done := map[string]row{}
-	rows, err := d.Pool.Query(ctx, `SELECT item, state, attempt FROM step_items WHERE job_id = $1`, jobID)
+	rows, err := d.Pool.Query(ctx, `SELECT item, state, attempt FROM step_items WHERE job_id = $1 AND step = 'transcribe'`, jobID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -369,9 +369,9 @@ func writeItems(ctx context.Context, tx pgx.Tx, jobID string, items []*item) err
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO step_items (job_id, item, state, attempt, gap_reason, output)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			ON CONFLICT (job_id, item) DO UPDATE SET state = EXCLUDED.state, attempt = EXCLUDED.attempt,
+			INSERT INTO step_items (job_id, step, item, state, attempt, gap_reason, output)
+			VALUES ($1, 'transcribe', $2, $3, $4, $5, $6)
+			ON CONFLICT (job_id, step, item) DO UPDATE SET state = EXCLUDED.state, attempt = EXCLUDED.attempt,
 				gap_reason = EXCLUDED.gap_reason, output = EXCLUDED.output`,
 			jobID, it.ref, it.state, it.attempt, reason, out); err != nil {
 			return fmt.Errorf("step_items %s: %w", it.ref, err)

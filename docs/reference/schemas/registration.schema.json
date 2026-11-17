@@ -39,10 +39,10 @@
   "$defs": {
     "result_url": {
       "type": "string",
-      "description": "Optional (request 1.1.0): where people find the summary in the front end. Absolute https URL without user info, no whitespace or control characters, at most 2048 characters. Sent in webhook and Matrix notices (sinks.md section 1.2).",
+      "description": "Optional (request 1.1.0): where people find the summary in the front end. Absolute https URL without user info, no whitespace (Unicode White_Space) or control characters (C0, DEL, C1), at most 2048 characters. Sent in webhook and Matrix notices (sinks.md section 1.2).",
       "format": "uri",
       "maxLength": 2048,
-      "pattern": "^https://[^/?#@\\s\\u0000-\\u001F\\u007F]+([/?#][^\\s\\u0000-\\u001F\\u007F]*)?$"
+      "pattern": "^https://[^/?#@\\s\\u0000-\\u001F\\u007F-\\u009F\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+([/?#][^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]*)?$"
     },
     "meeting_id": {
       "type": "string",

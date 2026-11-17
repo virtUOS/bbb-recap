@@ -32,10 +32,13 @@ import (
 
 // Constants of metadata-interface.md §2.1 and §2.6.
 const (
-	maxBody       = 8 << 10 // bytes
-	rateLimit     = 600     // requests per front end and rateWindow
-	rateWindow    = time.Minute
-	schemaVersion = "1.2.0" // of the responses (§2.3: 1.1.0 adds the result fields, 1.2.0 the record_id pattern)
+	maxBody    = 8 << 10 // bytes
+	rateLimit  = 600     // requests per front end and rateWindow
+	rateWindow = time.Minute
+	// schemaVersion is that of the responses (§2.3: 1.1.0 adds the result
+	// fields, 1.2.0 the record_id pattern, 1.3.0 job.deliveries and
+	// result_url).
+	schemaVersion = "1.3.0"
 )
 
 // Sink is what the API needs to know of a sink profile to show a result
@@ -47,6 +50,11 @@ type Sink struct {
 	// DocumentURLTemplate is the profile's document_url_template with {id}
 	// (sinks.md §3.1); empty: no link.
 	DocumentURLTemplate string
+	// WithoutOwner: the sink never uses the owner identity (frontend,
+	// webhook), so its delivery record does not lock the owner (§2.4). A
+	// record of every other profile locks it, also of one no longer
+	// configured.
+	WithoutOwner bool
 }
 
 // Config configures the API.
@@ -110,6 +118,9 @@ type request struct {
 		Sub   string `json:"sub"`
 		Email string `json:"email"`
 	} `json:"owner"`
+	// ResultURL is the front end's link to the summary (request 1.1.0);
+	// nil when the request has none.
+	ResultURL *string `json:"result_url"`
 }
 
 var semverRE = regexp.MustCompile(`^([0-9]+)\.[0-9]+\.[0-9]+$`)
@@ -264,10 +275,10 @@ func (a *API) store(ctx context.Context, tx pgx.Tx, frontendID string, req reque
 			return 0, errCancelled
 		}
 		return http.StatusOK, reactivate(ctx, tx, reg.id, req, a.ttl)
-	case reg.ownerSub == req.Owner.Sub && reg.ownerEmail == req.Owner.Email:
+	case reg.ownerSub == req.Owner.Sub && reg.ownerEmail == req.Owner.Email && reg.resultURL == deref(req.ResultURL):
 		return http.StatusOK, nil // identical: nothing changes, not even updated_at
 	}
-	locked, err := deliveryStarted(ctx, tx, reg.id, req.RecordID)
+	locked, err := deliveryStarted(ctx, tx, reg.id, req.RecordID, a.sinksWithoutOwner())
 	if err != nil {
 		return 0, err
 	}
@@ -275,6 +286,25 @@ func (a *API) store(ctx context.Context, tx pgx.Tx, frontendID string, req reque
 		return 0, errLocked
 	}
 	return http.StatusOK, replaceOwner(ctx, tx, reg.id, req, a.ttl)
+}
+
+// sinksWithoutOwner lists the profiles whose sink never uses the owner
+// identity; never nil.
+func (a *API) sinksWithoutOwner() []string {
+	names := []string{}
+	for name, s := range a.sinks {
+		if s.WithoutOwner {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func (a *API) get(w http.ResponseWriter, r *http.Request, frontendID string) {

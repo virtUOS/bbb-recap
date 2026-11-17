@@ -518,7 +518,7 @@ func TestValidateAllowListHoldThenRelease(t *testing.T) {
 			fixed.Configured.FrontendTypes = append(c.types, config.FrontendName{FrontendID: "pilos-fixture", Name: "meeting-summary"})
 			fixed.Configured.FrontendSinks = append(c.sinks, config.FrontendName{FrontendID: "pilos-fixture", Name: "docs-main"})
 			if err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
-				return queue.Release(ctx, tx, queue.Actor{Kind: "admin", ID: "fixture-admin"}, jobID, "", 0)
+				return queue.Release(ctx, tx, queue.Actor{Kind: "admin", ID: "fixture-admin"}, jobID, "", "", 0)
 			}); err != nil {
 				t.Fatalf("release: %v", err)
 			}

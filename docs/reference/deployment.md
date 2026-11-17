@@ -189,6 +189,9 @@ profile field and counts per worker process (`architecture.md` §7). Retries, le
 - **Expand, then contract:** a release only adds; removing a column happens one release after the code stopped using
   it, and the release notes say so.
 - `api` and `worker` are not ready while the DB is older than they need. A newer DB is fine (expand-only).
+- Exception: migration `0002_several_sinks` changes the key of `deliveries` and `step_items` (ADR-016), so a release
+  before it does not run on the new schema; going back to such a release needs a database restore taken before the
+  upgrade.
 
 ## 7. Exporter installation
 

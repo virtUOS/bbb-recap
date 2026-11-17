@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- Several sinks per meeting (`meta_recap-sink` lists up to four profiles) and the signed webhook sink (`type: webhook`,
+  Standard Webhooks); per-sink status in the admin job body, the admin pages and the registration's `deliveries`;
+  `retry` and `release` take a `sink`; the registration takes a `result_url` (ADR-016). The Matrix sink is specified
+  but not supported yet. Migration 0002 changes the keys of `deliveries` and `step_items`: an earlier release does not
+  run on the new schema, so rolling back needs a database restore.
+
 ## [0.2.1] - 2026-11-17
 
 ### Fixed

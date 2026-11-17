@@ -37,6 +37,13 @@ func Check(req Request, maxBytes int64) *Error {
 	if code := dialectViolation(md); code != "" {
 		return rejected(code)
 	}
+	return CheckTitle(req)
+}
+
+// CheckTitle checks the title alone (sinks.md §2.3): one line of at most
+// MaxTitle characters without control characters. A violation is a
+// Rejected *Error.
+func CheckTitle(req Request) *Error {
 	t := req.Title
 	if !utf8.ValidString(t) || strings.TrimSpace(t) == "" || strings.ContainsFunc(t, unicode.IsControl) {
 		return rejected("title_invalid")

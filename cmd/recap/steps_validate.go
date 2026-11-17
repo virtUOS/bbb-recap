@@ -16,8 +16,10 @@ func validateHandler(d *deps) (queue.Handler, error) {
 		FrontendTypes: d.cfg.FrontendTypes,
 		FrontendSinks: d.cfg.FrontendSinks,
 	}
+	c.SinkTypes = map[string]string{}
 	for _, s := range d.cfg.Sinks {
 		c.Sinks = append(c.Sinks, s.Name)
+		c.SinkTypes[s.Name] = s.Type
 	}
 	return validate.Handler(validate.Deps{
 		Pool:            d.pool,

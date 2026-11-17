@@ -27,16 +27,19 @@ type row struct {
 	meetingID  string
 	ownerSub   string
 	ownerEmail string
+	resultURL  string
 	status     string
 }
 
 const selectRow = `
-	SELECT registration_id, frontend_id, meeting_id, coalesce(owner_sub, ''), coalesce(owner_email, ''), status
+	SELECT registration_id, frontend_id, meeting_id, coalesce(owner_sub, ''), coalesce(owner_email, ''),
+		coalesce(result_url, ''), status
 	FROM registrations WHERE record_id = $1`
 
 func scanRow(ctx context.Context, tx pgx.Tx, query, recordID string) (row, bool, error) {
 	var r row
-	err := tx.QueryRow(ctx, query, recordID).Scan(&r.id, &r.frontendID, &r.meetingID, &r.ownerSub, &r.ownerEmail, &r.status)
+	err := tx.QueryRow(ctx, query, recordID).Scan(&r.id, &r.frontendID, &r.meetingID, &r.ownerSub, &r.ownerEmail,
+		&r.resultURL, &r.status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, false, nil
 	}
@@ -57,21 +60,23 @@ func lockRegistration(ctx context.Context, tx pgx.Tx, recordID string) (row, boo
 // changes nothing, if a row for the record_id exists already.
 func insertRegistration(ctx context.Context, tx pgx.Tx, frontendID string, req request, ttl time.Duration) (bool, error) {
 	tag, err := tx.Exec(ctx, `
-		INSERT INTO registrations (record_id, frontend_id, meeting_id, owner_sub, owner_email, status, expires_at)
-		VALUES ($1, $2, $3, $4, $5, 'registered', now() + $6 * interval '1 microsecond')
+		INSERT INTO registrations (record_id, frontend_id, meeting_id, owner_sub, owner_email, result_url, status,
+			expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'registered', now() + $7 * interval '1 microsecond')
 		ON CONFLICT (record_id) DO NOTHING`,
-		req.RecordID, frontendID, req.MeetingID, req.Owner.Sub, req.Owner.Email, ttl.Microseconds())
+		req.RecordID, frontendID, req.MeetingID, req.Owner.Sub, req.Owner.Email, req.ResultURL, ttl.Microseconds())
 	return tag.RowsAffected() == 1, err
 }
 
-// replaceOwner sets a new owner. expires_at counts from this PUT
-// (deployment.md, RECAP_REGISTRATION_TTL).
+// replaceOwner sets a new owner and result_url (a request without one
+// removes it, §2.4). expires_at counts from this PUT (deployment.md,
+// RECAP_REGISTRATION_TTL).
 func replaceOwner(ctx context.Context, tx pgx.Tx, id int64, req request, ttl time.Duration) error {
 	_, err := tx.Exec(ctx, `
-		UPDATE registrations SET owner_sub = $2, owner_email = $3, updated_at = now(),
-			expires_at = now() + $4 * interval '1 microsecond'
+		UPDATE registrations SET owner_sub = $2, owner_email = $3, result_url = $4, updated_at = now(),
+			expires_at = now() + $5 * interval '1 microsecond'
 		WHERE registration_id = $1`,
-		id, req.Owner.Sub, req.Owner.Email, ttl.Microseconds())
+		id, req.Owner.Sub, req.Owner.Email, req.ResultURL, ttl.Microseconds())
 	return err
 }
 
@@ -79,11 +84,11 @@ func replaceOwner(ctx context.Context, tx pgx.Tx, id int64, req request, ttl tim
 // same row, with new created_at and expires_at.
 func reactivate(ctx context.Context, tx pgx.Tx, id int64, req request, ttl time.Duration) error {
 	_, err := tx.Exec(ctx, `
-		UPDATE registrations SET status = 'registered', owner_sub = $2, owner_email = $3,
-			created_at = now(), updated_at = now(), expires_at = now() + $4 * interval '1 microsecond',
+		UPDATE registrations SET status = 'registered', owner_sub = $2, owner_email = $3, result_url = $4,
+			created_at = now(), updated_at = now(), expires_at = now() + $5 * interval '1 microsecond',
 			cancelled_at = NULL
 		WHERE registration_id = $1`,
-		id, req.Owner.Sub, req.Owner.Email, ttl.Microseconds())
+		id, req.Owner.Sub, req.Owner.Email, req.ResultURL, ttl.Microseconds())
 	return err
 }
 
@@ -91,7 +96,7 @@ func reactivate(ctx context.Context, tx pgx.Tx, id int64, req request, ttl time.
 // (§2.5). The cleanup loop removes it after 30 days.
 func tombstone(ctx context.Context, tx pgx.Tx, id int64) error {
 	_, err := tx.Exec(ctx, `
-		UPDATE registrations SET status = 'cancelled', owner_sub = NULL, owner_email = NULL,
+		UPDATE registrations SET status = 'cancelled', owner_sub = NULL, owner_email = NULL, result_url = NULL,
 			expires_at = NULL, cancelled_at = now(), updated_at = now()
 		WHERE registration_id = $1`, id)
 	return err
@@ -109,10 +114,15 @@ func anyJob(ctx context.Context, tx pgx.Tx, id int64, recordID string) (bool, er
 }
 
 // deliveryStarted reports whether a job of the registration has left the
-// pending deliver step or has a deliveries row (sending, sent or confirmed).
-// The owner is locked from then on (§2.4, identity-mapping.md §5). The job
-// rows are locked first, so a deliver claim running now is seen.
-func deliveryStarted(ctx context.Context, tx pgx.Tx, id int64, recordID string) (bool, error) {
+// pending deliver step, or has a delivery record (sending, sent or
+// confirmed) of a sink that is not in withoutOwner, the profiles known not to
+// use the owner identity (frontend, webhook). The owner is locked from then on
+// (§2.4, identity-mapping.md §5). A record of a frontend or webhook sink does
+// not lock it: a job held owner_unresolved after its frontend sink was sent
+// can still be resumed by a PUT (sinks.md §1.8 rule 3). A record of a
+// profile that is no longer configured locks it (fail closed). The job rows
+// are locked first, so a deliver claim running now is seen.
+func deliveryStarted(ctx context.Context, tx pgx.Tx, id int64, recordID string, withoutOwner []string) (bool, error) {
 	if _, err := lockJobs(ctx, tx, recordID); err != nil {
 		return false, err
 	}
@@ -123,7 +133,8 @@ func deliveryStarted(ctx context.Context, tx pgx.Tx, id int64, recordID string) 
 			WHERE j.registration_id = $1 AND s.state <> 'pending')
 		OR EXISTS (
 			SELECT 1 FROM jobs j JOIN deliveries d ON d.job_id = j.job_id
-			WHERE j.registration_id = $1)`, id).Scan(&started)
+			WHERE j.registration_id = $1 AND NOT (d.sink_profile = ANY($2)) AND d.state <> 'skipped_by_admin')`,
+		id, withoutOwner).Scan(&started)
 	return started, err
 }
 
@@ -217,35 +228,47 @@ type response struct {
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
 	ExpiresAt     *string `json:"expires_at"`
+	ResultURL     *string `json:"result_url"`
 	Job           *jobRef `json:"job"`
 }
 
 type jobRef struct {
-	JobID            string  `json:"job_id"`
-	State            string  `json:"state"`
-	HeldReason       *string `json:"held_reason"`
-	Outcome          *string `json:"outcome"`
-	DeliveredAt      *string `json:"delivered_at"`
-	DocumentURL      *string `json:"document_url"`
-	SummaryAvailable bool    `json:"summary_available"`
+	JobID            string      `json:"job_id"`
+	State            string      `json:"state"`
+	HeldReason       *string     `json:"held_reason"`
+	Outcome          *string     `json:"outcome"`
+	DeliveredAt      *string     `json:"delivered_at"`
+	DocumentURL      *string     `json:"document_url"`
+	SummaryAvailable bool        `json:"summary_available"`
+	Deliveries       []sinkEntry `json:"deliveries"`
 
-	// summaryDue: the job was delivered to a frontend profile, so its
-	// summary waits unless picked up or deleted by the cleanup loop after
-	// RECAP_RESULT_TTL (in the same pass as the result record). Set by load;
-	// summaryAvailable then asks the blob store.
-	summaryDue bool
+	// summaryDue is the index in Deliveries of the job's frontend sink when
+	// it is sent, so its summary waits unless picked up or deleted by the
+	// cleanup loop after RECAP_RESULT_TTL (in the same pass as the result
+	// record); -1 if none. Set by load; summaryAvailable then asks the blob
+	// store.
+	summaryDue int
 }
 
 // querier is a pool or a transaction.
 type querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// sinkEntry is one entry of job.deliveries (§2.7).
+type sinkEntry struct {
+	SinkProfile      string  `json:"sink_profile"`
+	State            string  `json:"state"`
+	DocumentURL      *string `json:"document_url"`
+	SummaryAvailable bool    `json:"summary_available"`
 }
 
 // load builds the response of the registration for recordID and reports
 // whether it exists. job is the newest job that references the
 // registration. status is cancelled for a tombstone, else matched with a job
 // and registered without. The result fields (§2.7) come from the job and its
-// delivery record; summary_available is left to summaryAvailable.
+// sinks; summary_available is left to summaryAvailable.
 func (a *API) load(ctx context.Context, q querier, recordID string) (response, bool, error) {
 	var (
 		resp        response
@@ -258,23 +281,20 @@ func (a *API) load(ctx context.Context, q querier, recordID string) (response, b
 		jobReason   *string
 		outcome     *string
 		deliveredAt *time.Time
-		profile     *string
-		documentID  *string
 	)
 	err := q.QueryRow(ctx, `
 		SELECT r.registration_id, r.record_id, r.meeting_id, r.frontend_id, r.status,
-			r.created_at, r.updated_at, r.expires_at, j.job_id::text, j.state, j.held_reason,
-			j.outcome, j.delivered_at, d.sink_profile, d.document_id
+			r.created_at, r.updated_at, r.expires_at, r.result_url, j.job_id::text, j.state, j.held_reason,
+			j.outcome, j.delivered_at
 		FROM registrations r
 		LEFT JOIN LATERAL (
 			SELECT job_id, state, held_reason, outcome, delivered_at FROM jobs
 			WHERE registration_id = r.registration_id
 			ORDER BY created_at DESC, job_id DESC LIMIT 1) j ON true
-		LEFT JOIN deliveries d ON d.job_id = j.job_id AND d.state IN ('sent', 'confirmed_by_admin')
 		WHERE r.record_id = $1`, recordID).
 		Scan(&id, &resp.RecordID, &resp.MeetingID, &resp.FrontendID, &resp.Status,
-			&created, &updated, &expires, &jobID, &jobState, &jobReason,
-			&outcome, &deliveredAt, &profile, &documentID)
+			&created, &updated, &expires, &resp.ResultURL, &jobID, &jobState, &jobReason,
+			&outcome, &deliveredAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return resp, false, nil
 	}
@@ -289,7 +309,11 @@ func (a *API) load(ctx context.Context, q querier, recordID string) (response, b
 		if resp.Status == statusRegistered {
 			resp.Status = "matched"
 		}
-		a.result(resp.Job, deliveredAt, profile, documentID)
+		sinks, err := queue.SinkStatuses(ctx, q, *jobID)
+		if err != nil {
+			return resp, false, err
+		}
+		a.result(resp.Job, deliveredAt, sinks)
 	}
 	if resp.Status == statusRegistered && expires != nil {
 		s := formatTime(*expires)
@@ -300,33 +324,43 @@ func (a *API) load(ctx context.Context, q querier, recordID string) (response, b
 
 // result sets the result fields of a job (§2.7). outcome is the job's own
 // (set when it is cleaned); a delivered job not yet cleaned shows delivered.
-// Nothing is shown before delivery. document_url is the profile's template
-// with the document ID (sinks.md §1.3: built when shown, not stored).
-func (a *API) result(j *jobRef, deliveredAt *time.Time, profile, documentID *string) {
+// delivered_at is shown after delivery. deliveries has one entry per sink in
+// delivery order: document_url is the profile's template with the document
+// ID (sinks.md §1.3: built when shown, not stored) of a done sink;
+// summary_available is left to summaryAvailable. The job's document_url is
+// the first entry's that is not null.
+func (a *API) result(j *jobRef, deliveredAt *time.Time, sinks []queue.SinkStatus) {
 	if j.Outcome == nil && j.State == "delivered" {
 		delivered := "delivered"
 		j.Outcome = &delivered
 	}
-	if deliveredAt == nil {
-		return
+	if deliveredAt != nil {
+		at := formatTime(*deliveredAt)
+		j.DeliveredAt = &at
 	}
-	at := formatTime(*deliveredAt)
-	j.DeliveredAt = &at
-	if j.Outcome == nil || *j.Outcome != "delivered" || profile == nil {
-		return
+	j.Deliveries, j.summaryDue = []sinkEntry{}, -1
+	for _, st := range sinks {
+		e := sinkEntry{SinkProfile: st.Profile, State: st.Status}
+		s := a.sinks[st.Profile]
+		done := st.Status == queue.SinkSent || st.Status == queue.SinkConfirmedByAdmin
+		if done && s.DocumentURLTemplate != "" && st.DocumentID != nil && *st.DocumentID != "" {
+			u := strings.ReplaceAll(s.DocumentURLTemplate, "{id}", url.PathEscape(*st.DocumentID))
+			e.DocumentURL = &u
+			if j.DocumentURL == nil {
+				j.DocumentURL = &u
+			}
+		}
+		if s.Frontend && st.Status == queue.SinkSent && j.summaryDue < 0 {
+			j.summaryDue = len(j.Deliveries)
+		}
+		j.Deliveries = append(j.Deliveries, e)
 	}
-	s := a.sinks[*profile]
-	if s.DocumentURLTemplate != "" && documentID != nil && *documentID != "" {
-		u := strings.ReplaceAll(s.DocumentURLTemplate, "{id}", url.PathEscape(*documentID))
-		j.DocumentURL = &u
-	}
-	j.summaryDue = s.Frontend
 }
 
 // summaryAvailable sets summary_available of resp: a summary is due and
 // the blob store still has it (the front end has not picked it up).
 func (a *API) summaryAvailable(ctx context.Context, resp *response) error {
-	if resp.Job == nil || !resp.Job.summaryDue || a.results == nil {
+	if resp.Job == nil || resp.Job.summaryDue < 0 || a.results == nil {
 		return nil
 	}
 	rc, err := a.results.GetSummary(ctx, resp.Job.JobID)
@@ -337,6 +371,7 @@ func (a *API) summaryAvailable(ctx context.Context, resp *response) error {
 		return err
 	}
 	resp.Job.SummaryAvailable = true
+	resp.Job.Deliveries[resp.Job.summaryDue].SummaryAvailable = true
 	return rc.Close()
 }
 

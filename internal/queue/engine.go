@@ -460,6 +460,11 @@ func (e *Engine) apply(ctx context.Context, tx pgx.Tx, jobID, step string, attem
 		if stopping {
 			return nil
 		}
+		if step == "deliver" {
+			if err := markExhausted(ctx, tx, jobID); err != nil {
+				return err
+			}
+		}
 		// Also for cleanup of a delivered job: delivered → failed
 		// (retries_exhausted), architecture.md §5.1.
 		return setJob(ctx, tx, jobID, "failed", "retries_exhausted", r.Detail)

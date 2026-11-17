@@ -64,7 +64,8 @@ are reserved and ignored by v1; new optional keys come in a minor version, break
 `^[a-z][a-z0-9-]{0,62}(,[a-z][a-z0-9-]{0,62}){0,3}$`. A single name is a list of one, so the 1.0.0 form stays valid.
 The list order is kept within each delivery group; the groups are fixed ([`sinks.md`](sinks.md) §1.1).
 
-`room` (interface 1.1.0) is the one value that is not a `name`. It is a Matrix room ID or room alias in an ASCII subset
+The Matrix sink is not implemented yet ([`sinks.md`](sinks.md) §4c): the service refuses a `matrix` profile, so no
+configured list can name one. `room` (interface 1.1.0) is the one value that is not a `name`. It is a Matrix room ID or room alias in an ASCII subset
 of the Matrix grammar (https://spec.matrix.org/v1.19/appendices/#room-ids, `#room-aliases`, `#server-name`), at most
 255 characters, case kept:
 
@@ -225,6 +226,11 @@ from the request or `null`, §2.7).
 
 A `PUT` replaces the whole registration body: a later `PUT` without `result_url` removes it (the response then shows
 `null`), under the same lock as `owner`.
+
+Every delivery record locks the owner except those of `frontend` and `webhook` sinks, which do not use it, and
+`skipped_by_admin` ones ([`sinks.md`](sinks.md) §1.8 rule 3); a record of a profile no longer configured locks it.
+With two `docs` sinks, once one has delivered, the owner stays locked, and the admin skips the held sink with
+`release` and `sink`.
 
 ### 2.5 `DELETE` (cancel)
 

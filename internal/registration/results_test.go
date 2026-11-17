@@ -15,7 +15,7 @@ import (
 var testSinks = map[string]Sink{
 	"docs-test":     {DocumentURLTemplate: "https://docs.recap.test/docs/{id}/"},
 	"docs-no-link":  {},
-	"frontend-test": {Frontend: true},
+	"frontend-test": {Frontend: true, WithoutOwner: true},
 }
 
 const summaryText = "# Fixture summary\n\nAda Testperson will send the widget drawings.\n"
@@ -87,7 +87,7 @@ func TestResultFields(t *testing.T) {
 		t.Fatalf("before delivery: %+v", j)
 	}
 	r := e.do(t, http.MethodGet, path(rid), tokenFE, nil)
-	if !strings.Contains(string(r.body), `"schema_version":"1.2.0"`) ||
+	if !strings.Contains(string(r.body), `"schema_version":"1.3.0"`) ||
 		!strings.Contains(string(r.body), `"summary_available":false`) || !strings.Contains(string(r.body), `"outcome":null`) {
 		t.Fatalf("response %s", r.body)
 	}

@@ -48,7 +48,7 @@ as a bot user.
 - **Webhook sink (`type: webhook`):** one signed POST (Standard Webhooks, HMAC-SHA256) to a URL fixed in the profile.
   The body carries `job_id`, the title and the links of sinks delivered before it; the summary text only when the
   profile sets `content: summary`. Never owner data.
-- **Matrix sink (`type: matrix`):** posts one short `m.notice` as a bot user through the client-server API: the title
+- **Matrix sink (`type: matrix`, not implemented yet; the service refuses such a profile):** posts one short `m.notice` as a bot user through the client-server API: the title
   and the links where the summary can be read, first the front end's `result_url`, then a Docs link. Never the
   summary: a room reaches every member and federated servers keep copies, so the text stays behind the front end's
   or Docs' access control. Homeserver URL and access token file in the profile. The room comes from the meeting: new

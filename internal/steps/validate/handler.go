@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,7 +34,8 @@ type Decision struct {
 	Reason, Detail string // a hold (rows 2–9a); empty if none
 	RegistrationID int64  // the matched registration on ok
 	MeetingType    string // on ok
-	SinkProfile    string // on ok
+	SinkProfile    string // on ok: the sink list in delivery order, comma-separated
+	MatrixRoom     string // on ok: the Matrix room, "" unless a matrix profile is listed
 }
 
 // Registration is the registrations row of a record_id.
@@ -63,14 +65,18 @@ func Decide(reg *Registration, meta map[string]string, prefix string, c Configur
 	case reg.MeetingID != j.MeetingID: // row 9
 		return Decision{Reason: HeldNoRegistration, Detail: DetailMeetingIDMismatch}
 	}
-	typ, sink := meta[prefix+"-type"], meta[prefix+"-sink"]
-	switch { // row 9a
-	case !allowed(c.FrontendTypes, reg.FrontendID, typ):
+	typ := meta[prefix+"-type"]
+	sinks := DeliveryOrder(meta[prefix+"-sink"], c)
+	if !allowed(c.FrontendTypes, reg.FrontendID, typ) { // row 9a
 		return Decision{Reason: HeldUnknownType, Detail: DetailTypeNotAllowed}
-	case !allowed(c.FrontendSinks, reg.FrontendID, sink):
-		return Decision{Reason: HeldUnknownSink, Detail: DetailSinkNotAllowed}
 	}
-	return Decision{RegistrationID: reg.ID, MeetingType: typ, SinkProfile: sink}
+	for _, s := range sinks {
+		if !allowed(c.FrontendSinks, reg.FrontendID, s) {
+			return Decision{Reason: HeldUnknownSink, Detail: DetailSinkNotAllowed}
+		}
+	}
+	return Decision{RegistrationID: reg.ID, MeetingType: typ, SinkProfile: strings.Join(sinks, ","),
+		MatrixRoom: matrixRoom(meta, prefix, sinks, c)}
 }
 
 // serverAllowed is row 8: the front end may claim packages of the BBB
@@ -171,9 +177,14 @@ func (d Deps) run(ctx context.Context, jobID string) (queue.Result, error) {
 		if dec.Cancel || dec.Reason != "" {
 			return nil
 		}
+		var room *string
+		if dec.MatrixRoom != "" {
+			room = &dec.MatrixRoom
+		}
 		_, err = tx.Exec(ctx, `
-			UPDATE jobs SET meeting_type = $2, sink_profile = $3, registration_id = $4, updated_at = now()
-			WHERE job_id = $1`, jobID, dec.MeetingType, dec.SinkProfile, dec.RegistrationID)
+			UPDATE jobs SET meeting_type = $2, sink_profile = $3, registration_id = $4, matrix_room = $5,
+				updated_at = now()
+			WHERE job_id = $1`, jobID, dec.MeetingType, dec.SinkProfile, dec.RegistrationID, room)
 		return err
 	}
 	switch {
