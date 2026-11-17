@@ -50,6 +50,9 @@ type Sink struct {
 	// DocumentURLTemplate is the profile's document_url_template with {id}
 	// (sinks.md §3.1); empty: no link.
 	DocumentURLTemplate string
+	// UsesOwner: the sink sends the owner identity (docs). Only a delivery
+	// record of such a sink locks the owner (§2.4).
+	UsesOwner bool
 }
 
 // Config configures the API.
@@ -273,7 +276,7 @@ func (a *API) store(ctx context.Context, tx pgx.Tx, frontendID string, req reque
 	case reg.ownerSub == req.Owner.Sub && reg.ownerEmail == req.Owner.Email && reg.resultURL == deref(req.ResultURL):
 		return http.StatusOK, nil // identical: nothing changes, not even updated_at
 	}
-	locked, err := deliveryStarted(ctx, tx, reg.id, req.RecordID)
+	locked, err := deliveryStarted(ctx, tx, reg.id, req.RecordID, a.ownerSinks())
 	if err != nil {
 		return 0, err
 	}
@@ -281,6 +284,17 @@ func (a *API) store(ctx context.Context, tx pgx.Tx, frontendID string, req reque
 		return 0, errLocked
 	}
 	return http.StatusOK, replaceOwner(ctx, tx, reg.id, req, a.ttl)
+}
+
+// ownerSinks lists the profiles whose sink uses the owner identity.
+func (a *API) ownerSinks() []string {
+	var names []string
+	for name, s := range a.sinks {
+		if s.UsesOwner {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func deref(s *string) string {

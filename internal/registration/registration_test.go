@@ -522,6 +522,7 @@ func TestPutOtherOwnerLocked(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			e := newTestEnv(t)
+			e.api.sinks = map[string]Sink{"docs-test": {UsesOwner: true}}
 			rid := newRecordID()
 			e.register(t, rid, "meeting-1", ownerA)
 			jobID := seedJob(t, e.pool, rid)

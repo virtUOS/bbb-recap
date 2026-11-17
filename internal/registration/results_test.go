@@ -13,8 +13,8 @@ import (
 
 // Sink profiles of these tests (metadata-interface.md §2.7, sinks.md §3.1, §4a).
 var testSinks = map[string]Sink{
-	"docs-test":     {DocumentURLTemplate: "https://docs.recap.test/docs/{id}/"},
-	"docs-no-link":  {},
+	"docs-test":     {DocumentURLTemplate: "https://docs.recap.test/docs/{id}/", UsesOwner: true},
+	"docs-no-link":  {UsesOwner: true},
 	"frontend-test": {Frontend: true},
 }
 

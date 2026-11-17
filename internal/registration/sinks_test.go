@@ -111,3 +111,42 @@ func TestDeliveriesEntries(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+// Only a delivery record of a sink that uses the owner identity locks the
+// owner (§2.4, sinks.md §1.8 rule 3): a job held owner_unresolved after its
+// frontend sink was sent is resumed by a PUT; with two Docs sinks, once one
+// has delivered, the owner stays locked.
+func TestOwnerLockBySinkType(t *testing.T) {
+	e, _ := newResultEnv(t)
+	held := func(t *testing.T, list string, sent string) (string, string) {
+		t.Helper()
+		rid := newRecordID()
+		e.register(t, rid, "meeting-1", ownerA)
+		jobID := seedJob(t, e.pool, rid)
+		join(t, e.pool, jobID, rid)
+		atDeliver(t, e.pool, jobID, "held", "pending")
+		hold(t, e.pool, jobID, "owner_unresolved")
+		exec(t, e.pool, `UPDATE jobs SET sink_profile = $2 WHERE job_id = $1`, jobID, list)
+		exec(t, e.pool, `INSERT INTO deliveries (job_id, sink_profile, state, sent_at) VALUES ($1, $2, 'sent', now())`,
+			jobID, sent)
+		return rid, jobID
+	}
+	t.Run("docs-and-frontend", func(t *testing.T) {
+		rid, jobID := held(t, "docs-test,frontend-test", "frontend-test")
+		expectReg(t, e.put(t, tokenFE, rid, body(t, rid, "meeting-1", ownerB)), http.StatusOK, "matched")
+		if row := getRow(t, e.pool, rid); row.sub != ownerB[0] {
+			t.Fatal("owner not replaced")
+		}
+		var state string
+		if err := e.pool.QueryRow(bg, `SELECT state FROM jobs WHERE job_id = $1`, jobID).Scan(&state); err != nil || state != "running" {
+			t.Fatalf("job state %q (%v), want running (resumed)", state, err)
+		}
+	})
+	t.Run("two-docs-one-sent", func(t *testing.T) {
+		rid, _ := held(t, "docs-test,docs-no-link", "docs-test")
+		expectProblem(t, e.put(t, tokenFE, rid, body(t, rid, "meeting-1", ownerB)), http.StatusConflict, "registration-locked")
+		if row := getRow(t, e.pool, rid); row.sub != ownerA[0] {
+			t.Fatal("owner replaced although locked")
+		}
+	})
+}
