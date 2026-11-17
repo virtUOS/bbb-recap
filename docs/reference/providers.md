@@ -2,12 +2,13 @@
 
 Decisions: [ADR-001](../decisions/ADR-001-scope-livekit-bbb4.md), [ADR-008](../decisions/ADR-008-provider-adapters-transcript.md),
 [ADR-009](../decisions/ADR-009-privacy-retention.md), [ADR-010](../decisions/ADR-010-postgres-job-queue.md),
-[ADR-011](../decisions/ADR-011-blob-storage.md), [ADR-012](../decisions/ADR-012-language-go.md). Names, states, error
+[ADR-011](../decisions/ADR-011-blob-storage.md), [ADR-012](../decisions/ADR-012-language-go.md),
+[ADR-017](../decisions/ADR-017-slide-images-as-context.md). Names, states, error
 classes and gap reasons are defined in [`README.md`](README.md). External facts are collected in
 [`upstream-facts.md`](upstream-facts.md).
 
-Scope: the step `transcribe` (ASR adapter), the step `assemble` (transcript) and the LLM calls of `summarize` (prompts
-and rendering: [`templates.md`](templates.md)). No adapter imports a vendor SDK. Adapters speak HTTP and parse raw
+Scope: the step `transcribe` (ASR adapter), the step `assemble` (transcript), the vision calls of `describe` (§3.6)
+and the LLM calls of `summarize` (prompts and rendering: [`templates.md`](templates.md)). No adapter imports a vendor SDK. Adapters speak HTTP and parse raw
 JSON, because SDKs drop the extra fields that each server dialect uses (ADR-008). Operation names below are
 descriptive, not Go identifiers.
 
@@ -225,7 +226,8 @@ Capabilities: `async=false`, `word_timestamps=false`, `word_confidence=false`, `
 
 `complete(LlmRequest) → LlmResponse | LlmError`.
 
-`LlmRequest`: `messages[]` (`system`, `user`; `assistant` only for JSON repair), `output` (`text`, or `json` with a
+`LlmRequest`: `messages[]` (`system`, `user`; `assistant` only for JSON repair; `content` is a string, or for a
+`user` message of `describe` a list of content parts, §3.6), `output` (`text`, or `json` with a
 draft 2020-12 schema owned by the format, `templates.md`), `max_output_tokens` (≤ profile value), `call_ref`
 (`<job_id>:<step>:<call-name>:<chunk>`, logs only). `LlmResponse`: `text` (raw `choices[0].message.content`), `json`
 (parsed, validated), `finish_reason`, `usage`, `model`.
@@ -285,12 +287,34 @@ transcript on every call, which does not scale to long meetings. bbb-recap uses 
 4. **Re-split:** on `output_truncated` or `input_too_large` in a map call, split that chunk in half once. Map calls
    run concurrently up to `max_inflight`; the order of results is deterministic.
 
+### 3.6 Vision calls (step `describe`)
+
+Decision: ADR-017. The step and its prompt are in `templates.md` §3.2. A vision call is an LLM call (§3.1–3.4) to the
+profile named by `defaults.vision` (§4.1), with one difference: the `user` message carries content parts.
+
+- **Content parts** (OpenAI-compatible chat completions, as vLLM accepts them: docs.vllm.ai "Multimodal Inputs",
+  [`upstream-facts.md`](upstream-facts.md) "Providers"): `{"type": "text", "text": "…"}` and
+  `{"type": "image_url", "image_url": {"url": "data:image/png;base64,<standard base64 of the PNG>"}}`. The adapter
+  sends the parts as given, in order, as the message's `content` array.
+- **Only data URLs.** The adapter accepts an `image_url` part only with a `data:image/png;base64,` URL and never sends
+  a remote URL: the provider fetches nothing on the service's behalf (no server-side request forgery through the
+  provider), and no image server is needed. Any other URL is a programming error; no request is sent.
+- **One image per call** (ADR-017, D6). A vLLM server limits images per prompt with `--limit-mm-per-prompt`; the
+  service needs at least 1 ([`upstream-facts.md`](upstream-facts.md) "Providers").
+- **Errors:** as §3.4, except that a 400 on a call with an image part is `input_too_large` (the image token count is
+  not estimated). `describe` maps the classes to per-image fallbacks (`templates.md` §3.2); there is no re-split.
+- **Log** per call as §3.4 (`call_ref` `<job_id>:describe:slide:<n>`, `n` the image's position in order of first
+  appearance), plus the image size in bytes; never the image or the reply.
+- Concurrency: `max_inflight` of the vision profile (§1.6, `architecture.md` §7). When `defaults.vision` names the
+  same profile as `defaults.llm`, both steps share that profile's limit.
+
 ## 4. Provider profiles and transcript
 
 ### 4.1 Provider profiles (`RECAP_PROVIDERS_FILE`)
 
-YAML, because profiles are nested. There is one default ASR and one default LLM profile; choosing a profile per
-meeting type is not supported yet. Names follow the README grammar. Fixture values:
+YAML, because profiles are nested. There is one default ASR and one default LLM profile, and optionally one
+default vision profile; choosing a profile per meeting type is not supported yet. Names follow the README grammar.
+Fixture values:
 
 ```yaml
 schema_version: "1.0.0"
@@ -331,6 +355,21 @@ profiles:
         deletion: none,
       }
 ```
+
+`schema_version` `1.1.0` adds the optional key `defaults.vision` (ADR-017): the name of a `kind: llm` profile with
+dialect `openai-chat` that `describe` uses (§3.6). It may name the same profile as `defaults.llm` (one multimodal
+model) or another one. A `1.0.0` file with `defaults.vision` is accepted (minor versions only add keys), as for the
+meeting-types file (`templates.md` §1).
+
+```yaml
+schema_version: "1.1.0"
+defaults: { asr: whisperx-lab, llm: vllm-lab, vision: vllm-lab }
+```
+
+`defaults.vision` naming an unknown profile, a profile of another kind, or a profile whose `declaration` (when
+present) does not list the data category `slide_images` (`privacy.md` §7, §12) is a configuration error that names
+`vision` or `slide_images`. Without `defaults.vision`, a meeting type with `slide_images: true` is a configuration
+error (`templates.md` §1).
 
 Rules: the file is validated in one pass at startup (`check-config`). Unknown keys, unknown dialects, an incomplete
 `declaration` (when present; a missing one only logs a WARN, `privacy.md` §7), an unreadable `credentials_file` or a
@@ -398,11 +437,12 @@ track is a gap. The summary prompt is told which speakers have gaps; `summary.md
 
 Each flow states the personal data, where it is stored, and who deletes it when.
 
-| Flow          | Personal data                                                                                                                                                | Stored where                                                                        | Retention / deleter                                                                                                                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Service → ASR | Voice of one participant per call; language hint. The upload name is `<track_ref>.webm`, so the BBB `userId` in the original file name stays in the service. | Audio and result blobs under `jobs/<job_id>/` (ADR-011); provider per `declaration` | Until the job's `cleanup` (default right after delivery; held or failed jobs until an admin acts, ADR-009). Remote: adapter `cleanup`, or operator config where the dialect cannot delete (§2.4). |
-| Service → LLM | Transcript with speaker names, chat with sender names, notes, poll aggregates, meeting name (`templates.md` §3). No user IDs, email or owner identity.       | Map outputs and summary JSON as job blobs; provider per `declaration`               | Service `cleanup`; provider side: the operator.                                                                                                                                                   |
-| Transcript    | Spoken words, display names, roles, speech timings                                                                                                           | Job blob; rendered to `transcript.vtt`, which is **not delivered** (ADR-007)        | Service `cleanup`.                                                                                                                                                                                |
+| Flow             | Personal data                                                                                                                                                 | Stored where                                                                            | Retention / deleter                                                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Service → ASR    | Voice of one participant per call; language hint. The upload name is `<track_ref>.webm`, so the BBB `userId` in the original file name stays in the service.  | Audio and result blobs under `jobs/<job_id>/` (ADR-011); provider per `declaration`     | Until the job's `cleanup` (default right after delivery; held or failed jobs until an admin acts, ADR-009). Remote: adapter `cleanup`, or operator config where the dialect cannot delete (§2.4). |
+| Service → LLM    | Transcript with speaker names, chat with sender names, notes, poll aggregates, meeting name (`templates.md` §3). No user IDs, email or owner identity.        | Map outputs and summary JSON as job blobs; provider per `declaration`                   | Service `cleanup`; provider side: the operator.                                                                                                                                                   |
+| Service → vision | PNG images of the shown slides, one per call, only for meeting types with `slide_images: true` (§3.6). Whatever the slides show; nothing else of the meeting. | Images, descriptions and the descriptions file as job blobs; provider per `declaration` | Service `cleanup`; provider side: the operator.                                                                                                                                                   |
+| Transcript       | Spoken words, display names, roles, speech timings                                                                                                            | Job blob; rendered to `transcript.vtt`, which is **not delivered** (ADR-007)            | Service `cleanup`.                                                                                                                                                                                |
 
 ## 6. Contract tests
 
@@ -420,11 +460,15 @@ Fixtures only; no real provider. A local fake replays fixture responses.
 | CT-PROV-09 / 10 | `finish_reason: "length"` → `output_truncated`, no repair call / LLM status codes → classes of §3.4.                                                                                                                                                                          |
 | CT-PROV-11      | Chunker: boundaries between segments, no chunk over budget, deterministic, long-segment cut, one re-split.                                                                                                                                                                    |
 | CT-PROV-12      | Profiles: valid fixture loads; each missing required key, unknown key, incomplete `declaration` (when present), bad `defaults`, bad name → startup error naming the key; a missing `declaration` loads with a WARN.                                                           |
+| CT-PROV-13      | Vision content parts (§3.6): a `user` message with a text and an `image_url` part is sent as that `content` array, unchanged; the schema still goes per mode; a remote URL or a non-PNG data URL is refused before any request; a 400 on an image call → `input_too_large`.   |
+| CT-PROV-14      | Profiles 1.1.0 (§4.1): `defaults.vision` naming an LLM profile with `slide_images` in its declaration loads (also in a 1.0.0 file); an unknown profile, an ASR profile, or a declaration without `slide_images` → startup error naming `vision` or `slide_images`.            |
 | CT-TR-01        | Golden transcripts validate against the schema and the rules of §4.2; invalid fixtures (float or negative times, unknown `source`, missing `gaps`, extra field) fail.                                                                                                         |
 | CT-TR-02        | Normalized events + fixture `AsrResult`s → golden transcript: offsets, `recorded_offset_ms`, `_N` grouping, clipping, gaps; byte-identical on re-run.                                                                                                                         |
 | CT-TR-03        | Log capture over CT-TR-02: no segment text or display name at INFO or above. CT-PROV-02 and CT-PROV-08 run the same scan on their own runs (segment and prompt text).                                                                                                         |
 
 CT-PROV-01..03, CT-PROV-09, CT-TR-01 and CT-TR-02 were written before the implementation and are not changed to fit it.
+CT-PROV-13 and CT-PROV-14 were written before the implementation of §3.6 and fail until it exists
+(`contracts/providers/README.md` "Not implemented yet").
 
 ## 7. Known limitations
 
@@ -451,5 +495,8 @@ CT-PROV-01..03, CT-PROV-09, CT-TR-01 and CT-TR-02 were written before the implem
   input estimate (§3.4).
 - **Provider logging.** Whether an LLM server logs requests depends on its configuration; the operator states it in
   the profile `declaration`.
+- **Vision.** The image input format is checked against vLLM's documentation and source only, not against a running
+  server with the candidate models; per-call latency and image token counts are not measured (ADR-017, D11). A 400
+  on an image call is always `input_too_large`, so a misconfigured vision profile shows up only as fallbacks.
 - **Cutting audio to recording periods** before ASR is not done; with `recordFullDurationMedia=true` audio outside the
   periods is transcribed and then dropped by clipping (§4.3).

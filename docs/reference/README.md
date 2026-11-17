@@ -8,20 +8,20 @@ PILOS and providers, with sources, are in [`upstream-facts.md`](upstream-facts.m
 
 ## Files
 
-| File                                                                                  | Content                                                                                                             | ADRs                    |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| [`architecture.md`](architecture.md)                                                  | components, trust zones, service HTTP surface, job lifecycle, step model, queue, blob store, admin actions, metrics | 002, 009, 010, 011, 012 |
-| [`meeting-package.md`](meeting-package.md) + `schemas/manifest.schema.json`           | package layout, manifest, file roles, validation rules                                                              | 001, 004                |
-| [`bbb-exporter.md`](bbb-exporter.md)                                                  | hook, spool, exporter daemon, exporter states, ingest protocol (wire), raw deletion, pull-API outline               | 002, 003                |
-| [`metadata-interface.md`](metadata-interface.md) + `schemas/registration.schema.json` | `meta_recap-*` keys, registration API, held reasons                                                                 | 005, 014, 016           |
-| [`identity-mapping.md`](identity-mapping.md)                                          | owner identity, PILOS mapping, later participant map                                                                | 006, 007                |
-| [`providers.md`](providers.md) + `schemas/transcript.schema.json`                     | ASR and LLM adapters, provider profiles, transcript schema                                                          | 008                     |
-| [`templates.md`](templates.md)                                                        | built-in output format, selection by meeting type                                                                   | 005, 008, 015           |
-| [`sinks.md`](sinks.md)                                                                | sink interface, several sinks per job, Markdown dialect, Docs, front-end, webhook and Matrix sinks                  | 006, 007, 009, 010, 016 |
-| [`deployment.md`](deployment.md)                                                      | images, compose, K8s, config contract, migrations, exporter installation                                            | 010, 011, 012           |
-| [`privacy.md`](privacy.md)                                                            | data inventory, flows, retention, deletion, logging rules                                                           | 002, 004–009, 011, 015  |
-| [`fixtures.md`](fixtures.md)                                                          | synthetic meetings, mutation set, fixture secrets, golden files                                                     | all                     |
-| [`upstream-facts.md`](upstream-facts.md)                                              | facts about BBB, La Suite Docs, front ends and providers, with sources                                              | —                       |
+| File                                                                                  | Content                                                                                                             | ADRs                        |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| [`architecture.md`](architecture.md)                                                  | components, trust zones, service HTTP surface, job lifecycle, step model, queue, blob store, admin actions, metrics | 002, 009, 010, 011, 012     |
+| [`meeting-package.md`](meeting-package.md) + `schemas/manifest.schema.json`           | package layout, manifest, file roles, validation rules                                                              | 001, 004                    |
+| [`bbb-exporter.md`](bbb-exporter.md)                                                  | hook, spool, exporter daemon, exporter states, ingest protocol (wire), raw deletion, pull-API outline               | 002, 003                    |
+| [`metadata-interface.md`](metadata-interface.md) + `schemas/registration.schema.json` | `meta_recap-*` keys, registration API, held reasons                                                                 | 005, 014, 016               |
+| [`identity-mapping.md`](identity-mapping.md)                                          | owner identity, PILOS mapping, later participant map                                                                | 006, 007                    |
+| [`providers.md`](providers.md) + `schemas/transcript.schema.json`                     | ASR, LLM and vision adapters, provider profiles, transcript schema                                                  | 008, 017                    |
+| [`templates.md`](templates.md)                                                        | built-in output format, selection by meeting type, slide text and slide images                                      | 005, 008, 015, 017          |
+| [`sinks.md`](sinks.md)                                                                | sink interface, several sinks per job, Markdown dialect, Docs, front-end, webhook and Matrix sinks                  | 006, 007, 009, 010, 016     |
+| [`deployment.md`](deployment.md)                                                      | images, compose, K8s, config contract, migrations, exporter installation                                            | 010, 011, 012               |
+| [`privacy.md`](privacy.md)                                                            | data inventory, flows, retention, deletion, logging rules                                                           | 002, 004–009, 011, 015, 017 |
+| [`fixtures.md`](fixtures.md)                                                          | synthetic meetings, mutation set, fixture secrets, golden files                                                     | all                         |
+| [`upstream-facts.md`](upstream-facts.md)                                              | facts about BBB, La Suite Docs, front ends and providers, with sources                                              | —                           |
 
 ## Identifiers
 
@@ -58,7 +58,7 @@ PILOS and providers, with sources, are in [`upstream-facts.md`](upstream-facts.m
   `rejected_by_provider` (LLM refusal after re-split), `rejected_by_sink`, `internal_error` (an earlier step's stored
   output is unreadable: a bug or corruption).
 - **Steps (linear):** `validate`, `normalize`, `transcribe` (per-track results), `assemble` (transcript JSON),
-  `summarize` (summary JSON), `render` (`summary.md`, `transcript.vtt`), `deliver`, `cleanup` (`run_after = delivered_at + retention`).
+  `describe` (slide image descriptions, per image; a no-op without slide images), `summarize` (summary JSON), `render` (`summary.md`, `transcript.vtt`), `deliver`, `cleanup` (`run_after = delivered_at + retention`).
 - **Step states:** `pending`, `claimed`, `succeeded`, `retrying`, `failed`.
 - **Step outcomes:** `ok`, `transient` (retry with backoff), `permanent` (job `failed`), `hold` (job `held`).
 - **Adapter error classes → step outcome:**
@@ -83,6 +83,9 @@ PILOS and providers, with sources, are in [`upstream-facts.md`](upstream-facts.m
   | Sink    | `uncertain` (timeout, connection lost after sending, HTTP 5xx)                                          | hold (`delivery_uncertain`); **never retried automatically**, so no silent duplicates |
   | Sink    | `config` (401/403) / `rejected` (other 4xx)                                                             | permanent                                                                             |
   | Sink    | `recipient_unresolved` (Docs cannot match the owner, e.g. two users with that email)                    | hold (`owner_unresolved`)                                                             |
+
+  The LLM rows are those of `summarize`. In `describe` (vision calls) an image whose call fails falls back to its
+  slide text, also after its last attempt; only `permanent_config` is permanent (`templates.md` §3.2).
 
   The sink rows are the Docs sink's; the webhook and Matrix sinks have their own status mapping (`sinks.md` §4b, §4c).
   A job with several sinks combines the sinks' outcomes (`sinks.md` §1.8).

@@ -1,6 +1,6 @@
 # ADR-015 Slide text as context for the summary
 
-Status: accepted (2026-11-13)
+Status: accepted (2026-11-13). Option c (slide images) is decided by ADR-017.
 
 ## Context
 

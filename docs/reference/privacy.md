@@ -1,7 +1,7 @@
 # Privacy: data inventory, flows, retention, deletion, logging
 
 What personal data the service handles, where it goes, how long it stays and who deletes it. Decision: ADR-009.
-Related: ADR-002, ADR-004 to ADR-008, ADR-011 in [`../decisions/`](../decisions/). Names and config defaults:
+Related: ADR-002, ADR-004 to ADR-008, ADR-011, ADR-015, ADR-017 in [`../decisions/`](../decisions/). Names and config defaults:
 [`README.md`](README.md).
 
 This is engineering input for a data protection impact assessment (DPIA), **not** a legal assessment. The legal
@@ -37,6 +37,7 @@ flowchart LR
   subgraph Z4["External"]
     ASR["ASR"]
     LLM["LLM"]
+    VIS["vision LLM"]
     DOCS["La Suite Docs"]
     MAIL["owner mailbox"]
     MON["log store / monitoring"]
@@ -46,6 +47,7 @@ flowchart LR
   FE -- "B registration" --> API
   W -- "C audio per track" --> ASR
   W -- "D transcript, chat, notes, slides" --> LLM
+  W -- "V slide images" --> VIS
   W -- "E summary.md, title, owner sub + email" --> DOCS
   DOCS -- "F Docs' own email" --> MAIL
   W -- "G IDs, counts" --> MON
@@ -57,6 +59,7 @@ flowchart LR
 | B front end → service  | owner `sub`, email, `meeting_id`                                                                                                                             | per-front-end credential   | service; `cleanup`                          |
 | C service → ASR        | voice                                                                                                                                                        | provider profile           | provider, per declaration                   |
 | D service → LLM        | transcript, names, chat, notes, polls; text of the slides shown during recording, only for meeting types that switch slides on (`templates.md` §3.1)         | provider profile           | provider, per declaration                   |
+| V service → vision LLM | PNG images of the slides shown during recording, one per call, only for meeting types that switch slide images on (§12)                                      | provider profile           | provider, per declaration                   |
 | E service → Docs       | summary (may name people), title (meeting name + date), owner `sub` + email                                                                                  | s2s key (`sinks.md` §3.2)  | Docs; owner manages                         |
 | F Docs → mailbox       | owner email, title                                                                                                                                           | Docs' mail setup           | mail systems                                |
 | G service → monitoring | none by rule (§6)                                                                                                                                            | —                          | operator policy                             |
@@ -64,8 +67,9 @@ flowchart LR
 The transcript (`transcript.vtt`) is **not** sent anywhere yet. There is no service email and no SMTP edge.
 
 Slides on edge D (ADR-015) are off by default; switching them on for a meeting type is the operator's decision. Then
-only the cleaned text of pages shown for at least 5 s during recording is sent, capped in size. Never sent: slide
-images, pages that were not shown, the default deck, presentation IDs and original file names. Slide text can hold
+only the cleaned text of pages shown for at least 5 s during recording is sent, capped in size. Never sent on edge D:
+slide images (they go only on edge V, §12), pages that were not shown, the default deck, presentation IDs and original
+file names. Slide text can hold
 personal data (names on title pages, participant lists, figures).
 
 ## 3. Data inventory
@@ -103,14 +107,14 @@ personal data (names on title pages, participant lists, figures).
 
 ### 3.3 Outside the service
 
-| ID  | Item                                       | Personal data                                   | Retention                                                                                                                              | Deleter                              |
-| --- | ------------------------------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| P1  | ASR copies                                 | voice, transcript                               | per declaration; whisperx-api-server result store on by default, 1 h TTL, recommend off ([`upstream-facts.md`](upstream-facts.md))     | adapter `cleanup`, provider operator |
-| P2  | LLM copies                                 | transcript, summary, slide text (if sent)       | per declaration (see Known limitations)                                                                                                | provider operator                    |
-| D1  | Docs summary document                      | summary, title                                  | until deleted in Docs                                                                                                                  | owner; Docs operator if ownerless    |
-| D2  | Docs owner invitation (unknown owner only) | owner email                                     | valid 7 days ([`upstream-facts.md`](upstream-facts.md)); no purge of expired invitations found. After expiry the document is ownerless | Docs operator                        |
-| D3  | Docs emails                                | owner email, title                              | mail policy                                                                                                                            | mail operator, owner                 |
-| F1  | Front-end copy (ADR-014)                   | summary text or document link, meeting and room | front end's policy; PILOS: recording retention, access per summary like recordings                                                     | front end, room owner                |
+| ID  | Item                                       | Personal data                                                    | Retention                                                                                                                              | Deleter                              |
+| --- | ------------------------------------------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| P1  | ASR copies                                 | voice, transcript                                                | per declaration; whisperx-api-server result store on by default, 1 h TTL, recommend off ([`upstream-facts.md`](upstream-facts.md))     | adapter `cleanup`, provider operator |
+| P2  | LLM copies                                 | transcript, summary, slide text and slide descriptions (if sent) | per declaration (see Known limitations)                                                                                                | provider operator                    |
+| D1  | Docs summary document                      | summary, title                                                   | until deleted in Docs                                                                                                                  | owner; Docs operator if ownerless    |
+| D2  | Docs owner invitation (unknown owner only) | owner email                                                      | valid 7 days ([`upstream-facts.md`](upstream-facts.md)); no purge of expired invitations found. After expiry the document is ownerless | Docs operator                        |
+| D3  | Docs emails                                | owner email, title                                               | mail policy                                                                                                                            | mail operator, owner                 |
+| F1  | Front-end copy (ADR-014)                   | summary text or document link, meeting and room                  | front end's policy; PILOS: recording retention, access per summary like recordings                                                     | front end, room owner                |
 
 ## 4. Retention configuration
 
@@ -178,7 +182,7 @@ invalid-job-state`. In one transaction it deletes the job's rows (J1: `jobs`, `s
 
 README "Logging" applies. In addition, for service, exporter and hook:
 
-1. Never at any level: content (including slide text), titles, presentation file names, names, emails, OIDC `sub`,
+1. Never at any level: content (including slide text, slide images and their descriptions), titles, presentation file names, names, emails, OIDC `sub`,
    keys, tokens, `Authorization` headers.
 2. DEBUG may add HTTP method, path, status, allow-listed headers and body **lengths**. Never bodies.
 3. Upstream error bodies are reduced to an allow-listed code before logging or storing.
@@ -193,13 +197,13 @@ A profile without one logs one WARN at start-up and in `check-config` ("profile 
 declaration"). A declaration that is present must be complete and valid as below, or the service refuses to start;
 any other key in it is refused as an unknown key.
 
-| Field             | Values                                                                                        |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| `data_categories` | from §3, e.g. `[voice]`, `[summary, email]`; `slides` for an LLM profile that gets slide text |
-| `operator`        | who runs it                                                                                   |
-| `location`        | `on_prem`, `eu`, `eea`, `third_country:<code>`                                                |
-| `retention`       | free text + duration                                                                          |
-| `deletion`        | `adapter_cleanup`, `ttl:<duration>`, `none`, `manual`                                         |
+| Field             | Values                                                                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `data_categories` | from §3, e.g. `[voice]`, `[summary, email]`; `slides` for an LLM profile that gets slide text; `slide_images` for the profile named by `defaults.vision` (required there, §12) |
+| `operator`        | who runs it                                                                                                                                                                    |
+| `location`        | `on_prem`, `eu`, `eea`, `third_country:<code>`                                                                                                                                 |
+| `retention`       | free text + duration                                                                                                                                                           |
+| `deletion`        | `adapter_cleanup`, `ttl:<duration>`, `none`, `manual`                                                                                                                          |
 
 Third-country providers should not be used in pilots; a declared profile with a `third_country:` location logs a WARN
 at start-up. Pilots should not use providers that train on the data either; the admin checks this in the provider's
@@ -213,7 +217,7 @@ them has to document its processors elsewhere.
 | `meta_recap-*`   | none allowed       | `metadata-interface.md`                        |
 | Registration API | owner `sub`, email | `metadata-interface.md`, `identity-mapping.md` |
 | Package          | edge A             | `meeting-package.md`                           |
-| Providers        | edges C, D         | `providers.md`                                 |
+| Providers        | edges C, D, V      | `providers.md`                                 |
 | Docs sink        | edges E, F         | `sinks.md`                                     |
 
 ## 9. Accepted risk (pilot only)
@@ -297,6 +301,47 @@ meeting with that title was summarised.
   or a request body, at any level (§6).
 - **Accepted for pilots** as §9: a notice in a Matrix room tells its members that a meeting was summarised, with its
   title.
+
+## 12. Slide images
+
+ADR-017, `templates.md` §3.2, `providers.md` §3.6. Off by default; the operator switches them on per meeting type
+(`inputs.slide_images`, which needs `inputs.slides`).
+
+### 12.1 Edge
+
+| Edge                   | Personal data                                                                                                                                                                                                                                                 | Auth             | Stored / deleted          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------- |
+| V service → vision LLM | PNG renders of the pages shown for at least 5 s during recording, one image per call. They show whatever the presenter showed: faces, names on title pages, handwriting, screenshots with e-mail or chat. No meeting name, time, deck, page or other content. | provider profile | provider, per declaration |
+
+When `defaults.vision` names the same profile as `defaults.llm`, edges V and D go to the same provider; the
+declaration then lists both kinds of data.
+
+### 12.2 Inventory additions
+
+| ID  | Item                              | Personal data                                                   | Storage                                                         | Retention       | Deleter           |
+| --- | --------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------- | --------------- | ----------------- |
+| S12 | Slide images (PNG renders)        | as edge V                                                       | blob store, job prefix                                          | as S1           | `cleanup`         |
+| S13 | Slide descriptions and their file | text read from the images, short descriptions of what they show | blob store, job prefix; `step_items` hold hashes and codes only | as S1           | `cleanup`         |
+| P5  | Vision provider copies            | images, descriptions                                            | provider                                                        | per declaration | provider operator |
+
+The source decks themselves are already in the package (S1). Renders exist only for jobs whose type switches images
+on (ADR-017, D10). Nothing of it is in `summary.md` or delivered to a sink; only the descriptions reach the LLM, inside
+`SLIDES` (edge D).
+
+### 12.3 Rules
+
+- **Declaration:** the profile named by `defaults.vision` lists `slide_images` in `data_categories` when it has a
+  declaration; otherwise the service does not start (`providers.md` §4.1).
+- **People:** the describe prompt asks for "a person" or "people" and forbids guessing identities, age, gender,
+  origin or emotions. A name written on a slide or a badge is visible text and is read like slide text; the residual
+  risk that a model names a well-known person is accepted like slide text.
+- **Logs:** IDs, counts, hashes, sizes and latencies only; never image bytes or descriptions (§6).
+- **Consent wording (front ends):** a front end that offers a meeting type with slide images names them in its
+  consent and recording notice, for example: "The slides shown during the recording are sent **as images** to the AI
+  service that writes the summary." A notice that mentions only "slide text" does not cover images. The wording is
+  the operator's decision; this is a hint.
+- **Prompt injection:** text in an image is data; the describe call has no tools and a schema-checked output, and the
+  description is fenced in `summarize` (`templates.md` §3.2).
 
 ## Sources
 
