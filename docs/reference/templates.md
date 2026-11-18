@@ -228,12 +228,17 @@ file that is in the package (a blob store failure, including a hash mismatch) is
    pinned across renderer or Go versions.
 4. One renderer instance at a time per worker process, normally one per `normalize` run, closed at its end. The PDF
    is passed as bytes; the renderer sees no filesystem. Limits: 512 MiB renderer memory, 10 s for opening a document,
-   10 s per page. Every limit hit (time or memory) discards the instance (the WebAssembly runtime closes the module
-   when its deadline passes; after a memory limit hit the instance is not trusted either). The file in which the limit was hit is not opened again:
-   that page and the file's remaining pages get no image without further attempts; the hit counts as the attempt of
-   that page. The next file that needs a renderer starts a new instance. A PDF that does not open, a page number
-   beyond its page count, an image that does not decode, or a limit hit gives **no image**; the text path is
-   unchanged.
+   10 s per page. The renderer memory is reserved once and grown in place, so the process holds at most the cap plus
+   the renderer's own overhead: measured at a memory limit hit (a synthetic page of nested form XObjects) about
+   610 MB peak RSS for the whole `normalize` run (507 MiB above the process after compiling the renderer), and about
+   335 MB for F-14. Every limit hit (time or memory), a trap or any other failure inside the renderer discards the
+   instance (the WebAssembly runtime closes the module when its deadline passes; after a memory limit hit the
+   instance is not trusted either). The file in which it happened is not opened again: that page and the file's
+   remaining pages get no image without further attempts; the hit counts as the attempt of that page. The next file
+   that needs a renderer starts a new instance. An error that PDFium reports for one page (the page does not load
+   or has no size) costs only that page: it counts as that page's attempt and gives no image, the instance and the
+   file stay open for the other pages. A PDF that does not open, a page number beyond its page count, a page with
+   such an error, an image that does not decode, or a limit hit gives **no image**; the text path is unchanged.
 
 **Dedupe and cap.** Pages are handled in `slides[]` order (§3.1 "Normalized meeting").
 
@@ -242,8 +247,9 @@ file that is in the package (a blob store failure, including a hash mismatch) is
 2. At most **50** render attempts per job, successful or not. An attempt is one page render of a PDF or one decode
    of an image upload. A source file that does not open (parse error, open time limit) counts as one attempt, once per
    file; its pages then get no image without further attempts. No source (`no_source`) and a source over the size or
-   pixel limit (`too_large`) do not count. A later page that is not already rendered gets no image (`cap`); it keeps
-   its text, and without text it gives no slide.
+   pixel limit (`too_large`) do not count, and neither does a page number beyond the page count of a PDF that opened:
+   its page count is kept per source file for the run, so such a page never opens the file again. A later page that
+   is not already rendered gets no image (`cap`); it keeps its text, and without text it gives no slide.
 3. Equal PNG bytes (equal SHA-256) are stored once as one job blob; every slide with those bytes points to it.
 
 **Normalized meeting version 5.** Each `slides[]` entry is `{t_ms, deck, page, text, image?}`. `image` is
@@ -294,7 +300,8 @@ calls in flight finish and keep their rows, and the queue retries the step with 
 (`architecture.md` §5.3). On the last attempt, after **3** `retryable` results in a row (in the order the calls end)
 no new call is started; calls in flight finish, and every image still without a row falls back (`retryable`). So a
 hanging vision server costs at most about `(3 + max_inflight − 1) × 120 s` on the last attempt. The worst case is a
-server that fails intermittently: the counter starts again after every success, so the last attempt can still take
+server that fails intermittently: the counter starts again after every result that is not `retryable` (a
+description or another fallback), so the last attempt can still take
 up to `50 × 120 s / max_inflight` (100 minutes at `max_inflight` 1).
 
 **Storage and idempotency.** Each done image has a `step_items` row (step `describe` where the table has a `step`
@@ -320,8 +327,10 @@ block text.
 **Prompt.** When at least one block of the sent section is a description, the system message of that call gets the
 format's `prompts/slide-images.md` appended right after `prompts/slides.md`: some slide blocks are machine
 descriptions of the slide image and may contain recognition errors; the slide rules of §3.1 apply to them. With
-images off, or when no block of the sent section is a description, every request is byte-identical to the request
-of format 1.1.0 for the same input.
+images off, or when no slide has a description, every request is byte-identical to the request of format 1.1.0 for
+the same input. When descriptions exist but none is in the sent section (all dropped by the section cap), the rule is
+not sent, but the call's budget still counts it (it is fixed before the section is cut), so such a request can differ
+from format 1.1.0 in its cut and chunking.
 
 **Prompt injection.** Text in an image may be instruction-shaped. The `describe` call has no tools and a
 schema-checked output; the description is fenced data in `summarize` like slide text. The residual risk that a

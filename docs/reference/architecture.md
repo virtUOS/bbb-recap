@@ -326,7 +326,7 @@ that loses the DB keeps retrying and reports not ready; it does not exit.
 ingest ~15 GB/day, peak ~11 Mbit/s; blob store ≥ 100 GB (in-flight plus held/failed); DB < 1 GB/year; `api` 2 × (0.25
 CPU, 256 MiB), `worker` 2 × 4 slots × (0.5 CPU, 512 MiB). ASR capacity is the bottleneck, not the service;
 `recap_step_oldest_ready_age_seconds{step="transcribe"}` shows whether the backlog drains between peaks. Slide
-images (ADR-017) add per `normalize` run about 2 s and up to about 300 MB of renderer memory (one renderer per worker
+images (ADR-017) add per `normalize` run about 2 s and about 335 MB for a usual deck and up to about 610 MB at the renderer's memory cap (one renderer per worker
 process at a time, `deployment.md` §4), and per job up to 50 vision calls (estimate, not measured).
 
 ## 11. Admin web UI

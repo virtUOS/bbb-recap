@@ -143,8 +143,9 @@ shown during the recording to a vision model, and its description replaces the s
    accepts images (it may be the LLM profile itself), with `slide_images` in its declaration's `data_categories`
    (`schema_version: "1.1.0"`).
 2. Set the inputs of the meeting type in `config/meeting-types.yaml` (`schema_version: "1.2.0"`).
-3. Give `worker` 512 MiB more memory if you set a limit (rendering holds up to about 300 MB per worker process,
-   [deployment.md](../reference/deployment.md) §4), then run `check-config` and recreate `api` and `worker`.
+3. Give `worker` 640 MiB more memory if you set a limit (a render run holds up to about 610 MB at worst, a usual
+   deck about 335 MB, [deployment.md](../reference/deployment.md) §4), then run `check-config` and recreate `api` and
+   `worker`.
 4. **Consent text:** the slides now reach the AI provider as images, which can show more than their text (faces,
    handwriting, screenshots with names or e-mail). Make sure the front end's consent and recording notice for this
    meeting type says so, for example "The slides shown during the recording are sent **as images** to the AI service

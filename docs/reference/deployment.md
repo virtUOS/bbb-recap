@@ -93,14 +93,16 @@ this section is the layout they follow.
 - NetworkPolicy: `api:8080` from the ingress only; `9090` from monitoring; `worker` egress to Postgres, S3, providers,
   Docs; `api` egress to Postgres, S3, IdP.
 - Requests: `api` 0.25 CPU / 256 MiB, `worker` 0.5 CPU / 512 MiB, limits 2× (estimates, `architecture.md` §10).
-- Slide images (ADR-017, `templates.md` §3.2): when a meeting type switches `slide_images` on, add 512 MiB to the
-  `worker` memory request and limit (compose: `mem_limit` if one is set). A render run holds up to about 300 MB
-  (measured on a synthetic deck; renderer cap 512 MiB), at most one per worker process at a time, and that memory is
-  returned only when the run ends. Decoding an image upload runs on the Go heap outside that cap and may hold up to
-  about 400 MB at the 25-megapixel limit (estimate); the 512 MiB cover it because an open renderer instance is closed
-  before an upload is decoded (`templates.md` §3.2). Both are measured on staging. Rendering needs no `/tmp` and no new
-  variable; the switch is the meeting-types file and the vision profile is `defaults.vision` in the providers file.
-  Estimates until measured on staging.
+- Slide images (ADR-017, `templates.md` §3.2): when a meeting type switches `slide_images` on, add 640 MiB to the
+  `worker` memory request and limit (compose: `mem_limit` if one is set). A render run holds up to about 610 MB at
+  worst: the renderer's memory is capped at 512 MiB and grown in place, and a page that drives it to the cap (a
+  synthetic page of nested form XObjects) gave about 610 MB peak RSS for the whole run; a benign deck (F-14, 52
+  pages) about 335 MB. At most one render run per worker process at a time, and its memory is returned when the run
+  ends. Decoding an image upload runs on the Go heap outside that cap and may hold up to about 400 MB at the
+  25-megapixel limit (estimate); the 640 MiB cover it because an open renderer instance is closed before an upload
+  is decoded (`templates.md` §3.2). Rendering needs no `/tmp` and no new variable; the switch is the meeting-types
+  file and the vision profile is `defaults.vision` in the providers file. Measured with `recap tool normalize
+--slide-images`; to be confirmed on staging.
 
 ## 5. Configuration
 
