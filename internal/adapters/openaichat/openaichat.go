@@ -11,6 +11,7 @@ package openaichat
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,25 +85,33 @@ func (a *Adapter) Complete(ctx context.Context, req providers.LlmRequest) (*prov
 	if req.MaxOutputTokens > 0 {
 		maxTokens = min(req.MaxOutputTokens, maxTokens)
 	}
+	// Only data:image/png;base64 image URLs; no request otherwise (§3.6).
+	if providers.CheckParts(req.Messages) != nil {
+		return nil, &providers.Error{Class: providers.PermanentConfig, Code: "bad_content_part"}
+	}
+	kind := metrics.KindLLM
+	if hasImage(req.Messages) {
+		kind = metrics.KindVision
+	}
 	messages := a.messages(req)
 
 	original := len(messages)
 	for repair := 0; ; repair++ {
-		resp, err := a.call(ctx, req, messages, maxTokens, repair)
+		resp, err := a.call(ctx, req, messages, maxTokens, repair, kind)
 		if err != nil {
 			return nil, err
 		}
 		if !jsonOut {
-			metrics.ExternalRequest(a.profile.Name, metrics.KindLLM, metrics.OK)
+			metrics.ExternalRequest(a.profile.Name, kind, metrics.OK)
 			return resp, nil
 		}
 		value, problem, logged := check(resp.Text, schema)
 		if problem == "" {
-			metrics.ExternalRequest(a.profile.Name, metrics.KindLLM, metrics.OK)
+			metrics.ExternalRequest(a.profile.Name, kind, metrics.OK)
 			resp.JSON = value
 			return resp, nil
 		}
-		metrics.ExternalRequest(a.profile.Name, metrics.KindLLM, string(providers.InvalidResponse))
+		metrics.ExternalRequest(a.profile.Name, kind, string(providers.InvalidResponse))
 		a.log.Info("llm reply rejected", "call_ref", req.CallRef, "profile", a.profile.Name, "repair", repair,
 			"problem", logged)
 		if repair == providers.RepairAttempts {
@@ -114,6 +123,30 @@ func (a *Adapter) Complete(ctx context.Context, req providers.LlmRequest) (*prov
 			providers.Message{Role: providers.RoleAssistant, Content: resp.Text},
 			providers.Message{Role: providers.RoleUser, Content: repairMessage(problem)})
 	}
+}
+
+// hasImage reports whether a call carries an image (a vision call, §3.6).
+func hasImage(messages []providers.Message) bool {
+	for _, m := range messages {
+		if m.HasImage() {
+			return true
+		}
+	}
+	return false
+}
+
+// imageBytes is the size in bytes of the images of a call, for the log.
+func imageBytes(messages []providers.Message) int {
+	n := 0
+	for _, m := range messages {
+		for _, p := range m.Parts {
+			if p.ImageURL != nil {
+				data := strings.TrimPrefix(p.ImageURL.URL, providers.ImageDataURLPrefix)
+				n += base64.StdEncoding.DecodedLen(len(data)) - (len(data) - len(strings.TrimRight(data, "=")))
+			}
+		}
+	}
+	return n
 }
 
 // messages returns the request's messages; in json_object and prompt modes
@@ -180,13 +213,16 @@ type reply struct {
 // is counted in the metrics here; a reply is counted by Complete once it is
 // checked.
 func (a *Adapter) call(ctx context.Context, req providers.LlmRequest, messages []providers.Message,
-	maxTokens, repair int) (*providers.LlmResponse, error) {
+	maxTokens, repair int, kind string) (*providers.LlmResponse, error) {
 	start := time.Now()
 	resp, status, perr := a.send(ctx, req, messages, maxTokens)
 	attrs := []any{"call_ref", req.CallRef, "profile", a.profile.Name, "repair", repair, "status", status,
 		"latency_ms", time.Since(start).Milliseconds()}
+	if kind == metrics.KindVision {
+		attrs = append(attrs, "image_bytes", imageBytes(messages))
+	}
 	if perr != nil {
-		metrics.ExternalRequest(a.profile.Name, metrics.KindLLM, string(perr.Class))
+		metrics.ExternalRequest(a.profile.Name, kind, string(perr.Class))
 		a.log.Info("llm request failed", append(attrs, "class", string(perr.Class), "code", perr.Code)...)
 		return nil, perr
 	}
@@ -202,7 +238,11 @@ func (a *Adapter) send(ctx context.Context, req providers.LlmRequest, messages [
 	if err != nil {
 		return nil, 0, &providers.Error{Class: providers.PermanentConfig, Code: "bad_request_body"}
 	}
-	ctx, cancel := context.WithTimeout(ctx, providers.LlmRequestTimeout)
+	timeout := providers.LlmRequestTimeout
+	if hasImage(messages) {
+		timeout = providers.VisionRequestTimeout // §3.6
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	hr, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		strings.TrimSuffix(a.profile.BaseURL, "/")+completionsPath, bytes.NewReader(body))
@@ -262,13 +302,16 @@ func (a *Adapter) send(ctx context.Context, req providers.LlmRequest, messages [
 
 // statusError maps an HTTP status to an error class (§3.4). Statuses §3.4
 // does not list follow §1.4: other 5xx are retryable, redirects and other
-// 4xx permanent_config.
+// 4xx permanent_config. A 400 on a call with an image is input_too_large:
+// the image token count is not estimated (§3.6).
 func (a *Adapter) statusError(resp *http.Response, messages []providers.Message) *providers.Error {
 	code := "http_" + strconv.Itoa(resp.StatusCode)
 	switch s := resp.StatusCode; {
 	case s == 408 || s == 429 || s >= 500:
 		return &providers.Error{Class: providers.Retryable, Code: code,
 			RetryAfter: providers.RetryAfter(resp.Header.Get("Retry-After"))}
+	case s == 400 && hasImage(messages):
+		return &providers.Error{Class: providers.InputTooLarge, Code: code}
 	case s == 400 && float64(EstimateTokens(messages)) > inputTooLargeShare*float64(a.profile.ContextTokens):
 		return &providers.Error{Class: providers.InputTooLarge, Code: code}
 	}
@@ -276,11 +319,11 @@ func (a *Adapter) statusError(resp *http.Response, messages []providers.Message)
 }
 
 // EstimateTokens is the §3.5 estimate for the messages of a call:
-// ceil(chars / 3.0) of their contents.
+// ceil(chars / 3.0) of their text (images are not counted, §3.6).
 func EstimateTokens(messages []providers.Message) int {
 	n := 0
 	for _, m := range messages {
-		n += len([]rune(m.Content))
+		n += len([]rune(m.Text()))
 	}
 	return llmplan.Tokens(n)
 }

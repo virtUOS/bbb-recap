@@ -192,3 +192,33 @@ func TestIncompleteDeclaration(t *testing.T) {
 		}
 	}
 }
+
+// providers.md §4.1: defaults.vision names an LLM profile whose declaration
+// lists slide_images; otherwise the start fails naming vision or
+// slide_images.
+func TestVisionDefault(t *testing.T) {
+	base := strings.Replace(fixture(t), "  llm: vllm-lab\n", "  llm: vllm-lab\n  vision: vllm-lab\n", 1)
+	ok := strings.Replace(base, "data_categories: [transcript, chat, summary]",
+		"data_categories: [transcript, chat, summary, slide_images]", 1)
+	s, err := Parse([]byte(ok))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if p, found := s.Vision(); !found || p.Name != "vllm-lab" {
+		t.Errorf("Vision() = %v, %v; want vllm-lab", p, found)
+	}
+	if s, err := Parse([]byte(fixture(t))); err != nil {
+		t.Fatal(err)
+	} else if _, found := s.Vision(); found {
+		t.Error("Vision() without defaults.vision: want none")
+	}
+	for _, c := range []struct{ name, text, want string }{
+		{"declaration without slide_images", base, "slide_images"},
+		{"unknown profile", strings.Replace(ok, "vision: vllm-lab", "vision: no-such-profile", 1), "defaults.vision"},
+		{"asr profile", strings.Replace(ok, "vision: vllm-lab", "vision: whisperx-lab", 1), "defaults.vision"},
+	} {
+		if _, err := Parse([]byte(c.text)); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want one naming %s", c.name, err, c.want)
+		}
+	}
+}

@@ -102,7 +102,7 @@ func TestHandlerF01(t *testing.T) {
 	}
 	if len(out.SummarySHA256) != 64 || out.NoSpeech || out.Profile != "vllm-lab" || out.Dialect != "openai-chat" ||
 		out.Model != "example-model-reported" || out.Language != "en" || out.FormatID != "meeting-summary" ||
-		out.FormatVersion != "1.1.0" || len(out.FormatSHA256) != 64 {
+		out.FormatVersion != "1.2.0" || len(out.FormatSHA256) != 64 {
 		t.Errorf("output %+v", out)
 	}
 	rc, err := store.Get(ctx, jobID, out.SummarySHA256)
@@ -228,7 +228,8 @@ func TestHandlerSlides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.Slides = []meeting.Slide{{TMS: 7000, Deck: "d-1", Page: 1, Text: slideMark}}
+	const image = "sha256:00000000000000000000000000000000000000000000000000000000000000aa"
+	m.Slides = []meeting.Slide{{TMS: 7000, Deck: "d-1", Page: 1, Text: slideMark, Image: image}}
 	if b, err = meeting.Marshal(m); err != nil {
 		t.Fatal(err)
 	}
@@ -255,6 +256,36 @@ func TestHandlerSlides(t *testing.T) {
 		}
 		if strings.Contains(e.logs.String(), slideMark) {
 			t.Errorf("slides %v: log contains slide text", on)
+		}
+	}
+
+	// With a descriptions file of describe (templates.md §3.2), the
+	// description replaces the slide text.
+	const desc = "Fixture described agenda"
+	file := []byte(`{"version":1,"descriptions":{"` + image + `":"` + desc + `"}}`)
+	sum = sha256.Sum256(file)
+	if err := store.Put(ctx, jobID, hex.EncodeToString(sum[:]), int64(len(file)), bytes.NewReader(file)); err != nil {
+		t.Fatal(err)
+	}
+	dout, _ := json.Marshal(map[string]any{"descriptions_sha256": hex.EncodeToString(sum[:]), "images": 1,
+		"described": 1, "fallbacks": 0})
+	if _, err := pool.Exec(ctx, `UPDATE steps SET output = $2 WHERE job_id = $1 AND name = 'describe'`,
+		jobID, dout); err != nil {
+		t.Fatal(err)
+	}
+	// Only while the type switches slide images on: off, the slide text.
+	for _, images := range []bool{true, false} {
+		e := newEnv(t, 32768, 4096)
+		d := handlerDeps(e, pool, store)
+		d.SlideTypes = map[string]bool{"meeting-summary": true}
+		d.SlideImageTypes = map[string]bool{"meeting-summary": images}
+		if r := Handler(d)(ctx, queue.Run{JobID: jobID, Step: Step, Attempt: 1}); r.Outcome != queue.OK {
+			t.Fatalf("with descriptions, images %v: result %+v", images, r)
+		}
+		calls := e.fake.all()
+		if len(calls) != 1 || strings.Contains(calls[0].user, desc) != images ||
+			strings.Contains(calls[0].user, slideMark) == images {
+			t.Errorf("images %v: description sent %v, want %v", images, !images, images)
 		}
 	}
 }

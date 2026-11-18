@@ -33,6 +33,14 @@ var Dialects = map[string][]string{
 	KindLLM: {"openai-chat"},
 }
 
+// defaultVision is the key of the vision profile in defaults (schema 1.1.0,
+// providers.md §4.1, §3.6).
+const defaultVision = "vision"
+
+// DataCategorySlideImages is the data category a vision profile's
+// declaration must list (privacy.md §12).
+const DataCategorySlideImages = "slide_images"
+
 // Structured-output modes of LLM profiles (providers.md §3.3).
 var structuredOutputModes = []string{"json_schema", "json_object", "prompt"}
 
@@ -45,7 +53,7 @@ var (
 // error (providers.md §4.1, contracts/providers/README.md "Start").
 var (
 	topKeys         = []string{"schema_version", "defaults", "profiles"}
-	defaultsKeys    = []string{KindASR, KindLLM}
+	defaultsKeys    = []string{KindASR, KindLLM, defaultVision}
 	commonKeys      = []string{"name", "kind", "dialect", "base_url", "model", "credentials_file", "max_inflight", "declaration"}
 	asrKeys         = []string{"max_file_bytes"}
 	llmKeys         = []string{"context_tokens", "max_output_tokens", "structured_output", "extra_body"}
@@ -92,7 +100,20 @@ type Set struct {
 	SchemaVersion string
 	DefaultASR    string
 	DefaultLLM    string
+	// DefaultVision names the LLM profile of the describe step
+	// (defaults.vision); "" when not set.
+	DefaultVision string
 	Profiles      []*Profile
+}
+
+// Vision returns the profile named by defaults.vision; ok is false when the
+// file sets none.
+func (s *Set) Vision() (p *Profile, ok bool) {
+	if s.DefaultVision == "" {
+		return nil, false
+	}
+	p, err := s.Get(KindLLM, s.DefaultVision)
+	return p, err == nil
 }
 
 // Get returns the profile of the given kind named name, or the kind's
@@ -276,15 +297,33 @@ func (c *checker) set(root *yaml.Node) *Set {
 	} else if d := c.fields("defaults", n, defaultsKeys); d != nil {
 		s.DefaultASR = c.str("defaults", d, KindASR)
 		s.DefaultLLM = c.str("defaults", d, KindLLM)
-		for _, kind := range defaultsKeys {
+		for _, kind := range []string{KindASR, KindLLM} {
 			if name := s.defaultName(kind); name != "" {
 				if _, err := s.Get(kind, name); err != nil {
 					c.errorf("defaults.%s: %v", kind, err)
 				}
 			}
 		}
+		s.DefaultVision = c.optionalStr("defaults", d, defaultVision)
+		c.vision(s)
 	}
 	return s
+}
+
+// vision checks defaults.vision (providers.md §4.1): an LLM profile whose
+// declaration, when present, lists the data category slide_images.
+func (c *checker) vision(s *Set) {
+	if s.DefaultVision == "" {
+		return
+	}
+	p, err := s.Get(KindLLM, s.DefaultVision)
+	switch {
+	case err != nil:
+		c.errorf("defaults.%s: %v", defaultVision, err)
+	case p.Declaration != nil && !slices.Contains(p.Declaration.DataCategories, DataCategorySlideImages):
+		c.errorf("defaults.%s: the declaration of profile %q does not list the data category %s", defaultVision,
+			p.Name, DataCategorySlideImages)
+	}
 }
 
 func (c *checker) profile(at string, n *yaml.Node) *Profile {

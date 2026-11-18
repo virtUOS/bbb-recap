@@ -93,14 +93,30 @@ this section is the layout they follow.
 - NetworkPolicy: `api:8080` from the ingress only; `9090` from monitoring; `worker` egress to Postgres, S3, providers,
   Docs; `api` egress to Postgres, S3, IdP.
 - Requests: `api` 0.25 CPU / 256 MiB, `worker` 0.5 CPU / 512 MiB, limits 2× (estimates, `architecture.md` §10).
-- Slide images (ADR-017, `templates.md` §3.2): when a meeting type switches `slide_images` on, add 512 MiB to the
-  `worker` memory request and limit (compose: `mem_limit` if one is set). A render run holds up to about 300 MB
-  (measured on a synthetic deck; renderer cap 512 MiB), at most one per worker process at a time, and that memory is
-  returned only when the run ends. Decoding an image upload runs on the Go heap outside that cap and may hold up to
-  about 400 MB at the 25-megapixel limit (estimate); the 512 MiB cover it because an open renderer instance is closed
-  before an upload is decoded (`templates.md` §3.2). Both are measured on staging. Rendering needs no `/tmp` and no new
-  variable; the switch is the meeting-types file and the vision profile is `defaults.vision` in the providers file.
-  Estimates until measured on staging.
+- Slide images (ADR-017, `templates.md` §3.2): when a meeting type switches `slide_images` on, add 768 MiB to the
+  `worker` memory request and limit (compose: `mem_limit` if one is set). The renderer's memory is capped at 512 MiB;
+  on Linux (the container images) it is reserved once and grown in place, so a render run cannot hold more than the
+  cap plus the renderer's overhead and the source bytes. Peak RSS of one `normalize` run, measured with
+  `recap tool normalize` and `--slide-images` (to be confirmed on staging):
+
+  | Case                                                                          | Peak RSS       |
+  | ----------------------------------------------------------------------------- | -------------- |
+  | usual deck (F-14: 52 pages, 50 render attempts)                               | about 335 MB   |
+  | memory limit hit (synthetic page of nested form XObjects)                     | about 590 MB   |
+  | memory limit hit with a source PDF near the 30 000 000-byte limit             | about 660 MB   |
+  | PNG upload at the 25-megapixel limit (16 bits per channel; 8 bits)            | 565 MB; 467 MB |
+  | progressive CMYK JPEG upload at the 25-megapixel limit                        | about 652 MB   |
+  | baseline or progressive YCbCr JPEG upload at the limit                        | about 445 MB   |
+  | such an upload, then a memory limit hit with a source PDF near the size limit | about 661 MB   |
+
+  At most one render run per worker process at a time; its memory is returned when the run ends, and an upload's
+  decode memory before a renderer instance starts. Other systems than Linux use the WebAssembly runtime's default
+  allocator; there the renderer's memory is not bounded this way. The reservation counts in full under strict
+  overcommit (`vm.overcommit_memory=2`); if it fails, the worker logs a warning once and the renderer's memory is not
+  bounded: a page that drives the renderer to its cap can then end the worker process. A renderer call that does not
+  stop within 5 s after a time-limit kill keeps its memory (up to the cap) until the worker restarts; the worker logs
+  a warning with the count each time (not observed in tests). Rendering needs no `/tmp` and no new variable; the
+  switch is the meeting-types file and the vision profile is `defaults.vision` in the providers file.
 
 ## 5. Configuration
 

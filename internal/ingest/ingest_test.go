@@ -341,8 +341,8 @@ func TestNewPackageAndCommit(t *testing.T) {
 		AND config_hash = $2 AND package_id = $3`, jobID, configHash, p.id); n != 1 {
 		t.Fatalf("job rows = %d, want 1", n)
 	}
-	if n := e.count(`SELECT count(*) FROM steps WHERE job_id = $1 AND state = 'pending'`, jobID); n != 8 {
-		t.Fatalf("steps = %d, want 8", n)
+	if n := e.count(`SELECT count(*) FROM steps WHERE job_id = $1 AND state = 'pending'`, jobID); n != 9 {
+		t.Fatalf("steps = %d, want 9", n)
 	}
 	if n := e.count(`SELECT count(*) FROM audit WHERE job_id = $1 AND action = 'ingest_commit'
 		AND actor_kind = 'client' AND actor_id = 'bbb_server.bbb-fixture-a'`, jobID); n != 1 {

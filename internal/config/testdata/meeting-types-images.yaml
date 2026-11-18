@@ -1,0 +1,8 @@
+# Unit-test fixture: a meeting type with slide images (templates.md §1).
+schema_version: "1.2.0"
+meeting_types:
+  - name: meeting-summary
+    format: meeting-summary
+  - name: lecture
+    format: meeting-summary
+    inputs: { slides: true, slide_images: true }

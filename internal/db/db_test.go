@@ -141,7 +141,8 @@ func TestEnumLists(t *testing.T) {
 	}
 }
 
-var steps = []string{"validate", "normalize", "transcribe", "assemble", "summarize", "render", "deliver", "cleanup"}
+var steps = []string{"validate", "normalize", "transcribe", "assemble", "describe", "summarize", "render", "deliver",
+	"cleanup"}
 
 const (
 	jobID     = "01900000-0000-7000-8000-000000000001"

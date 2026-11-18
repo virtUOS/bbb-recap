@@ -22,7 +22,8 @@ var (
 		"recap_ingest_requests_total", "recap_jobs", "recap_jobs_failed", "recap_jobs_held",
 		"recap_step_oldest_ready_age_seconds"}
 	workerMetrics = []string{"recap_build_info", "recap_dependency_up", "recap_external_requests_total",
-		"recap_lease_expired_total", "recap_step_duration_seconds", "recap_step_runs_total"}
+		"recap_lease_expired_total", "recap_slide_image_fallbacks_total", "recap_step_duration_seconds",
+		"recap_step_runs_total"}
 )
 
 // Label values that look like a UUID (job_id), a BBB internal meeting ID

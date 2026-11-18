@@ -407,3 +407,28 @@ func TestProvidersLoadedForWorker(t *testing.T) {
 		t.Fatalf("api role: providers = %+v, want nil", c.Providers)
 	}
 }
+
+// templates.md §1, providers.md §4.1: slide_images needs slides on the same
+// type and, for the worker, defaults.vision in the providers file.
+func TestLoadSlideImages(t *testing.T) {
+	env := with(validEnv(), "RECAP_MEETING_TYPES_FILE=testdata/meeting-types-images.yaml",
+		"RECAP_FORMATS_DIR=../../formats")
+	if _, err := Load(env, RoleAPI); err != nil {
+		t.Fatalf("api role: %v", err)
+	}
+	if _, err := Load(env, RoleWorker); err == nil || !strings.Contains(err.Error(), "defaults.vision") {
+		t.Errorf("worker without defaults.vision: err = %v, want one naming defaults.vision", err)
+	}
+	c, err := Load(with(env, "RECAP_PROVIDERS_FILE=testdata/providers-vision.yaml"), bothRoles...)
+	if err != nil {
+		t.Fatalf("with defaults.vision: %v", err)
+	}
+	if types := SlideImageTypes(c.MeetingTypes); len(types) != 1 || !types["lecture"] {
+		t.Errorf("SlideImageTypes = %v, want lecture", types)
+	}
+	env = with(validEnv(), "RECAP_MEETING_TYPES_FILE=testdata/meeting-types-images-without-slides.yaml",
+		"RECAP_FORMATS_DIR=../../formats")
+	if _, err := Load(env, RoleAPI); err == nil || !strings.Contains(err.Error(), "inputs.slide_images: needs slides") {
+		t.Errorf("slide_images without slides: err = %v", err)
+	}
+}

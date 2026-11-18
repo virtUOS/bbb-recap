@@ -20,7 +20,16 @@ const (
 	KindASR        = "asr"
 	KindASRCleanup = "asr_cleanup"
 	KindLLM        = "llm"
+	KindVision     = "vision"
 	KindSink       = "sink"
+)
+
+// Values of the reason label of recap_slide_image_fallbacks_total (§12,
+// templates.md §3.2), per step.
+var (
+	SlideFallbackReasonsNormalize = []string{"no_source", "too_large", "render_failed", "cap"}
+	SlideFallbackReasonsDescribe  = []string{"empty", "invalid_response", "output_truncated", "input_too_large",
+		"retryable"}
 )
 
 // OK is the outcome label of a successful request.
@@ -53,6 +62,11 @@ var (
 		Name: "recap_external_requests_total",
 		Help: "Requests to providers and sinks, by profile, kind and outcome (ok or the adapter error class).",
 	}, []string{"profile", "kind", "outcome"})
+
+	slideImageFallbacks = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "recap_slide_image_fallbacks_total",
+		Help: "Slides that use their text instead of an image or its description, by step and reason.",
+	}, []string{"step", "reason"})
 
 	ingestRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "recap_ingest_requests_total",
@@ -120,7 +134,13 @@ func NewAPIRegistry() *prometheus.Registry {
 // NewWorkerRegistry returns the registry of the worker process.
 func NewWorkerRegistry() *prometheus.Registry {
 	reg := newRegistry()
-	reg.MustRegister(stepRuns, stepDuration, leaseExpired, externalRequests)
+	reg.MustRegister(stepRuns, stepDuration, leaseExpired, externalRequests, slideImageFallbacks)
+	for _, r := range SlideFallbackReasonsNormalize {
+		slideImageFallbacks.WithLabelValues("normalize", r)
+	}
+	for _, r := range SlideFallbackReasonsDescribe {
+		slideImageFallbacks.WithLabelValues("describe", r)
+	}
 	return reg
 }
 
@@ -158,6 +178,13 @@ func InitExternal(profile, kind string, outcomes ...string) {
 	for _, o := range outcomes {
 		externalRequests.WithLabelValues(profile, kind, o)
 	}
+}
+
+// SlideImageFallback counts one slide without an image (step normalize)
+// or without a description of its image (step describe); reason is one of
+// SlideFallbackReasonsNormalize or SlideFallbackReasonsDescribe.
+func SlideImageFallback(step, reason string) {
+	slideImageFallbacks.WithLabelValues(step, reason).Inc()
 }
 
 // IngestRequest counts one authenticated ingest request. bbbServerID is the

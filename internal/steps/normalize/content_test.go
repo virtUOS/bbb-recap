@@ -19,7 +19,7 @@ func normalizeEvents(t *testing.T, file string) *meeting.Meeting {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := Normalize(fstest.MapFS{"events.xml": {Data: b}}, nil)
+	m, err := Normalize(fstest.MapFS{"events.xml": {Data: b}}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

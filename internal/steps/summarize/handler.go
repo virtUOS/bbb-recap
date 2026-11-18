@@ -39,13 +39,18 @@ type Deps struct {
 	Log     *slog.Logger
 	LLM     providers.LLM
 	Profile *providers.Profile // the LLM profile the adapter was built from
+	// Sem limits calls to Profile (shared with describe when it uses the
+	// same profile); nil: a new one of the profile's max_inflight.
+	Sem chan struct{}
 	// FormatsDir is RECAP_FORMATS_DIR; MeetingTypes maps a meeting type to
 	// its format ID (RECAP_MEETING_TYPES_FILE).
 	FormatsDir   string
 	MeetingTypes map[string]string
 	// SlideTypes are the meeting types that switch the slides input on
-	// (inputs.slides: true, templates.md §1, §3.1).
+	// (inputs.slides: true, templates.md §1, §3.1); SlideImageTypes those
+	// that switch slide images on (inputs.slide_images: true, §3.2).
 	SlideTypes      map[string]bool
+	SlideImageTypes map[string]bool
 	DefaultLanguage string // RECAP_DEFAULT_LANGUAGE
 }
 
@@ -69,7 +74,10 @@ type Output struct {
 // process (architecture.md §7). The summary is stored under its own hash,
 // so a repeat with the same replies gives the same key (§6.4).
 func Handler(d Deps) queue.Handler {
-	sem := make(chan struct{}, max(d.Profile.MaxInflight, 1))
+	sem := d.Sem
+	if sem == nil {
+		sem = make(chan struct{}, max(d.Profile.MaxInflight, 1))
+	}
 	return func(ctx context.Context, run queue.Run) queue.Result {
 		f, in, err := d.load(ctx, run.JobID)
 		switch {
@@ -144,6 +152,12 @@ func Outcome(err error) queue.Result {
 		RetryAfter: pe.RetryAfter}
 }
 
+// describeOutput is the part of the describe step's output summarize reads
+// (internal/steps/describe Output; summarize does not import the step).
+type describeOutput struct {
+	DescriptionsSHA256 string `json:"descriptions_sha256"`
+}
+
 // errFormat means the format exists but cannot be loaded.
 var errFormat = errors.New("summarize: invalid format")
 
@@ -154,11 +168,13 @@ func (d Deps) load(ctx context.Context, jobID string) (*format.Format, Input, er
 	var meetingType *string
 	var nout meeting.Output
 	var aout assemble.Output
+	var dout *describeOutput // nil: no describe output (a job from before the step existed)
 	if err := d.Pool.QueryRow(ctx, `
-		SELECT j.meeting_type, n.output, a.output FROM jobs j
+		SELECT j.meeting_type, n.output, a.output, ds.output FROM jobs j
 		JOIN steps n ON n.job_id = j.job_id AND n.name = 'normalize'
 		JOIN steps a ON a.job_id = j.job_id AND a.name = 'assemble'
-		WHERE j.job_id = $1`, jobID).Scan(&meetingType, &nout, &aout); err != nil {
+		LEFT JOIN steps ds ON ds.job_id = j.job_id AND ds.name = 'describe'
+		WHERE j.job_id = $1`, jobID).Scan(&meetingType, &nout, &aout, &dout); err != nil {
 		return nil, Input{}, fmt.Errorf("job: %w", err)
 	}
 	id, ok := "", false
@@ -192,6 +208,19 @@ func (d Deps) load(ctx context.Context, jobID string) (*format.Format, Input, er
 	// Slides only for a type that switches them on and a format that declares them (templates.md §3.1).
 	if d.SlideTypes[*meetingType] && f.HasInput(format.InputSlides) {
 		in.Slides = m.Slides
+		// Descriptions of slide images (templates.md §3.2), only while the
+		// type and the format still switch them on; a job without a
+		// descriptions file keeps the slide text path.
+		images := d.SlideImageTypes[*meetingType] && f.HasInput(format.InputSlideImages)
+		if images && dout != nil && dout.DescriptionsSHA256 != "" {
+			var file struct {
+				Descriptions map[string]string `json:"descriptions"`
+			}
+			if err := d.readJSON(ctx, jobID, dout.DescriptionsSHA256, &file); err != nil {
+				return nil, Input{}, err
+			}
+			in.Descriptions = file.Descriptions
+		}
 	}
 	names := map[string]string{}
 	for _, p := range m.Participants {

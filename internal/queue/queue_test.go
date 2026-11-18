@@ -578,7 +578,7 @@ func TestDeliverThenCleanup(t *testing.T) {
 	pool := newDB(t)
 	id := seedJob(t, pool)
 	e := newEngine(pool, "w1", Steps...)
-	for _, step := range Steps[:7] {
+	for _, step := range Steps[:indexOf("cleanup")] {
 		mustFinish(t, e, mustClaim(t, e, id, step), Result{Outcome: OK})
 	}
 	if j := getJob(t, pool, id); j.State != "delivered" || j.Step != "cleanup" {
@@ -688,7 +688,7 @@ func TestCancelAtShutdownRelease(t *testing.T) {
 // toDeliver runs a job's steps up to deliver and claims deliver.
 func toDeliver(t *testing.T, e *Engine, id string) Run {
 	t.Helper()
-	for _, step := range Steps[:6] {
+	for _, step := range Steps[:indexOf("deliver")] {
 		mustFinish(t, e, mustClaim(t, e, id, step), Result{Outcome: OK})
 	}
 	return mustClaim(t, e, id, "deliver")

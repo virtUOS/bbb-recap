@@ -25,10 +25,11 @@ import (
 	"github.com/virtUOS/bbb-recap/internal/queue"
 	"github.com/virtUOS/bbb-recap/internal/render"
 	"github.com/virtUOS/bbb-recap/internal/steps/assemble"
+	"github.com/virtUOS/bbb-recap/internal/steps/describe"
 	"github.com/virtUOS/bbb-recap/internal/steps/summarize"
 )
 
-const toolRenderUsage = "Usage: recap tool render --out DIR [--summarize] < input.json\n" +
+const toolRenderUsage = "Usage: recap tool render --out DIR [--summarize [--images IMAGES]] < input.json\n" +
 	"       recap tool render --check-schema FORMAT/SCHEMA < reply.json"
 
 // Defaults of the variables the tool reads (deployment.md §5).
@@ -60,10 +61,11 @@ type renderToolInput struct {
 		} `json:"responses"`
 	} `json:"polls"`
 	Slides []struct {
-		AtMS int64  `json:"at_ms"`
-		Deck string `json:"deck"`
-		Page int    `json:"page"`
-		Text string `json:"text"`
+		AtMS  int64  `json:"at_ms"`
+		Deck  string `json:"deck"`
+		Page  int    `json:"page"`
+		Text  string `json:"text"`
+		Image string `json:"image"`
 	} `json:"slides"`
 	LLMModel    string             `json:"llm_model"`
 	GeneratedAt string             `json:"generated_at"`
@@ -80,9 +82,10 @@ func toolRender(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(io.Discard)
 	out := fs.String("out", "", "")
 	summarizeFlag := fs.Bool("summarize", false, "")
+	images := fs.String("images", "", "")
 	check := fs.String("check-schema", "", "")
 	if err := fs.Parse(args); err != nil || fs.NArg() > 0 || (*out == "") == (*check == "") ||
-		(*check != "" && *summarizeFlag) {
+		(*check != "" && *summarizeFlag) || (*images != "" && !*summarizeFlag) {
 		fmt.Fprintln(stderr, toolRenderUsage)
 		return exitUsage
 	}
@@ -104,7 +107,7 @@ func toolRender(args []string, stdout, stderr io.Writer) int {
 	if *check != "" {
 		return checkSchema(prog, formatsDir, *check, data, log, stdout, stderr)
 	}
-	return renderOnce(prog, formatsDir, *out, *summarizeFlag, data, log, stdout, stderr)
+	return renderOnce(prog, formatsDir, *out, *summarizeFlag, *images, data, log, stdout, stderr)
 }
 
 // checkSchema validates data against FORMAT/SCHEMA and prints {"valid": bool}.
@@ -129,8 +132,8 @@ func checkSchema(prog, formatsDir, arg string, data []byte, log *slog.Logger, st
 }
 
 // renderOnce runs format selection, optionally summarize, and render.
-func renderOnce(prog, formatsDir, outDir string, withSummarize bool, data []byte, log *slog.Logger,
-	stdout, stderr io.Writer) int {
+func renderOnce(prog, formatsDir, outDir string, withSummarize bool, imagesDir string, data []byte,
+	log *slog.Logger, stdout, stderr io.Writer) int {
 	zone, err := time.LoadLocation(envOr("RECAP_DISPLAY_TZ", "UTC"))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: RECAP_DISPLAY_TZ: unknown zone\n", prog)
@@ -187,8 +190,15 @@ func renderOnce(prog, formatsDir, outDir string, withSummarize bool, data []byte
 
 	sum, model := in.Summary, in.LLMModel
 	if withSummarize {
-		slides := mt.Inputs[format.InputSlides] && f.HasInput(format.InputSlides)
-		res, code := runSummarize(prog, f, in, polls, slides, lang, log, stderr)
+		sw := switches{
+			slides: mt.Inputs[format.InputSlides] && f.HasInput(format.InputSlides),
+			images: mt.Inputs[format.InputSlideImages] && f.HasInput(format.InputSlideImages),
+		}
+		var all []config.MeetingType
+		for _, t := range types {
+			all = append(all, t)
+		}
+		res, code := runSummarize(prog, f, in, polls, sw, all, imagesDir, lang, log, stderr)
 		if code >= 0 {
 			return code
 		}
@@ -231,12 +241,21 @@ type summarized struct {
 	outcome, reason string
 }
 
-// runSummarize runs the summarize call plan against the default LLM
-// profile. code is an exit code when the tool must stop, else -1.
-// Slides of the input are used only when slides is set (the meeting type
-// switches them on, templates.md §3.1).
-func runSummarize(prog string, f *format.Format, in renderToolInput, polls []meeting.Poll, slides bool, lang string,
-	log *slog.Logger, stderr io.Writer) (summarized, int) {
+// switches are the optional inputs the job's meeting type switches on and
+// its format declares (templates.md §1).
+type switches struct {
+	slides, images bool
+}
+
+// runSummarize runs the describe step (when slide images are on) against
+// the vision profile and the summarize call plan against the default LLM
+// profile. code is an exit code when the tool must stop, else -1. Slides of
+// the input are used only when sw.slides is set (templates.md §3.1); their
+// images, read from imagesDir, only when sw.images is set (§3.2). describe
+// runs as on the step's last attempt. types are all meeting types of the
+// file: one with slide images on needs defaults.vision.
+func runSummarize(prog string, f *format.Format, in renderToolInput, polls []meeting.Poll, sw switches,
+	types []config.MeetingType, imagesDir, lang string, log *slog.Logger, stderr io.Writer) (summarized, int) {
 	path := os.Getenv("RECAP_PROVIDERS_FILE")
 	if path == "" {
 		fmt.Fprintf(stderr, "%s: RECAP_PROVIDERS_FILE: required with --summarize\n", prog)
@@ -248,6 +267,10 @@ func runSummarize(prog string, f *format.Format, in renderToolInput, polls []mee
 		return summarized{}, exitUsage
 	}
 	set.LogWarnings(log)
+	if e := config.VisionError(types, set); e != "" {
+		fmt.Fprintf(stderr, "%s: RECAP_PROVIDERS_FILE: %s\n", prog, e)
+		return summarized{}, exitUsage
+	}
 	profile, err := set.Get(providers.KindLLM, "")
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", prog, err)
@@ -265,10 +288,21 @@ func runSummarize(prog string, f *format.Format, in renderToolInput, polls []mee
 	for _, c := range in.Chat {
 		sin.Chat = append(sin.Chat, summarize.ChatMessage{AtMS: c.AtMS, Name: c.Name, Text: c.Text})
 	}
-	if slides {
+	if sw.slides {
 		for _, s := range in.Slides {
-			sin.Slides = append(sin.Slides, meeting.Slide{TMS: s.AtMS, Deck: s.Deck, Page: s.Page, Text: s.Text})
+			sl := meeting.Slide{TMS: s.AtMS, Deck: s.Deck, Page: s.Page, Text: s.Text}
+			if sw.images {
+				sl.Image = s.Image
+			}
+			sin.Slides = append(sin.Slides, sl)
 		}
+	}
+	if sw.slides && sw.images {
+		desc, res, code := runDescribe(prog, set, f, sin.Slides, imagesDir, log, stderr)
+		if code >= 0 || res.outcome != "" {
+			return res, code
+		}
+		sin.Descriptions = desc
 	}
 	s := &summarize.Summarizer{LLM: llm, Profile: profile, Format: f, Log: log}
 	res, err := s.Run(context.Background(), "tool", sin, lang)
@@ -290,6 +324,73 @@ func runSummarize(prog string, f *format.Format, in renderToolInput, polls []mee
 	}
 	return summarized{summary: &sum, model: res.Model}, -1
 }
+
+// runDescribe runs the describe step for the distinct images of the slides
+// (templates.md §3.2) as on its last attempt and returns the descriptions
+// by image ref. The images are IMAGES/<hex>.png; a missing one is exit 1.
+// permanent_config gives the outcome permanent/config_error.
+func runDescribe(prog string, set *providers.Set, f *format.Format, slides []meeting.Slide, imagesDir string,
+	log *slog.Logger, stderr io.Writer) (map[string]string, summarized, int) {
+	var images []describe.Image
+	pos := map[string]int{}
+	for _, s := range slides {
+		key, ok := strings.CutPrefix(s.Image, meeting.ImagePrefix)
+		if !ok || !hex64RE.MatchString(key) {
+			if s.Image != "" {
+				fmt.Fprintf(stderr, "%s: slides[].image: want sha256:<64 lowercase hex>\n", prog)
+				return nil, summarized{}, exitUsage
+			}
+			continue
+		}
+		if _, seen := pos[s.Image]; seen {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(imagesDir, key+".png"))
+		if imagesDir == "" || err != nil {
+			fmt.Fprintf(stderr, "%s: --images: cannot read the image of a slide\n", prog)
+			return nil, summarized{}, exitFailure
+		}
+		images = append(images, describe.Image{Ref: s.Image,
+			Load: func(context.Context) ([]byte, error) { return b, nil }})
+		pos[s.Image] = len(images)
+	}
+	if len(images) == 0 {
+		return nil, summarized{}, -1
+	}
+	vision, _ := set.Vision() // checked by config.VisionError
+	llm, err := newLLM(vision, log)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: %v\n", prog, err)
+		return nil, summarized{}, exitUsage
+	}
+	d := &describe.Describer{LLM: llm, Profile: vision, Format: f, Log: log}
+	results, err := d.Run(context.Background(), "tool", images, pos, true)
+	var stop *describe.Stop
+	switch {
+	case errors.As(err, &stop) && stop.Permanent:
+		log.Info("describe failed", "outcome", queue.Permanent, "error_class", string(stop.Err.Class),
+			"error_code", stop.Err.Code)
+		return nil, summarized{outcome: string(queue.Permanent), reason: describe.ReasonConfigError}, -1
+	case errors.As(err, &stop):
+		return nil, summarized{outcome: string(queue.Transient), reason: stop.Err.Code}, -1
+	case err != nil:
+		log.Error("describe: format invalid", "format_id", f.ID)
+		return nil, summarized{outcome: string(queue.Permanent), reason: summarize.ReasonConfigError}, -1
+	}
+	desc := map[string]string{}
+	fallbacks := 0
+	for ref, r := range results {
+		if r.Description != "" {
+			desc[ref] = r.Description
+		} else {
+			fallbacks++
+		}
+	}
+	log.Debug("described", "images", len(images), "described", len(desc), "fallbacks", fallbacks)
+	return desc, summarized{}, -1
+}
+
+var hex64RE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // countPolls turns the per-user responses into aggregate counts; the
 // responses are not kept.

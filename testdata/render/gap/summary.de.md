@@ -26,4 +26,4 @@ Keine Einträge.
 
 ---
 
-*meeting-summary 1.1.0 · ASR: large-v3 · LLM: example-model · 2025-10-29T10:20:00Z*
+*meeting-summary 1.2.0 · ASR: large-v3 · LLM: example-model · 2025-10-29T10:20:00Z*

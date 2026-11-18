@@ -2,6 +2,10 @@
 
 Status: accepted (2026-11-17). Supersedes the rejection of option c in ADR-015; the rest of ADR-015 stays.
 
+Correction (2026-11-18): the memory and binary figures below were estimates from a 3-page deck. Measured: about
+335 MB peak for a usual deck, up to about 660 MB at the renderer's memory cap, and +14.5 MB binary; see
+[`deployment.md`](../reference/deployment.md) §4.
+
 ## Context
 
 ADR-015 sends the text that BBB extracts from each shown slide (`textfiles/slide-<n>.txt`). That text is often poor:

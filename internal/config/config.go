@@ -307,6 +307,9 @@ func Load(environ []string, roles ...Role) (*Config, error) {
 	}
 	if worker {
 		c.Providers = loadProviders(l, c, "RECAP_PROVIDERS_FILE")
+		if e := VisionError(c.MeetingTypes, c.Providers); e != "" {
+			l.errorf("RECAP_PROVIDERS_FILE: %s (RECAP_MEETING_TYPES_FILE)", e)
+		}
 	}
 	if service {
 		// Both roles hash all three files, including the ones they do not parse.

@@ -1,11 +1,15 @@
 package main
 
 import (
+	"github.com/virtUOS/bbb-recap/internal/config"
 	"github.com/virtUOS/bbb-recap/internal/queue"
+	"github.com/virtUOS/bbb-recap/internal/slideimage"
 	"github.com/virtUOS/bbb-recap/internal/steps/normalize"
 )
 
 // normalizeHandler returns the handler of the normalize step.
 func normalizeHandler(d *deps) (queue.Handler, error) {
-	return normalize.Handler(normalize.Deps{Pool: d.pool, Blobs: d.blobs, Log: d.log}), nil
+	slideimage.SetLogger(d.log)
+	return normalize.Handler(normalize.Deps{Pool: d.pool, Blobs: d.blobs, Log: d.log,
+		SlideImageTypes: config.SlideImageTypes(d.cfg.MeetingTypes)}), nil
 }

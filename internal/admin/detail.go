@@ -52,8 +52,8 @@ func (a *API) JobDetail(ctx context.Context, jobID string) (Detail, error) {
 			rows, err := tx.Query(ctx, `
 				SELECT name, state, attempt, run_after, last_error_class, last_error_code
 				FROM steps WHERE job_id = $1::uuid
-				ORDER BY array_position(ARRAY['validate', 'normalize', 'transcribe', 'assemble', 'summarize',
-					'render', 'deliver', 'cleanup'], name)`, jobID)
+				ORDER BY array_position(ARRAY['validate', 'normalize', 'transcribe', 'assemble', 'describe',
+					'summarize', 'render', 'deliver', 'cleanup'], name)`, jobID)
 			if err != nil {
 				return err
 			}

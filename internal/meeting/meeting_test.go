@@ -7,14 +7,33 @@ import (
 	"github.com/virtUOS/bbb-recap/internal/meeting"
 )
 
+const imageRef = "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+
 func TestDecode(t *testing.T) {
-	m, err := meeting.Decode([]byte(`{"version":4,"meeting_name":"Fixture Widget Meeting","tracks":[],` +
-		`"slides":[{"t_ms":9000,"deck":"d-1","page":1,"text":"Fixture Widget Agenda"}]}`))
+	m, err := meeting.Decode([]byte(`{"version":5,"meeting_name":"Fixture Widget Meeting","tracks":[],` +
+		`"slides":[{"t_ms":9000,"deck":"d-1","page":1,"text":"Fixture Widget Agenda","image":"` + imageRef + `"},` +
+		`{"t_ms":9500,"deck":"d-1","page":2,"text":"Fixture Widget Plan"}]}`))
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
 	if m.Version != meeting.Version || m.MeetingName != "Fixture Widget Meeting" {
 		t.Errorf("got %+v", m)
+	}
+	want := []meeting.Slide{
+		{TMS: 9000, Deck: "d-1", Page: 1, Text: "Fixture Widget Agenda", Image: imageRef},
+		{TMS: 9500, Deck: "d-1", Page: 2, Text: "Fixture Widget Plan"},
+	}
+	if len(m.Slides) != 2 || m.Slides[0] != want[0] || m.Slides[1] != want[1] {
+		t.Errorf("slides = %+v, want %+v", m.Slides, want)
+	}
+}
+
+// A version 4 blob has slides without images (templates.md §3.2).
+func TestDecodeVersion4(t *testing.T) {
+	m, err := meeting.Decode([]byte(`{"version":4,"meeting_name":"Fixture Widget Meeting","tracks":[],` +
+		`"slides":[{"t_ms":9000,"deck":"d-1","page":1,"text":"Fixture Widget Agenda","image":"` + imageRef + `"}]}`))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
 	}
 	want := meeting.Slide{TMS: 9000, Deck: "d-1", Page: 1, Text: "Fixture Widget Agenda"}
 	if len(m.Slides) != 1 || m.Slides[0] != want {
@@ -36,7 +55,7 @@ func TestDecodeVersion3(t *testing.T) {
 func TestDecodeRejectsOtherVersions(t *testing.T) {
 	for _, blob := range []string{
 		`{"version":2,"meeting_name":"Fixture Widget Meeting"}`,
-		`{"version":5,"meeting_name":"Fixture Widget Meeting"}`,
+		`{"version":6,"meeting_name":"Fixture Widget Meeting"}`,
 		`{"meeting_name":"Fixture Widget Meeting"}`,
 	} {
 		_, err := meeting.Decode([]byte(blob))

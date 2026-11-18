@@ -3,10 +3,14 @@
 # Key files live in the secrets dir, mounted at /run/secrets/recap.
 # The declaration block is optional (without it the profile loads with a
 # warning); if present it must be complete (docs/reference/privacy.md §7).
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 defaults:
   asr: asr-main
   llm: llm-main
+  # Only for meeting types with slide_images (templates.md §3.2): the
+  # openai-chat profile of a model that accepts images; it may be llm-main.
+  # Its declaration lists slide_images (privacy.md §12).
+  # vision: llm-main
 profiles:
   # whisperx-api-server; run it with RESULT_STORE__ENABLED=false.
   # For transkribierBAR: dialect transkribierbar, base_url the instance root,
@@ -40,7 +44,7 @@ profiles:
     # extra_body: { chat_template_kwargs: { enable_thinking: false } }
     max_inflight: 4
     declaration:
-      data_categories: [transcript, chat, summary]
+      data_categories: [transcript, chat, summary] # add slide_images when it is the vision profile
       operator: "REPLACE: who runs the LLM endpoint"
       location: on_prem
       retention: "No persistence"

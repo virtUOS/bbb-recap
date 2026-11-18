@@ -282,8 +282,8 @@ func TestSlideCallPlan(t *testing.T) {
 				t.Fatalf("calls = %s, want one summary.v1 call", kinds(calls))
 			}
 			wantSection(t, "summarize call", calls[0], want)
-			if res.FormatVersion != "1.1.0" {
-				t.Errorf("format_version = %q, want 1.1.0 (templates.md §2)", res.FormatVersion)
+			if res.FormatVersion != "1.2.0" {
+				t.Errorf("format_version = %q, want 1.2.0 (templates.md §2)", res.FormatVersion)
 			}
 			// The slide rule joins the system message only with the section (§3.1 "Prompt").
 			_, off := summarize(t, bin, c.input(), slidesTypes(t, false))

@@ -8,6 +8,13 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Added
 
+- Slide images as summary context (off by default): a meeting type with `inputs: { slides: true, slide_images: true }`
+  renders each shown slide as a PNG in `normalize` (PDFium as WebAssembly, no CGO), the new step `describe` sends it
+  to the vision profile `defaults.vision`, and its description replaces the slide's text in the summary input; any
+  failure falls back to the text ([templates.md](docs/reference/templates.md) §3.2,
+  [install-compose.md](docs/operations/install-compose.md#slide-images)). Format `meeting-summary` 1.2.0, normalized
+  meeting version 5, providers file 1.1.0, meeting-types file 1.2.0, metric `recap_slide_image_fallbacks_total`, and
+  a database migration for the new step.
 - `api` and `check-config`: one INFO line `front end access` per front end shows the BBB servers, meeting types and
   sink profiles it may use, and a WARN names each front-end ID in `RECAP_FRONTEND_SERVERS`, `RECAP_FRONTEND_TYPES` or
   `RECAP_FRONTEND_SINKS` without a `frontend.<id>` credential file, so a typo no longer goes unnoticed.

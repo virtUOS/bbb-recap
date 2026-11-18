@@ -23,7 +23,8 @@ import (
 )
 
 // Steps lists the step names in pipeline order (docs/reference/README.md "Steps").
-var Steps = []string{"validate", "normalize", "transcribe", "assemble", "summarize", "render", "deliver", "cleanup"}
+var Steps = []string{"validate", "normalize", "transcribe", "assemble", "describe", "summarize", "render", "deliver",
+	"cleanup"}
 
 // Fixed constants (architecture.md §5.3, §6.2, §9); not configuration.
 const (
@@ -58,7 +59,7 @@ const (
 // MaxAttempts returns the number of attempts a step gets (architecture.md §5.3).
 func MaxAttempts(step string) int {
 	switch step {
-	case "transcribe", "summarize":
+	case "transcribe", "describe", "summarize":
 		return 5
 	case "deliver":
 		return 10

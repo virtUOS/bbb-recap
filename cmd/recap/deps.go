@@ -17,6 +17,7 @@ import (
 	"github.com/virtUOS/bbb-recap/internal/httpapi"
 	"github.com/virtUOS/bbb-recap/internal/logging"
 	"github.com/virtUOS/bbb-recap/internal/ops"
+	"github.com/virtUOS/bbb-recap/internal/providers"
 )
 
 // deps are what api and worker share: configuration, logger, ops listener
@@ -31,6 +32,20 @@ type deps struct {
 	blobs   blob.Store
 	results blob.Results         // nil when the blob backend keeps no results (blob.Results)
 	creds   *httpapi.Credentials // api only
+	// llmSems limits the calls to each LLM profile of this process to its
+	// max_inflight, shared by summarize and describe (providers.md §3.6).
+	llmSems map[string]chan struct{}
+}
+
+// llmSem returns the semaphore of an LLM profile.
+func (d *deps) llmSem(p *providers.Profile) chan struct{} {
+	if d.llmSems == nil {
+		d.llmSems = map[string]chan struct{}{}
+	}
+	if _, ok := d.llmSems[p.Name]; !ok {
+		d.llmSems[p.Name] = make(chan struct{}, max(p.MaxInflight, 1))
+	}
+	return d.llmSems[p.Name]
 }
 
 // waitRetry is how long api and worker wait between tries while the

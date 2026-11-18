@@ -7,8 +7,12 @@ import (
 )
 
 // promptSlides is the format's slide rule, prompts/slides.md (templates.md
-// §3.1 "Prompt").
-const promptSlides = "slides"
+// §3.1 "Prompt"); promptSlideImages its rule for descriptions of slide
+// images, prompts/slide-images.md (§3.2 "Prompt").
+const (
+	promptSlides      = "slides"
+	promptSlideImages = "slide-images"
+)
 
 // Size constants of templates.md §3.1 "Size"; constants, not settings.
 const (
@@ -19,14 +23,18 @@ const (
 )
 
 // slideBlock is one slide of the SLIDES section: the full block and the
-// title-only block.
+// title-only block; described tells that its text is the description of
+// the slide's image.
 type slideBlock struct {
 	full, title string
+	described   bool
 }
 
 // slideBlocks renders the slides of the input as blocks
 // "[hh:mm:ss] Slide d-1/2:" plus the text, cut to slideMaxChars code points.
-// Slides outside every recording period are left out, as chat is.
+// The text is the description of the slide's image if it has one, else the
+// slide's text (templates.md §3.2 "Merge"); a slide with neither is left
+// out. Slides outside every recording period are left out, as chat is.
 func (r *run) slideBlocks() []slideBlock {
 	if len(r.in.Slides) == 0 || r.in.Transcript == nil {
 		return nil
@@ -37,13 +45,19 @@ func (r *run) slideBlocks() []slideBlock {
 		if !inPeriods(s.TMS, periods) {
 			continue
 		}
-		text := s.Text
+		text, described := s.Text, false
+		if d := r.in.Descriptions[s.Image]; s.Image != "" && d != "" {
+			text, described = d, true
+		}
+		if text == "" {
+			continue
+		}
 		if utf8.RuneCountInString(text) > slideMaxChars {
 			text = string([]rune(text)[:slideMaxChars])
 		}
 		head := "[" + hms(recorded(s.TMS, periods)) + "] Slide " + oneLine(s.Deck) + "/" + strconv.Itoa(s.Page) + ":\n"
 		first, _, _ := strings.Cut(text, "\n")
-		out = append(out, slideBlock{full: head + text, title: head + first})
+		out = append(out, slideBlock{full: head + text, title: head + first, described: described})
 	}
 	return out
 }
@@ -54,24 +68,28 @@ func slidesLimit(budget int) int {
 	return max(slidesMinChars, budget*slidesBudgetPct*slidesCharsPerTok/100)
 }
 
-// slidesSection returns the SLIDES data for a call with the given budget
-// and the number of slides in it (templates.md §3.1 "Size"): all blocks in
-// full if they fit the limit, else the title-only blocks, dropping the
-// latest slides until they fit. Lengths are code points before the fence
-// markers are broken up. No slides give "".
-func (r *run) slidesSection(budget int) (string, int) {
+// slidesSection returns the SLIDES data for a call with the given budget,
+// the number of slides in it and whether one of them is a description
+// (templates.md §3.1 "Size", §3.2): all blocks in full if they fit the
+// limit, else the title-only blocks, dropping the latest slides until they
+// fit. Lengths are code points before the fence markers are broken up. No
+// slides give "".
+func (r *run) slidesSection(budget int) (string, int, bool) {
 	if len(r.slides) == 0 {
-		return "", 0
+		return "", 0, false
 	}
 	limit := slidesLimit(budget)
 	full := make([]string, len(r.slides))
+	described := false
 	for i, b := range r.slides {
 		full[i] = b.full
+		described = described || b.described
 	}
 	if s := strings.Join(full, "\n\n"); utf8.RuneCountInString(s) <= limit {
-		return s, len(full)
+		return s, len(full), described
 	}
 	var titles []string
+	described = false
 	n := 0
 	for _, b := range r.slides {
 		add := utf8.RuneCountInString(b.title)
@@ -82,7 +100,8 @@ func (r *run) slidesSection(budget int) (string, int) {
 			break
 		}
 		titles = append(titles, b.title)
+		described = described || b.described
 		n += add
 	}
-	return strings.Join(titles, "\n\n"), len(titles)
+	return strings.Join(titles, "\n\n"), len(titles), described
 }

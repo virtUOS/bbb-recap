@@ -155,13 +155,6 @@ ceil(prompt_chars / 3.0) − 10 % of context_tokens` with the profile's values (
 Output: `{"budget_tokens": <used budget>, "chunks": [{"lines": ["…"]}, …]}`. A line that does not fit the budget is cut into pieces (at the last
 sentence end, else the last space, within the budget); a piece is an element of `lines`.
 
-## Not implemented yet
-
-Written before the implementation of vision calls (`providers.md` §3.6, §4.1; ADR-017); they fail until it lands:
-`TestVision` (CT-PROV-13 content parts, CT-PROV-14 profiles 1.1.0). Against the current tool a message whose
-`content` is a list is a usage error, and `defaults.vision` is an unknown key. The subtests that expect a start error
-(`unknown-profile`, `asr-profile`, …) pass already for that other reason; the valid cases fail.
-
 ## Fixtures
 
 Only `testdata/` (`testdata/providers/README.md`): profiles, spec-derived whisperx replies and their `AsrResult`, a

@@ -1,0 +1,22 @@
+# Provider profiles fixture with a vision profile (docs/reference/providers.md §4.1), validated by
+# internal/providers. No credentials_file: the tests run from different
+# directories, and relative paths would not resolve in all of them.
+schema_version: "1.1.0"
+defaults: { asr: whisperx-lab, llm: vllm-lab, vision: vllm-lab }
+profiles:
+  - name: whisperx-lab
+    kind: asr
+    dialect: whisperx-family
+    base_url: https://asr.recap.test
+    model: large-v3
+    declaration: { data_categories: [voice], operator: "operator's computing centre", location: on_prem,
+                   retention: "No persistence; RESULT_STORE__ENABLED=false", deletion: manual }
+  - name: vllm-lab
+    kind: llm
+    dialect: openai-chat
+    base_url: https://llm.recap.test/v1
+    model: example-model
+    context_tokens: 32768
+    max_output_tokens: 4096
+    declaration: { data_categories: [transcript, chat, summary, slide_images], operator: "operator's computing centre",
+                   location: on_prem, retention: "No request logging (operator to confirm)", deletion: none }

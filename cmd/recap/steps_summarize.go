@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/virtUOS/bbb-recap/internal/adapters/openaichat"
+	"github.com/virtUOS/bbb-recap/internal/config"
 	"github.com/virtUOS/bbb-recap/internal/format"
 	"github.com/virtUOS/bbb-recap/internal/providers"
 	"github.com/virtUOS/bbb-recap/internal/queue"
@@ -34,9 +35,11 @@ func summarizeHandler(d *deps) (queue.Handler, error) {
 		Log:             d.log,
 		LLM:             llm,
 		Profile:         p,
+		Sem:             d.llmSem(p),
 		FormatsDir:      d.cfg.FormatsDir,
 		MeetingTypes:    types,
 		SlideTypes:      slides,
+		SlideImageTypes: config.SlideImageTypes(d.cfg.MeetingTypes),
 		DefaultLanguage: d.cfg.DefaultLanguage,
 	}), nil
 }
