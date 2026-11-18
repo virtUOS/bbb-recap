@@ -17,7 +17,10 @@ const (
 	// may still run on the GPU.
 	AsrTimeoutRetry   = 150 * time.Second
 	LlmRequestTimeout = 600 * time.Second
-	RepairAttempts    = 2 // JSON repair calls per LLM call (§3.4)
+	// VisionRequestTimeout replaces LlmRequestTimeout for a call with an
+	// image (§3.6; provisional).
+	VisionRequestTimeout = 120 * time.Second
+	RepairAttempts       = 2 // JSON repair calls per LLM call (§3.4)
 )
 
 // AsrAttemptTimeout is max(600 s, 0.5 × duration) (§1.5).

@@ -78,6 +78,10 @@ func toolLLMComplete(prog string, set *providers.Set, log *slog.Logger, stdout, 
 		fmt.Fprintf(stderr, "%s: request.messages: required\n", prog)
 		return exitUsage
 	}
+	if err := providers.CheckParts(req.Messages); err != nil {
+		fmt.Fprintf(stderr, "%s: request: %v\n", prog, err)
+		return exitUsage
+	}
 	profile, err := set.Get(providers.KindLLM, in.Profile)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: profile: %v\n", prog, err)
