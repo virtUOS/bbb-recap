@@ -12,7 +12,8 @@
 // added polls. Version 3 made participant roles neutral (moderator, viewer)
 // and span optional, and added the media types and the track kind. Version 4
 // added slides (templates.md §3.1); a version 3 blob is read as one without
-// slides.
+// slides. Version 5 added the optional slide field image (templates.md §3.2);
+// a version 3 or 4 blob is read as one without images.
 //
 // The JSON is RFC 8785 canonical (sorted keys, no whitespace), so the same
 // meeting always gives the same bytes. Times are integer ms on the meeting
@@ -23,7 +24,7 @@
 // Each field below says what it means; "BBB:" names what the BBB source
 // (internal/steps/normalize) fills in.
 //
-//	version            4
+//	version            5
 //	meeting_name       the meeting's name (personal data possible).
 //	                   BBB: <meeting name> of events.xml
 //	time_base          {origin_event_ts, origin_utc}: the origin of the meeting
@@ -68,7 +69,7 @@
 //	                   text/markdown or text/html; null if absent.
 //	                   BBB: notes/notes.md, else notes/notes.html; null if
 //	                   notes/export_failed exists
-//	slides             [{t_ms, deck, page, text}]: the slides shown inside a
+//	slides             [{t_ms, deck, page, text, image?}]: the slides shown inside a
 //	                   recording period (templates.md §3.1), sorted by t_ms,
 //	                   then deck number, then page; [] when there are none.
 //	                   deck is an opaque ref d-<n>, page the 1-based page
@@ -76,10 +77,15 @@
 //	                   points), t_ms the start of the first showing that
 //	                   counts. Personal data possible (whatever the slides
 //	                   say). Whether the text reaches the LLM is decided by
-//	                   the meeting type, not here.
+//	                   the meeting type, not here. image is sha256:<64 hex>,
+//	                   the key of a PNG job blob of the slide (templates.md
+//	                   §3.2), absent without one; text is "" for a slide that
+//	                   has only an image. Images exist only for meeting types
+//	                   that switch slide images on.
 //	                   BBB: replayed from the presentation events, text from
-//	                   presentation/<pres-id>/textfiles/slide-<page>.txt; no
-//	                   presentation ID or file name is kept
+//	                   presentation/<pres-id>/textfiles/slide-<page>.txt,
+//	                   images rendered from <pres-id>.pdf or decoded from an
+//	                   image upload; no presentation ID or file name is kept
 package meeting
 
 import (
@@ -91,10 +97,14 @@ import (
 )
 
 // Version is the format version of the normalized meeting.
-const Version = 4
+const Version = 5
 
-// versionNoSlides is the last version without slides; Decode still reads it.
-const versionNoSlides = 3
+// Older versions Decode still reads: versionNoSlides is the last without
+// slides, versionNoImages the last without slide images.
+const (
+	versionNoSlides = 3
+	versionNoImages = 4
+)
 
 // ErrVersion means a normalized meeting blob has a version this build
 // cannot read, for example one written before an upgrade.
@@ -217,13 +227,20 @@ type PollOption struct {
 }
 
 // Slide is one slide shown inside a recording period (templates.md §3.1).
-// Deck is an opaque ref d-<n>, Page the 1-based page number.
+// Deck is an opaque ref d-<n>, Page the 1-based page number. Image is
+// "sha256:<64 hex>", the key of the slide's PNG job blob, or "" without one
+// (templates.md §3.2).
 type Slide struct {
-	TMS  int64  `json:"t_ms"`
-	Deck string `json:"deck"`
-	Page int    `json:"page"`
-	Text string `json:"text"`
+	TMS   int64  `json:"t_ms"`
+	Deck  string `json:"deck"`
+	Page  int    `json:"page"`
+	Text  string `json:"text"`
+	Image string `json:"image,omitempty"`
 }
+
+// ImagePrefix starts Slide.Image; the rest is the lowercase hex SHA-256 of
+// the PNG, which is also its blob key.
+const ImagePrefix = "sha256:"
 
 // Marshal returns the canonical JSON of m (RFC 8785, see the package
 // documentation).
@@ -236,8 +253,8 @@ func Marshal(m *Meeting) ([]byte, error) {
 }
 
 // Decode parses a normalized meeting blob. A version 3 blob is read as a
-// meeting without slides. It returns an error wrapping ErrVersion for any
-// other version but Version, so a reader never takes an old or newer format
+// meeting without slides, a version 4 blob as one without slide images. It
+// returns an error wrapping ErrVersion for any other version but Version, so a reader never takes an old or newer format
 // for the current one. Every pipeline step reads the normalized meeting
 // through Decode.
 func Decode(data []byte) (*Meeting, error) {
@@ -247,10 +264,14 @@ func Decode(data []byte) (*Meeting, error) {
 	}
 	switch m.Version {
 	case Version:
+	case versionNoImages:
+		for i := range m.Slides {
+			m.Slides[i].Image = ""
+		}
 	case versionNoSlides:
 		m.Slides = nil
 	default:
-		return nil, fmt.Errorf("%w %d (want %d or %d)", ErrVersion, m.Version, versionNoSlides, Version)
+		return nil, fmt.Errorf("%w %d (want %d to %d)", ErrVersion, m.Version, versionNoSlides, Version)
 	}
 	if m.Slides == nil {
 		m.Slides = []Slide{}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:recap:schema:slide-description:1",
+  "title": "Slide description (recap)",
+  "description": "LLM reply of the describe call for one slide image, schema v1.0.0. Normative text: docs/reference/templates.md section 3.2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text", "visual"],
+  "properties": {
+    "text": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "visual": {
+      "type": "string",
+      "maxLength": 1000
+    }
+  }
+}

@@ -9,11 +9,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/virtUOS/bbb-recap/internal/events"
+	"github.com/virtUOS/bbb-recap/internal/manifest"
 	"github.com/virtUOS/bbb-recap/internal/meeting"
+	"github.com/virtUOS/bbb-recap/internal/slidetext"
 )
 
 // Constants of templates.md §3.1.
@@ -23,9 +23,6 @@ const (
 	minShownMS = 5000
 	// slideReadBytes is how much of a text file is read (item 7).
 	slideReadBytes = 64 << 10
-	// slideMaxChars is the number of code points kept of a cleaned text
-	// (item 7; the most the LLM input uses).
-	slideMaxChars = 1000
 	// defaultDeckFile is the original file name of BBB's default deck
 	// (item 1; upstream-facts.md "BBB presentations").
 	defaultDeckFile = "default.pdf"
@@ -66,7 +63,12 @@ type pod struct {
 // returned. An error is returned for a failed read other than a missing or
 // forbidden file (a blob store failure, including a hash mismatch), so the
 // step fails as transient and is retried (templates.md §3.1 item 6).
-func slides(fsys fs.FS, ev *events.Events, origin int64, ps []meeting.Period) ([]meeting.Slide, error) {
+//
+// With img set (slide images on, templates.md §3.2) a shown page also gives
+// a slide with empty text when it gets an image, and every slide gets the
+// image of its page if there is one (images.go).
+func slides(fsys fs.FS, files []manifest.File, ev *events.Events, origin int64, ps []meeting.Period,
+	img *Images) ([]meeting.Slide, error) {
 	first := map[pageKey]int64{} // earliest qualifying start per page
 	var shareOrder []string      // decks by first SharePresentationEvent
 	shared := map[string]bool{}
@@ -155,7 +157,6 @@ func slides(fsys fs.FS, ev *events.Events, origin int64, ps []meeting.Period) ([
 		deck string
 	}
 	var list []found
-	hasSlide := map[string]bool{}
 	for k, t := range first {
 		if defaults[k.deck] || !presentationRE.MatchString(k.deck) {
 			continue
@@ -164,11 +165,48 @@ func slides(fsys fs.FS, ev *events.Events, origin int64, ps []meeting.Period) ([
 		if err != nil {
 			return nil, err
 		}
-		if text == "" {
+		if text == "" && img == nil {
 			continue
 		}
 		list = append(list, found{meeting.Slide{TMS: t, Page: k.page, Text: text}, k.deck})
-		hasSlide[k.deck] = true
+	}
+	// The final order (below) sorts decks by their ref, and refs follow the
+	// share order; so the share order gives the same order before the refs
+	// are known. Images are made in that order (§3.2 "Dedupe and cap").
+	shareIndex := map[string]int{}
+	for i, d := range shareOrder {
+		shareIndex[d] = i
+	}
+	sort.Slice(list, func(i, j int) bool {
+		a, b := list[i], list[j]
+		if a.TMS != b.TMS {
+			return a.TMS < b.TMS
+		}
+		if shareIndex[a.deck] != shareIndex[b.deck] {
+			return shareIndex[a.deck] < shareIndex[b.deck]
+		}
+		return a.Page < b.Page
+	})
+	if img != nil {
+		im := newImager(fsys, files, img)
+		defer im.close()
+		kept := list[:0]
+		for _, f := range list {
+			ref, err := im.image(f.deck, f.Page)
+			if err != nil {
+				return nil, err
+			}
+			if ref == "" && f.Text == "" {
+				continue // neither text nor image: no slide
+			}
+			f.Image = ref
+			kept = append(kept, f)
+		}
+		list = kept
+	}
+	hasSlide := map[string]bool{}
+	for _, f := range list {
+		hasSlide[f.deck] = true
 	}
 	refs := map[string]int{}
 	for _, d := range shareOrder {
@@ -176,16 +214,6 @@ func slides(fsys fs.FS, ev *events.Events, origin int64, ps []meeting.Period) ([
 			refs[d] = len(refs) + 1
 		}
 	}
-	sort.Slice(list, func(i, j int) bool {
-		a, b := list[i], list[j]
-		if a.TMS != b.TMS {
-			return a.TMS < b.TMS
-		}
-		if refs[a.deck] != refs[b.deck] {
-			return refs[a.deck] < refs[b.deck]
-		}
-		return a.Page < b.Page
-	})
 	out := make([]meeting.Slide, 0, len(list))
 	for _, s := range list {
 		s.Deck = "d-" + strconv.Itoa(refs[s.deck])
@@ -210,8 +238,8 @@ func shownFrom(from, to int64, ps []meeting.Period) []int64 {
 
 // slideText reads and cleans one slide text file (item 6, 7). One leading
 // UTF-8 byte order mark is dropped. A missing or forbidden file, an empty
-// cleaned text and BBB's placeholder give "". After the cut to slideMaxChars
-// code points, trailing spaces and line feeds are trimmed, so a block never
+// cleaned text and BBB's placeholder give "". After the cut to
+// slidetext.MaxChars code points, trailing spaces and line feeds are trimmed, so a block never
 // ends in an empty line.
 func slideText(fsys fs.FS, name string) (string, error) {
 	f, err := fsys.Open(name)
@@ -226,45 +254,9 @@ func slideText(fsys fs.FS, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	text := cleanSlide(bytes.TrimPrefix(b, []byte(utf8BOM)))
+	text := slidetext.Clean(bytes.TrimPrefix(b, []byte(utf8BOM)))
 	if text == slidePlaceholder {
 		return "", nil
 	}
-	if r := []rune(text); len(r) > slideMaxChars {
-		text = strings.TrimRight(string(r[:slideMaxChars]), " \n")
-	}
-	return text, nil
-}
-
-// cleanSlide applies the cleaning of item 7: invalid UTF-8 bytes become
-// U+FFFD, CRLF and CR become LF, every other control character becomes a
-// space, in each line runs of spaces become one space and the line is
-// trimmed, empty lines are dropped, lines are joined with LF.
-func cleanSlide(b []byte) string {
-	var sb strings.Builder
-	for i := 0; i < len(b); {
-		r, n := utf8.DecodeRune(b[i:])
-		switch {
-		case r == '\r':
-			sb.WriteByte('\n')
-			if i+1 < len(b) && b[i+1] == '\n' {
-				n = 2
-			}
-		case r == '\n':
-			sb.WriteByte('\n')
-		case unicode.Is(unicode.Cc, r):
-			sb.WriteByte(' ')
-		default:
-			sb.WriteRune(r) // utf8.RuneError for an invalid byte
-		}
-		i += n
-	}
-	var lines []string
-	for _, l := range strings.Split(sb.String(), "\n") {
-		l = strings.Join(strings.FieldsFunc(l, func(r rune) bool { return r == ' ' }), " ")
-		if l != "" {
-			lines = append(lines, l)
-		}
-	}
-	return strings.Join(lines, "\n")
+	return slidetext.Cut(text), nil
 }

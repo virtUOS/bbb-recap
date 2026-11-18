@@ -15,11 +15,13 @@ var pipeline = []string{
 	"internal/meeting",
 	"internal/steps/transcribe",
 	"internal/steps/assemble",
+	"internal/steps/describe",
 	"internal/steps/summarize",
 	"internal/steps/render",
 	"internal/steps/deliver",
 	"internal/steps/cleanup",
 	"internal/render",
+	"internal/slidetext",
 }
 
 // source are the BBB source packages (ADR-013) that no pipeline package may

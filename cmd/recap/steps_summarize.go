@@ -34,6 +34,7 @@ func summarizeHandler(d *deps) (queue.Handler, error) {
 		Log:             d.log,
 		LLM:             llm,
 		Profile:         p,
+		Sem:             d.llmSem(p),
 		FormatsDir:      d.cfg.FormatsDir,
 		MeetingTypes:    types,
 		SlideTypes:      slides,

@@ -111,7 +111,7 @@ func (d Deps) load(ctx context.Context, jobID string) (Input, error) {
 		out    transcribe.ItemOutput
 	}
 	items := map[string]row{}
-	rows, err := d.Pool.Query(ctx, `SELECT item, state, gap_reason, output FROM step_items WHERE job_id = $1`, jobID)
+	rows, err := d.Pool.Query(ctx, `SELECT item, state, gap_reason, output FROM step_items WHERE job_id = $1 AND item LIKE 'trk-%'`, jobID)
 	if err != nil {
 		return Input{}, err
 	}

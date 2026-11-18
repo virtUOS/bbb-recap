@@ -19,16 +19,24 @@ func TestLoadMeetingSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.ID != "meeting-summary" || f.Version != "1.1.0" || !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(f.SHA256) {
+	if f.ID != "meeting-summary" || f.Version != "1.2.0" || !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(f.SHA256) {
 		t.Errorf("format %q %q %q", f.ID, f.Version, f.SHA256)
 	}
-	if !f.HasInput("slides") || f.HasInput("video") {
-		t.Errorf("inputs = %v, want [slides] (templates.md §2)", f.Inputs)
+	if !f.HasInput("slides") || !f.HasInput("slide_images") || f.HasInput("video") {
+		t.Errorf("inputs = %v, want [slides slide_images] (templates.md §2)", f.Inputs)
+	}
+	for _, p := range []string{"slide-describe", "slide-images"} {
+		if _, ok := f.Prompt(p); !ok {
+			t.Errorf("prompt %s missing (templates.md §3.2)", p)
+		}
+	}
+	if err := f.Validate("slide-description.v1", []byte(`{"text": "", "visual": ""}`)); err != nil {
+		t.Errorf("slide-description.v1: %v", err)
 	}
 	if p, ok := f.Prompt("slides"); !ok || !strings.Contains(p, "SLIDES") {
 		t.Errorf("prompt slides missing or without the section name")
 	}
-	if in, err := DeclaredInputs(formatsDir, "meeting-summary"); err != nil || !slices.Equal(in, []string{"slides"}) {
+	if in, err := DeclaredInputs(formatsDir, "meeting-summary"); err != nil || !slices.Equal(in, []string{"slides", "slide_images"}) {
 		t.Errorf("DeclaredInputs = %v, %v", in, err)
 	}
 	if _, err := DeclaredInputs(formatsDir, "no-such-format"); !errors.Is(err, ErrNotFound) {

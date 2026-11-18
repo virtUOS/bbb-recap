@@ -15,15 +15,30 @@ import (
 	"github.com/virtUOS/bbb-recap/internal/steps/validate"
 )
 
-// toolNormalize is `recap tool normalize DIR` (contracts/transcript/README.md):
-// the normalized meeting of a raw recording or package directory on stdout.
-// The files are selected by the allow-list (meeting-package.md §5). It needs
-// no configuration; the log goes to stderr at RECAP_LOG_LEVEL (default info).
+// toolNormalize is `recap tool normalize [--slide-images IMAGES] DIR`
+// (contracts/transcript/README.md): the normalized meeting of a raw
+// recording or package directory on stdout. The files are selected by the
+// allow-list (meeting-package.md §5). With --slide-images it normalizes as
+// for a meeting type with slide images on (templates.md §3.2) and writes
+// each distinct image as IMAGES/<sha256 hex>.png (an existing, empty
+// directory). It needs no configuration; the log goes to stderr at
+// RECAP_LOG_LEVEL (default info).
 func toolNormalize(args []string, stdout, stderr io.Writer) int {
 	const prog = "recap tool normalize"
+	images := ""
+	if len(args) == 3 && args[0] == "--slide-images" && args[1] != "" {
+		images, args = args[1], args[2:]
+	}
 	if len(args) != 1 || len(args[0]) == 0 || args[0][0] == '-' {
-		fmt.Fprintf(stderr, "Usage: %s DIR\n", prog)
+		fmt.Fprintf(stderr, "Usage: %s [--slide-images IMAGES] DIR\n", prog)
 		return exitUsage
+	}
+	if images != "" {
+		entries, err := os.ReadDir(images)
+		if err != nil || len(entries) > 0 {
+			fmt.Fprintf(stderr, "%s: --slide-images: want an existing, empty directory\n", prog)
+			return exitUsage
+		}
 	}
 	level := slog.LevelInfo
 	if v := os.Getenv("RECAP_LOG_LEVEL"); v != "" {
@@ -35,7 +50,7 @@ func toolNormalize(args []string, stdout, stderr io.Writer) int {
 	}
 	log := logging.New(stderr, level)
 
-	out, err := normalizeDir(args[0], log)
+	out, err := normalizeDir(args[0], images, log)
 	if err != nil {
 		log.Error("normalize failed", "err", errorCode(err))
 		fmt.Fprintf(stderr, "%s: %s\n", prog, errorCode(err))
@@ -45,7 +60,7 @@ func toolNormalize(args []string, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
-func normalizeDir(dir string, log *slog.Logger) ([]byte, error) {
+func normalizeDir(dir, images string, log *slog.Logger) ([]byte, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -59,9 +74,18 @@ func normalizeDir(dir string, log *slog.Logger) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = root.Close() }()
-	m, err := normalize.Normalize(validate.OnlyFiles(root.FS(), sel.Files), sel.Files)
+	var img *normalize.Images
+	if images != "" {
+		img = &normalize.Images{Store: func(key string, png []byte) error {
+			return os.WriteFile(filepath.Join(images, key+".png"), png, 0o644)
+		}}
+	}
+	m, err := normalize.Normalize(validate.OnlyFiles(root.FS(), sel.Files), sel.Files, img)
 	if err != nil {
 		return nil, err
+	}
+	if img != nil {
+		log.Debug("slide images", "render_attempts", img.Attempts, "images", img.Stored)
 	}
 	gaps := 0
 	for _, t := range m.Tracks {

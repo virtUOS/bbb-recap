@@ -31,6 +31,7 @@ var stepHandlers = map[string]func(*deps) (queue.Handler, error){
 	"normalize":  normalizeHandler,
 	"transcribe": transcribeHandler,
 	"assemble":   assembleHandler,
+	"describe":   describeHandler,
 	"summarize":  summarizeHandler,
 	"render":     renderHandler,
 	"deliver":    deliverHandler,

@@ -93,6 +93,10 @@ type Input struct {
 	// Slides are the shown slides (templates.md §3.1); set only when the
 	// meeting type switches slides on and the format declares them.
 	Slides []meeting.Slide
+	// Descriptions are the descriptions of slide images by image ref
+	// (templates.md §3.2): a slide whose image has one uses it in place of
+	// its text. Nil or empty: every slide uses its text.
+	Descriptions map[string]string
 }
 
 // ChatMessage is one public chat message: time on the meeting axis, the
@@ -144,6 +148,10 @@ type run struct {
 	// slides are the slide blocks that may be sent, in slides[] order;
 	// empty: no SLIDES section and no slide rule in any call.
 	slides []slideBlock
+	// imageRule is the format's slide-image rule, "" when no block is a
+	// description; it joins the system message of a call whose sent
+	// SLIDES section has a description (templates.md §3.2 "Prompt").
+	imageRule string
 }
 
 // Run summarizes in for job jobID in the output language lang (templates.md
@@ -196,6 +204,16 @@ func (r *run) loadPrompts() error {
 			r.prompts[call] += "\n" + strings.ReplaceAll(p, "{language}", name)
 		}
 	}
+	for _, b := range r.slides {
+		if b.described {
+			p, ok := r.Format.Prompt(promptSlideImages)
+			if !ok {
+				return &providers.Error{Class: providers.PermanentConfig, Code: "format_prompt_missing"}
+			}
+			r.imageRule = "\n" + strings.ReplaceAll(p, "{language}", name)
+			break
+		}
+	}
 	for _, sch := range []string{SchemaSummary, SchemaChunkNotes} {
 		if _, ok := r.Format.Schema(sch); !ok {
 			return &providers.Error{Class: providers.PermanentConfig, Code: "format_schema_missing"}
@@ -211,22 +229,36 @@ func (r *run) schema(name string) json.RawMessage {
 
 // budget is the §3.5 budget for the data of a call whose system prompt and
 // schema are fixed. The schema counts in every mode (the adapter puts it
-// into the system message in two of them).
+// into the system message in two of them). For the calls that may carry
+// the slide-image rule it counts too, whether or not it is sent.
 func (r *run) budget(call, schema string) int {
+	prompt := utf8.RuneCountInString(r.prompts[call])
+	if call == CallSummarize || call == CallConsolidate {
+		prompt += utf8.RuneCountInString(r.imageRule)
+	}
 	return llmplan.Budget(r.Profile.ContextTokens, r.Profile.MaxOutputTokens,
-		utf8.RuneCountInString(r.prompts[call])+utf8.RuneCount(r.schema(schema)))
+		prompt+utf8.RuneCount(r.schema(schema)))
+}
+
+// system is the system message of a call; described tells that its SLIDES
+// section has a description (templates.md §3.2 "Prompt").
+func (r *run) system(call string, described bool) string {
+	if described {
+		return r.prompts[call] + r.imageRule
+	}
+	return r.prompts[call]
 }
 
 // plan runs the call plan and returns the summary.v1 reply.
 func (r *run) plan(ctx context.Context) (json.RawMessage, error) {
 	lines := r.transcriptLines()
 	budget := r.budget(CallSummarize, SchemaSummary)
-	slides, sent := r.slidesSection(budget)
+	slides, sent, described := r.slidesSection(budget)
 	user := joinSections(section("MEETING NAME", r.in.MeetingName), section("TRANSCRIPT", strings.Join(lines, "\n")),
 		r.contextSections(slides))
 	if llmplan.TextTokens(user) <= budget {
 		r.Log.Debug("summarize: single call", "job_id", r.jobID, "lines", len(lines), "slides", sent)
-		reply, err := r.complete(ctx, CallSummarize, "0", user, SchemaSummary)
+		reply, err := r.complete(ctx, r.system(CallSummarize, described), CallSummarize, "0", user, SchemaSummary)
 		if !resplittable(err) {
 			return reply, err
 		}
@@ -281,7 +313,7 @@ func (r *run) extract(ctx context.Context, chunk []string, i, n int, mayResplit 
 	part := strconv.Itoa(i+1) + " of " + strconv.Itoa(n)
 	user := func(lines []string) string { return extractUser(part, lines) }
 	ref := strconv.Itoa(i)
-	notes, err := r.complete(ctx, CallExtract, ref, user(chunk), SchemaChunkNotes)
+	notes, err := r.complete(ctx, r.system(CallExtract, false), CallExtract, ref, user(chunk), SchemaChunkNotes)
 	if !resplittable(err) {
 		return []json.RawMessage{notes}, err
 	}
@@ -292,7 +324,8 @@ func (r *run) extract(ctx context.Context, chunk []string, i, n int, mayResplit 
 	r.Log.Debug("summarize: re-split", "job_id", r.jobID, "chunk", i)
 	var out []json.RawMessage
 	for k, half := range [][]string{a, b} {
-		notes, err := r.complete(ctx, CallExtract, ref+"."+strconv.Itoa(k+1), user(half), SchemaChunkNotes)
+		notes, err := r.complete(ctx, r.system(CallExtract, false), CallExtract, ref+"."+strconv.Itoa(k+1), user(half),
+			SchemaChunkNotes)
 		if resplittable(err) {
 			return nil, rejected(err)
 		}
@@ -310,12 +343,13 @@ func (r *run) reduce(ctx context.Context, notes []json.RawMessage) (json.RawMess
 	for level := 1; ; level++ {
 		wrapped := wrapNotes(notes)
 		budget := r.budget(CallConsolidate, SchemaSummary)
-		slides, sent := r.slidesSection(budget)
+		slides, sent, described := r.slidesSection(budget)
 		user := r.consolidateUser(wrapped, slides)
 		if llmplan.TextTokens(user) <= budget {
 			r.Log.Debug("summarize: consolidate", "job_id", r.jobID, "level", level, "notes", len(notes),
 				"slides", sent)
-			reply, err := r.complete(ctx, CallConsolidate, "0", user, SchemaSummary)
+			reply, err := r.complete(ctx, r.system(CallConsolidate, described), CallConsolidate, "0", user,
+				SchemaSummary)
 			if resplittable(err) {
 				return nil, rejected(err)
 			}
@@ -339,7 +373,8 @@ func (r *run) reduce(ctx context.Context, notes []json.RawMessage) (json.RawMess
 			} else {
 				ref := strconv.Itoa(level) + "." + strconv.Itoa(g)
 				wg.Go(func() {
-					merged[g], errs[g] = r.complete(ctx, CallMerge, ref, strings.Join(group, "\n"), SchemaChunkNotes)
+					merged[g], errs[g] = r.complete(ctx, r.system(CallMerge, false), CallMerge, ref,
+						strings.Join(group, "\n"), SchemaChunkNotes)
 				})
 			}
 			first += len(group)
@@ -373,9 +408,9 @@ func (r *run) consolidateUser(wrapped []string, slides string) string {
 		strings.Join(wrapped, "\n"))
 }
 
-// complete makes one LLM call with the system prompt of call, waiting for a
-// free slot of the profile.
-func (r *run) complete(ctx context.Context, call, chunk, user, schema string) (json.RawMessage, error) {
+// complete makes one LLM call with the system message system, waiting for
+// a free slot of the profile.
+func (r *run) complete(ctx context.Context, system, call, chunk, user, schema string) (json.RawMessage, error) {
 	select {
 	case r.Sem <- struct{}{}:
 		defer func() { <-r.Sem }()
@@ -384,7 +419,7 @@ func (r *run) complete(ctx context.Context, call, chunk, user, schema string) (j
 	}
 	resp, err := r.LLM.Complete(ctx, providers.LlmRequest{
 		Messages: []providers.Message{
-			{Role: providers.RoleSystem, Content: r.prompts[call]},
+			{Role: providers.RoleSystem, Content: system},
 			{Role: providers.RoleUser, Content: user},
 		},
 		Output:          providers.Output{Type: providers.OutputJSON, Schema: r.schema(schema)},

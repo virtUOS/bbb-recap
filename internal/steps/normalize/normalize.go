@@ -26,10 +26,11 @@ import (
 var ErrEvents = errors.New("normalize: unusable events.xml")
 
 // Normalize builds the normalized meeting from the package in fsys; files
-// are the package files with their hashes (manifest entries). A malformed
+// are the package files with their hashes (manifest entries). img switches
+// slide images on (templates.md §3.2); nil: off, nothing is rendered. A malformed
 // events.xml or one without a recording start gives an error wrapping
 // ErrEvents; other errors are I/O errors of fsys.
-func Normalize(fsys fs.FS, files []manifest.File) (*meeting.Meeting, error) {
+func Normalize(fsys fs.FS, files []manifest.File, img *Images) (*meeting.Meeting, error) {
 	ev, err := readEvents(fsys)
 	if err != nil {
 		return nil, err
@@ -82,7 +83,7 @@ func Normalize(fsys fs.FS, files []manifest.File) (*meeting.Meeting, error) {
 	m.Polls = polls(ev, origin.TS, m.RecordingPeriods)
 	m.Participants = people.list
 	m.Notes = notes(files)
-	if m.Slides, err = slides(fsys, ev, origin.TS, m.RecordingPeriods); err != nil {
+	if m.Slides, err = slides(fsys, files, ev, origin.TS, m.RecordingPeriods, img); err != nil {
 		return nil, err
 	}
 	return m, nil

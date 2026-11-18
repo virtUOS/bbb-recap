@@ -150,6 +150,11 @@ func load(fsys fs.FS, id string) (*Format, error) {
 // in format.json and in the inputs of the meeting-types file.
 const InputSlides = "slides"
 
+// InputSlideImages is the optional input slide_images (templates.md §1,
+// §3.2): images of the shown slides, described by a vision model. It needs
+// InputSlides on the same meeting type.
+const InputSlideImages = "slide_images"
+
 // meta is format.json.
 type meta struct {
 	ID      string   `json:"id"`

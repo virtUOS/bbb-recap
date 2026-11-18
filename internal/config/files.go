@@ -32,16 +32,21 @@ type MeetingType struct {
 }
 
 // knownInputs are the optional inputs a meeting type can name (templates.md §1).
-var knownInputs = []string{format.InputSlides}
+var knownInputs = []string{format.InputSlides, format.InputSlideImages}
 
 // InputErrors checks the inputs of the meeting types (templates.md §1): an
 // unknown input name, or one the type's format does not declare in its
-// format.json, is an error, for true and false alike. A type whose format is
-// missing is skipped; its jobs are held unknown_type. name is the variable
-// or file the messages start with.
+// format.json, is an error, for true and false alike. slide_images: true
+// needs slides: true on the same type. A type whose format is missing is
+// skipped for the format check; its jobs are held unknown_type. name is the
+// variable or file the messages start with.
 func InputErrors(name string, types []MeetingType, formatsDir string) []string {
 	var errs []string
 	for i, mt := range types {
+		if mt.Inputs[format.InputSlideImages] && !mt.Inputs[format.InputSlides] {
+			errs = append(errs, fmt.Sprintf("%s: meeting_types[%d].inputs.%s: needs %s: true on the same type",
+				name, i, format.InputSlideImages, format.InputSlides))
+		}
 		if len(mt.Inputs) == 0 {
 			continue
 		}
@@ -342,6 +347,39 @@ func LogSinkWarnings(log *slog.Logger, sinks []SinkProfile) {
 				"location", s.Declaration.Location)
 		}
 	}
+}
+
+// SlideImageTypes returns the meeting types that switch slide images on
+// (inputs.slide_images: true, templates.md §1, §3.2).
+func SlideImageTypes(types []MeetingType) map[string]bool {
+	out := map[string]bool{}
+	for _, mt := range types {
+		if mt.Inputs[format.InputSlideImages] {
+			out[mt.Name] = true
+		}
+	}
+	return out
+}
+
+// VisionError is the problem of a configuration in which a meeting type
+// switches slide images on but the providers file names no vision profile
+// (defaults.vision, providers.md §4.1, templates.md §1); "" when there is
+// none.
+func VisionError(types []MeetingType, set *providers.Set) string {
+	if set == nil || len(SlideImageTypes(types)) == 0 {
+		return ""
+	}
+	if _, ok := set.Vision(); ok {
+		return ""
+	}
+	var names []string
+	for _, mt := range types {
+		if mt.Inputs[format.InputSlideImages] {
+			names = append(names, mt.Name)
+		}
+	}
+	return fmt.Sprintf("defaults.vision: required: meeting type %s switches %s on",
+		strings.Join(names, ", "), format.InputSlideImages)
 }
 
 // loadProviders validates the providers file with the rules of

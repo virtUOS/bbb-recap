@@ -1,0 +1,6 @@
+# Unit-test fixture: slide_images without slides is a configuration error (templates.md §1).
+schema_version: "1.2.0"
+meeting_types:
+  - name: lecture
+    format: meeting-summary
+    inputs: { slide_images: true }

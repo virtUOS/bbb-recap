@@ -361,7 +361,7 @@ func TestRerunDeliveredJob(t *testing.T) {
 	pool := actionDB(t)
 	old := seedJob(t, pool)
 	e := newEngine(pool, "w1", Steps...)
-	for _, s := range Steps[:7] {
+	for _, s := range Steps[:indexOf("cleanup")] {
 		mustFinish(t, e, mustClaim(t, e, old, s), Result{Outcome: OK})
 	}
 	if _, err := rerun(t, pool, old); err != nil {

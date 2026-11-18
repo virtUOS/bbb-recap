@@ -60,7 +60,7 @@ func TestSlidesReplay(t *testing.T) {
 		{TS: 20000, Kind: events.EventRemovePresentation, PodID: "pod2", Presentation: deckA}, // not current: nothing
 		share(30000, "pod2", deckA),                                                           // B/2 11 000–30 000 shown; A/3 from 30 000 to the end
 	}}
-	got, err := slides(fsys, ev, 0, onePeriod)
+	got, err := slides(fsys, nil, ev, 0, onePeriod, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestSlidesPeriods(t *testing.T) {
 		gotoSlide(7000, "pod", deckA, "1"),  // A/2 7 000–23 000: 3 000 + 3 000 ms, not shown
 		gotoSlide(23000, "pod", deckA, "0"), // A/1 again, 23 000–40 000; earliest stays 0
 	}}
-	got, err := slides(fsys, ev, 0, ps)
+	got, err := slides(fsys, nil, ev, 0, ps, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestSlidesSkipped(t *testing.T) {
 		gotoSlide(40000, "pod", deckB, "2"), // page 3: no file
 		share(50000, "pod", deckC),
 	}}
-	got, err := slides(fsys, ev, 0, onePeriod)
+	got, err := slides(fsys, nil, ev, 0, onePeriod, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestSlidesSkipped(t *testing.T) {
 // A read error other than a missing file is returned, so the step is retried.
 func TestSlidesReadError(t *testing.T) {
 	ev := &events.Events{Slides: []events.Slide{share(0, "pod", deckA)}}
-	_, err := slides(errFS{}, ev, 0, onePeriod)
+	_, err := slides(errFS{}, nil, ev, 0, onePeriod, nil)
 	if !errors.Is(err, errBroken) {
 		t.Errorf("err = %v, want errBroken", err)
 	}
@@ -142,20 +142,6 @@ var errBroken = errors.New("broken store")
 type errFS struct{}
 
 func (errFS) Open(string) (fs.File, error) { return nil, errBroken }
-
-func TestCleanSlide(t *testing.T) {
-	for _, c := range []struct{ in, want string }{
-		{"Title\r\n\r\n  a   b  \r c\n", "Title\na b\nc"},
-		{"\tTotal\t\t  120 EUR\f", "Total 120 EUR"},
-		{"bad \xff\xfe byte", "bad �� byte"},
-		{"\x00\x1f\x7f", ""},
-		{"Zeile\u0085zwei x", "Zeile zwei x"}, // NEL is Cc; NBSP is not
-	} {
-		if got := cleanSlide([]byte(c.in)); got != c.want {
-			t.Errorf("cleanSlide(%q) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}
 
 // Only the first 64 KiB are read; the text is cut to 1 000 code points.
 func TestSlideTextLimits(t *testing.T) {

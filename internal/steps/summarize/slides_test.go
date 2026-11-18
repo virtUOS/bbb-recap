@@ -106,12 +106,12 @@ func TestSlidesCap(t *testing.T) {
 	}
 	r := &run{in: Input{Transcript: tr, Slides: []meeting.Slide{block(1), block(2)}}}
 	r.slides = r.slideBlocks()
-	if s, n := r.slidesSection(0); n != 2 || !strings.Contains(s, strings.Repeat("x", 960)) {
+	if s, n, _ := r.slidesSection(0); n != 2 || !strings.Contains(s, strings.Repeat("x", 960)) {
 		t.Errorf("two slides of about 1 000 characters: %d sent, want both in full", n)
 	}
 	r.in.Slides = []meeting.Slide{block(1), block(2), block(3)}
 	r.slides = r.slideBlocks()
-	if s, n := r.slidesSection(0); n != 3 || strings.Contains(s, "x") {
+	if s, n, _ := r.slidesSection(0); n != 3 || strings.Contains(s, "x") {
 		t.Errorf("three slides over 2 000: %d sent, want three titles only", n)
 	}
 	var many []meeting.Slide
@@ -120,14 +120,60 @@ func TestSlidesCap(t *testing.T) {
 	}
 	r.in.Slides = many
 	r.slides = r.slideBlocks()
-	s, n := r.slidesSection(0)
+	s, n, _ := r.slidesSection(0)
 	if n == 0 || n == 100 || len([]rune(s)) > 2000 || !strings.HasSuffix(s, "Slide d-1/"+strconv.Itoa(n)+":\nTitle") {
 		t.Errorf("100 titles over 2 000: %d sent (%d characters), want the first that fit", n, len([]rune(s)))
 	}
 	long := meeting.Slide{TMS: 1000, Deck: "d-1", Page: 1, Text: strings.Repeat("é", 1500)}
 	r.in.Slides = []meeting.Slide{long}
 	r.slides = r.slideBlocks()
-	if s, _ := r.slidesSection(0); strings.Count(s, "é") != 1000 {
+	if s, _, _ := r.slidesSection(0); strings.Count(s, "é") != 1000 {
 		t.Errorf("slide text has %d characters, want 1 000", strings.Count(s, "é"))
+	}
+}
+
+// templates.md §3.2 "Merge": a slide whose image has a description sends
+// the description, others their text, a slide with neither is left out;
+// the slide-image rule joins the system message only with a description;
+// a description that is not sent (or none at all) gives the request of
+// slides without images.
+func TestSlideImageMerge(t *testing.T) {
+	const imgA, imgB = "sha256:" + "aa", "sha256:" + "bb"
+	in := f01Input(t)
+	in.Slides = []meeting.Slide{
+		{TMS: 7000, Deck: "d-1", Page: 1, Text: slideMark, Image: imgA},
+		{TMS: 8000, Deck: "d-1", Page: 2, Text: "", Image: imgB},
+		{TMS: 9000, Deck: "d-1", Page: 3, Text: "", Image: "sha256:cc"},
+	}
+	in.Descriptions = map[string]string{imgA: "Fixture described agenda\nA chart."}
+	e := newEnv(t, 32768, 4096)
+	if _, err := e.summarizer().Run(context.Background(), "job-1", in, "en"); err != nil {
+		t.Fatal(err)
+	}
+	calls := e.fake.all()
+	want := "<<<BEGIN SLIDES>>>\n[00:00:07] Slide d-1/1:\nFixture described agenda\nA chart.\n<<<END SLIDES>>>"
+	if len(calls) != 1 || !strings.HasSuffix(calls[0].user, want) {
+		t.Fatalf("user message does not end with %q", want)
+	}
+	rule, _ := e.format.Prompt(promptSlideImages)
+	if !strings.HasSuffix(calls[0].system, "\n"+rule) {
+		t.Error("system message does not end with the slide-image rule")
+	}
+
+	// No description: the request of the same slides without images.
+	in.Descriptions = nil
+	off := newEnv(t, 32768, 4096)
+	if _, err := off.summarizer().Run(context.Background(), "job-1", in, "en"); err != nil {
+		t.Fatal(err)
+	}
+	plain := f01Input(t)
+	plain.Slides = []meeting.Slide{{TMS: 7000, Deck: "d-1", Page: 1, Text: slideMark}}
+	base := newEnv(t, 32768, 4096)
+	if _, err := base.summarizer().Run(context.Background(), "job-1", plain, "en"); err != nil {
+		t.Fatal(err)
+	}
+	a, b := off.fake.all(), base.fake.all()
+	if len(a) != 1 || len(b) != 1 || a[0].raw != b[0].raw {
+		t.Error("request without descriptions differs from the request of the same slides without images")
 	}
 }

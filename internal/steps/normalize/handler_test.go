@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/virtUOS/bbb-recap/internal/blob"
@@ -59,5 +60,66 @@ func TestNormalizeHandler(t *testing.T) {
 	}
 	if len(m.Tracks) != 4 || len(m.RecordingPeriods) != 2 || m.Version != meeting.Version {
 		t.Fatalf("normalized: %d tracks, %d periods", len(m.Tracks), len(m.RecordingPeriods))
+	}
+}
+
+// A job whose meeting type switches slide images on gets them as job blobs
+// (templates.md §3.2); another type gets none (ADR-017, D10).
+func TestNormalizeHandlerSlideImages(t *testing.T) {
+	ctx := context.Background()
+	for _, c := range []struct {
+		meetingType string
+		images      int
+	}{{"lecture", 2}, {"meeting-summary", 0}} {
+		pool := dbtest.New(t)
+		store, err := blob.NewFS(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := normalize.Handler(normalize.Deps{Pool: pool, Blobs: store, Log: slog.New(slog.DiscardHandler),
+			SlideImageTypes: map[string]bool{"lecture": true}})
+		jobID := validatetest.Seed(t, pool, store, validatetest.Package{})
+		if _, err := pool.Exec(ctx, `UPDATE jobs SET meeting_type = $2 WHERE job_id = $1`, jobID,
+			c.meetingType); err != nil {
+			t.Fatal(err)
+		}
+		r := h(ctx, queue.Run{JobID: jobID, Step: "normalize", Attempt: 1})
+		if r.Outcome != queue.OK {
+			t.Fatalf("%s: outcome %+v", c.meetingType, r)
+		}
+		var out meeting.Output
+		if err := json.Unmarshal(r.Output, &out); err != nil {
+			t.Fatal(err)
+		}
+		rc, err := store.Get(ctx, jobID, out.NormalizedSHA256)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := io.ReadAll(rc)
+		_ = rc.Close()
+		m, err := meeting.Decode(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		images := 0
+		for _, s := range m.Slides {
+			key, ok := strings.CutPrefix(s.Image, meeting.ImagePrefix)
+			if !ok {
+				continue
+			}
+			images++
+			rc, err := store.Get(ctx, jobID, key) // verifies the hash
+			if err != nil {
+				t.Fatalf("%s: image blob %s: %v", c.meetingType, key, err)
+			}
+			b, _ := io.ReadAll(rc)
+			_ = rc.Close()
+			if len(b) < 8 || string(b[1:4]) != "PNG" {
+				t.Errorf("%s: image blob is not a PNG", c.meetingType)
+			}
+		}
+		if images != c.images {
+			t.Errorf("%s: %d slides with an image, want %d", c.meetingType, images, c.images)
+		}
 	}
 }

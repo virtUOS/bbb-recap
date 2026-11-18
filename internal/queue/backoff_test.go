@@ -67,7 +67,7 @@ func TestBackoff(t *testing.T) {
 func TestMaxAttempts(t *testing.T) {
 	want := map[string]int{
 		"validate": 3, "normalize": 3, "transcribe": 5, "assemble": 3,
-		"summarize": 5, "render": 3, "deliver": 10, "cleanup": 3,
+		"describe": 5, "summarize": 5, "render": 3, "deliver": 10, "cleanup": 3,
 	}
 	for _, s := range Steps {
 		if got := MaxAttempts(s); got != want[s] {

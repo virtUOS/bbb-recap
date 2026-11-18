@@ -53,7 +53,7 @@ func f01Meeting(t *testing.T) *meeting.Meeting {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := normalize.Normalize(os.DirFS(validatetest.F01Dir), sel.Files)
+	m, err := normalize.Normalize(os.DirFS(validatetest.F01Dir), sel.Files, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/virtUOS/bbb-recap/internal/blob"
 	"github.com/virtUOS/bbb-recap/internal/meeting"
+	"github.com/virtUOS/bbb-recap/internal/metrics"
 	"github.com/virtUOS/bbb-recap/internal/queue"
 	"github.com/virtUOS/bbb-recap/internal/steps/validate"
 )
@@ -22,7 +23,14 @@ type Deps struct {
 	Pool  *pgxpool.Pool
 	Blobs blob.Store
 	Log   *slog.Logger
+	// SlideImageTypes are the meeting types that switch slide images on
+	// (inputs.slide_images: true, templates.md §1, §3.2); only their jobs
+	// get images (ADR-017, D10).
+	SlideImageTypes map[string]bool
 }
+
+// Step is the step name.
+const Step = "normalize"
 
 // Handler returns the normalize step handler. It stores the normalized
 // meeting as a blob under its own hash; a repeat writes the same bytes to
@@ -53,9 +61,27 @@ func (d Deps) run(ctx context.Context, jobID string) (meeting.Output, error) {
 	if err != nil {
 		return meeting.Output{}, err
 	}
-	m, err := Normalize(j.FS(ctx, d.Blobs), j.Files)
+	var meetingType *string
+	if err := d.Pool.QueryRow(ctx, `SELECT meeting_type FROM jobs WHERE job_id = $1`, jobID).
+		Scan(&meetingType); err != nil {
+		return meeting.Output{}, err
+	}
+	var img *Images
+	if meetingType != nil && d.SlideImageTypes[*meetingType] {
+		img = &Images{
+			Store: func(key string, png []byte) error {
+				return d.Blobs.Put(ctx, jobID, key, int64(len(png)), bytes.NewReader(png))
+			},
+			Fallback: func(reason string) { metrics.SlideImageFallback(Step, reason) },
+		}
+	}
+	m, err := Normalize(j.FS(ctx, d.Blobs), j.Files, img)
 	if err != nil {
 		return meeting.Output{}, err
+	}
+	if img != nil {
+		d.Log.Info("normalize: slide images", "job_id", jobID, "render_attempts", img.Attempts,
+			"images", img.Stored)
 	}
 	data, err := meeting.Marshal(m)
 	if err != nil {

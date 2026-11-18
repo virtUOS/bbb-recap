@@ -87,7 +87,7 @@ func normalizeDir(t *testing.T, dir string) (*meeting.Meeting, []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := Normalize(os.DirFS(dir), sel.Files)
+	m, err := Normalize(os.DirFS(dir), sel.Files, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestNormalizeNoRecordingStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Normalize(os.DirFS(dir), sel.Files); !errors.Is(err, ErrEvents) {
+	if _, err := Normalize(os.DirFS(dir), sel.Files, nil); !errors.Is(err, ErrEvents) {
 		t.Fatalf("err = %v, want ErrEvents", err)
 	}
 }
@@ -300,8 +300,8 @@ func TestNotesMediaType(t *testing.T) {
 // them; roles are the neutral ones.
 func TestTrackMediaTypeAndKind(t *testing.T) {
 	m, b := normalizeDir(t, caseDir(t, "F-01"))
-	if m.Version != 4 {
-		t.Errorf("version %d, want 4", m.Version)
+	if m.Version != 5 {
+		t.Errorf("version %d, want 5", m.Version)
 	}
 	for _, tr := range m.Tracks {
 		if tr.MediaType != "audio/webm" || tr.Kind != "microphone" {

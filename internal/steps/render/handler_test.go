@@ -149,7 +149,7 @@ func TestHandlerF01(t *testing.T) {
 			if err := json.Unmarshal(r.Output, &out); err != nil {
 				t.Fatal(err)
 			}
-			if out.FormatID != "meeting-summary" || out.FormatVersion != "1.1.0" || len(out.FormatSHA256) != 64 ||
+			if out.FormatID != "meeting-summary" || out.FormatVersion != "1.2.0" || len(out.FormatSHA256) != 64 ||
 				out.Language != c.lang {
 				t.Errorf("output %+v", out)
 			}
