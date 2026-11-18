@@ -20,15 +20,18 @@
 //     cancelled: a second normalize run with images in the same worker waits
 //     for the first one (its lease is kept by the heartbeat meanwhile). The
 //     PDF is passed as bytes and the WebAssembly module sees no filesystem.
-//     Its linear memory is capped at MemoryLimit and reserved once, grown in
-//     place (alloc_linux.go), so the process holds at most the cap plus the
-//     renderer's own overhead; opening a document is capped at OpenTimeout
+//     Its linear memory is capped at MemoryLimit and, on Linux, reserved
+//     once and grown in place (alloc_linux.go), so the process holds at
+//     most the cap plus the renderer's own overhead (elsewhere the
+//     runtime's default allocator is used and memory is not bounded this
+//     way); opening a document is capped at OpenTimeout
 //     and rendering a page at PageTimeout. A limit hit, a trap or any other
 //     failure inside the module discards the instance (ErrLimit); the next
 //     document gets a new one. An error PDFium reports for one page
 //     (ErrPageFailed) costs only that page.
 //
-// Nothing here logs; callers log codes and sizes only.
+// Nothing here logs content; the only log line is a warning when the
+// memory cannot be reserved (SetLogger).
 package slideimage
 
 import (
@@ -42,6 +45,7 @@ import (
 	_ "image/jpeg" // upload decoder
 	"image/png"
 	"io"
+	"log/slog"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -93,6 +97,18 @@ var (
 	ErrTooLarge   = errors.New("slideimage: image over the pixel limit")
 	ErrDecode     = errors.New("slideimage: image does not decode")
 )
+
+// logger receives the package's few warnings; nil: none are logged.
+var logger *slog.Logger
+
+// SetLogger sets the logger of the package's warnings (codes only).
+func SetLogger(l *slog.Logger) { logger = l }
+
+func warn(msg string, args ...any) {
+	if logger != nil {
+		logger.Warn(msg, args...)
+	}
+}
 
 // processLock makes one Renderer at a time per process (§3.2 item 4).
 var processLock sync.Mutex
@@ -189,11 +205,12 @@ func (r *Renderer) start() error {
 			return fmt.Errorf("%w: start: %v", ErrLimit, err)
 		}
 		r.pool = pool
-		// Compiling the module leaves a few hundred MB of garbage on the Go
-		// heap; returning it now keeps it from adding to the peak of the
-		// render run (measured on F-14: about 330 MB instead of up to 535 MB).
-		debug.FreeOSMemory()
 	}
+	// Compiling the module, and decoding an upload, leave a few hundred MB
+	// of garbage on the Go heap. Returning it before every new instance keeps
+	// it from adding to the instance's memory (measured: an upload decode
+	// before a render peaked at about 1.1 GB without this).
+	debug.FreeOSMemory()
 	inst, err := r.pool.GetInstance(startTimeout)
 	if err != nil {
 		return fmt.Errorf("%w: instance: %v", ErrLimit, err)
@@ -235,11 +252,18 @@ func within[T any](r *Renderer, limit time.Duration, f func() (T, error)) (T, er
 		}
 		return res.v, res.err
 	case <-t.C:
+		// The memory freed by the kill is held back until the call has
+		// returned: a call that outlives killGrace may still write into it,
+		// so it is never reused (alloc_linux.go).
+		holdFrees()
 		r.kill()
+		returned := false
 		select {
 		case <-done: // the call returned after its module was closed
+			returned = true
 		case <-time.After(killGrace):
 		}
+		releaseFrees(returned)
 		return zero, fmt.Errorf("%w: time limit", ErrLimit)
 	}
 }

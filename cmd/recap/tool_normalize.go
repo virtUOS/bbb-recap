@@ -11,6 +11,7 @@ import (
 	"github.com/virtUOS/bbb-recap/internal/logging"
 	"github.com/virtUOS/bbb-recap/internal/manifest"
 	"github.com/virtUOS/bbb-recap/internal/meeting"
+	"github.com/virtUOS/bbb-recap/internal/slideimage"
 	"github.com/virtUOS/bbb-recap/internal/steps/normalize"
 	"github.com/virtUOS/bbb-recap/internal/steps/validate"
 )
@@ -49,6 +50,7 @@ func toolNormalize(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	log := logging.New(stderr, level)
+	slideimage.SetLogger(log)
 
 	out, err := normalizeDir(args[0], images, log)
 	if err != nil {

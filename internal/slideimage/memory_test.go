@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"testing"
@@ -85,13 +88,23 @@ func rawPDF(objs []string) []byte {
 	return b.Bytes()
 }
 
+// skipOrFail skips a measurement that cannot run here; with CI set it
+// fails instead, so a CI run never passes without measuring.
+func skipOrFail(t *testing.T, format string, args ...any) {
+	t.Helper()
+	if os.Getenv("CI") != "" {
+		t.Fatalf(format, args...)
+	}
+	t.Skipf(format, args...)
+}
+
 // peakRSS returns the process's peak resident set size (VmHWM) in bytes,
 // after resetPeak the peak since then.
 func peakRSS(t *testing.T) int64 {
 	t.Helper()
 	b, err := os.ReadFile("/proc/self/status")
 	if err != nil {
-		t.Skip("no /proc/self/status")
+		skipOrFail(t, "no /proc/self/status: %v", err)
 	}
 	for _, l := range strings.Split(string(b), "\n") {
 		if v, ok := strings.CutPrefix(l, "VmHWM:"); ok {
@@ -99,15 +112,44 @@ func peakRSS(t *testing.T) int64 {
 			return kb << 10
 		}
 	}
-	t.Skip("no VmHWM")
+	skipOrFail(t, "no VmHWM in /proc/self/status")
 	return 0
 }
 
+// resetPeak returns the free Go heap to the OS and resets VmHWM to the
+// current RSS.
 func resetPeak(t *testing.T) {
 	t.Helper()
-	runtime.GC()
+	debug.FreeOSMemory()
 	if err := os.WriteFile("/proc/self/clear_refs", []byte("5"), 0); err != nil {
-		t.Skipf("cannot reset the peak RSS: %v", err)
+		skipOrFail(t, "cannot reset the peak RSS: %v", err)
+	}
+}
+
+// minGrowth is the least growth of the peak RSS that shows the page reached
+// the memory cap, not the time limit (a slow runner).
+const minGrowth = 400 << 20
+
+// checkLimitHit renders the nested-form page on r and checks ErrLimit and
+// the bound on the growth of the peak RSS since base.
+func checkLimitHit(t *testing.T, r *Renderer, base int64, what string) {
+	t.Helper()
+	if _, err := r.OpenPDF(nestedFormsPDF(5, 30)); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	_, err := r.RenderPage(1)
+	peak := peakRSS(t)
+	grow := peak - base
+	t.Logf("%s: limit hit %v; peak RSS %d MiB, %d MiB above the start", what, errors.Is(err, ErrLimit), peak>>20,
+		grow>>20)
+	if !errors.Is(err, ErrLimit) {
+		t.Errorf("err is not ErrLimit")
+	}
+	if grow > MemoryLimit+memoryOverhead {
+		t.Errorf("peak RSS grew by %d MiB, want at most %d MiB", grow>>20, (MemoryLimit+memoryOverhead)>>20)
+	}
+	if grow < minGrowth {
+		skipOrFail(t, "peak RSS grew by %d MiB only: the page hit the time limit before the memory cap", grow>>20)
 	}
 }
 
@@ -116,7 +158,10 @@ func resetPeak(t *testing.T) {
 // peak RSS stays bounded by the cap plus the renderer's own overhead.
 func TestMemoryLimit(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("peak RSS is measured on Linux")
+		t.Skip("the bound holds on Linux only (alloc_linux.go)")
+	}
+	if raceEnabled {
+		t.Skip("the race detector's shadow memory makes the peak RSS meaningless; the run without -race measures it")
 	}
 	r := New()
 	defer r.Close()
@@ -124,26 +169,47 @@ func TestMemoryLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	resetPeak(t)
-	base := peakRSS(t)
-	if _, err := r.OpenPDF(nestedFormsPDF(5, 30)); err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	_, err := r.RenderPage(1)
-	peak := peakRSS(t)
-	t.Logf("limit hit %v; peak RSS %d MiB, %d MiB above the RSS after compiling", errors.Is(err, ErrLimit), peak>>20,
-		(peak-base)>>20)
-	if !errors.Is(err, ErrLimit) {
-		t.Errorf("err is not ErrLimit")
-	}
-	if grow := peak - base; grow > MemoryLimit+memoryOverhead {
-		t.Errorf("peak RSS grew by %d MiB, want at most %d MiB", grow>>20, (MemoryLimit+memoryOverhead)>>20)
-	}
+	checkLimitHit(t, r, peakRSS(t), "nested forms")
 	if _, err := r.OpenPDF(f14File(t, chartDeck, "pdf")); err != nil {
 		t.Fatalf("next document: %v", err)
 	}
 	if _, err := r.RenderPage(1); err != nil {
 		t.Errorf("render with a new instance: %v", err)
 	}
+}
+
+// An upload decoded at the pixel limit before a page that hits the memory
+// cap: the decode's heap is returned before the new instance starts, so the
+// same bound holds (templates.md §3.2 item 4).
+func TestMemoryLimitAfterUpload(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the bound holds on Linux only (alloc_linux.go)")
+	}
+	if raceEnabled {
+		t.Skip("the race detector's shadow memory makes the peak RSS meaningless; the run without -race measures it")
+	}
+	// A 5000x5000 16-bit RGBA PNG (25 MP, the limit): the most decode memory.
+	img := image.NewRGBA64(image.Rect(0, 0, 5000, 5000))
+	for i := 0; i < len(img.Pix); i += 8 {
+		img.Pix[i+0], img.Pix[i+4], img.Pix[i+6], img.Pix[i+7] = byte(i>>8), byte(i>>16), 0xFF, 0xFF
+	}
+	var png16 bytes.Buffer
+	if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&png16, img); err != nil {
+		t.Fatal(err)
+	}
+	img = nil
+	r := New()
+	defer r.Close()
+	if _, err := r.OpenPDF(f14File(t, fourThree, "pdf")); err != nil { // compile the module first
+		t.Fatal(err)
+	}
+	resetPeak(t)
+	base := peakRSS(t)
+	if _, err := r.DecodeUpload(png16.Bytes()); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	t.Logf("upload: peak RSS %d MiB, %d MiB above the start", peakRSS(t)>>20, (peakRSS(t)-base)>>20)
+	checkLimitHit(t, r, base, "upload, then nested forms")
 }
 
 // An error PDFium reports for one page costs only that page: the instance
