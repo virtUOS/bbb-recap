@@ -7,11 +7,11 @@ ADR-002, ADR-007, ADR-009 to ADR-012 in [`../decisions/`](../decisions/). Step-b
 
 ## 1. Images
 
-| Image            | Contents                                                                                                                                                     | Used in                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `recap`          | one static Go binary (`CGO_ENABLED=0`) with embedded migrations and time zone data (`time/tzdata`, https://pkg.go.dev/time/tzdata), plus CA certificates     | compose, K8s                                |
-| `recap-mock`     | static binary: mock ASR (WhisperX dialect), mock LLM, mock Docs `create-for-owner`, answering from `fixtures.md` data                                        | dev overlay and CI; **never in production** |
-| `recap-exporter` | static binary of the exporter daemon and its admin CLI, plus CA certificates; no hook, no shell (`bbb-exporter.md` §8.5, §8.6). A Debian package comes later | BBB servers (compose, `deploy/exporter/`)   |
+| Image            | Contents                                                                                                                                                                                                      | Used in                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `recap`          | one static Go binary (`CGO_ENABLED=0`) with embedded migrations, time zone data (`time/tzdata`, https://pkg.go.dev/time/tzdata) and the slide renderer (PDFium as WebAssembly, ADR-017), plus CA certificates | compose, K8s                                |
+| `recap-mock`     | static binary: mock ASR (WhisperX dialect), mock LLM, mock Docs `create-for-owner`, answering from `fixtures.md` data                                                                                         | dev overlay and CI; **never in production** |
+| `recap-exporter` | static binary of the exporter daemon and its admin CLI, plus CA certificates; no hook, no shell (`bbb-exporter.md` §8.5, §8.6). A Debian package comes later                                                  | BBB servers (compose, `deploy/exporter/`)   |
 
 Rules for every image:
 
@@ -93,6 +93,14 @@ this section is the layout they follow.
 - NetworkPolicy: `api:8080` from the ingress only; `9090` from monitoring; `worker` egress to Postgres, S3, providers,
   Docs; `api` egress to Postgres, S3, IdP.
 - Requests: `api` 0.25 CPU / 256 MiB, `worker` 0.5 CPU / 512 MiB, limits 2× (estimates, `architecture.md` §10).
+- Slide images (ADR-017, `templates.md` §3.2): when a meeting type switches `slide_images` on, add 512 MiB to the
+  `worker` memory request and limit (compose: `mem_limit` if one is set). A render run holds up to about 300 MB
+  (measured on a synthetic deck; renderer cap 512 MiB), at most one per worker process at a time, and that memory is
+  returned only when the run ends. Decoding an image upload runs on the Go heap outside that cap and may hold up to
+  about 400 MB at the 25-megapixel limit (estimate); the 512 MiB cover it because an open renderer instance is closed
+  before an upload is decoded (`templates.md` §3.2). Both are measured on staging. Rendering needs no `/tmp` and no new
+  variable; the switch is the meeting-types file and the vision profile is `defaults.vision` in the providers file.
+  Estimates until measured on staging.
 
 ## 5. Configuration
 
@@ -155,7 +163,9 @@ this section is the layout they follow.
 | `RECAP_DEFAULT_LANGUAGE`         | `en`    | no       | output language when the transcript gives none                             |
 | `RECAP_ASR_LANGUAGE`             | empty   | no       | force the ASR decoding language (ISO 639-1); empty = auto-detect per track |
 
-Provider and sink credentials are files named in the profile YAML (`providers.md`, `sinks.md`): the Docs key
+Slide images (ADR-017) add no variable: they are switched on in the meeting-types file and use the vision profile of
+the providers file (`providers.md` §4.1). Provider and sink credentials are files named in the profile YAML
+(`providers.md`, `sinks.md`): the Docs key
 (`api_key_file`), the webhook signing secret (`signing_secret_file`), the Matrix bot's access token
 (`access_token_file`). No new variable comes with several sinks per meeting: the list is in the meta key, its limit (4)
 is a constant (ADR-016). `max_inflight` is a

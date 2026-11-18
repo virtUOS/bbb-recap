@@ -1,0 +1,3 @@
+Fixture Chart Deck
+Quarterly widget output
+Blue bars show the fixture plan

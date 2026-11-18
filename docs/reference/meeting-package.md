@@ -41,7 +41,9 @@ Sources:
 - `presentation/` is an rsync of `/var/bigbluebutton/<id>/<id>` (`archive.rb:247`). Validation and the manifest treat
   it as an opaque subtree. Only `normalize` looks inside, for the per-page text files
   `presentation/<pres-id>/textfiles/slide-<page>.txt` that BBB writes at upload
-  ([`upstream-facts.md`](upstream-facts.md) "BBB presentations", [`templates.md`](templates.md) §3.1).
+  ([`upstream-facts.md`](upstream-facts.md) "BBB presentations", [`templates.md`](templates.md) §3.1) and, for
+  meeting types with slide images, for the deck `presentation/<pres-id>/<pres-id>.pdf` or an uploaded image
+  (`templates.md` §3.2). The package format does not change.
 
 ## 3. Tar (not supported yet)
 
@@ -177,7 +179,8 @@ A re-export of an ingested record is refused (V-I06); new output comes from an a
   observed so far.
 - Not checked against the BBB source: the channel count of the microphone WebM files, the exact rendering of
   `AudioTrackPublishedEvent`, the encoding of `<meeting breakout>`, and the `events.xml` attributes used by V-S01.
-- The layout of `presentation/` (including `textfiles/`) is known from BBB's code, not from a real BBB 4.0 recording.
+- The layout of `presentation/` (including `textfiles/` and `<pres-id>.pdf`) is known from BBB's code and from one
+  uploaded deck on a staging install, not from a full check of real BBB 4.0 recordings.
 - The size limits (§8) are assumptions; realistic package and `presentation/` sizes were not measured.
 - Whether `notes/` attributes text to authors was not checked.
 - The package has no signature. A pull API would need one.

@@ -1,0 +1,1 @@
+Fixture default deck welcome text

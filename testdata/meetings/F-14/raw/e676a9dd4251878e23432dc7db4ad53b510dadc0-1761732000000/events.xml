@@ -1,0 +1,670 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC fixture F-14 (docs/reference/fixtures.md). Not a real meeting; all names are fictional. -->
+<recording meeting_id="e676a9dd4251878e23432dc7db4ad53b510dadc0-1761732000000" bbb_version="4.0.0">
+  <meeting id="e676a9dd4251878e23432dc7db4ad53b510dadc0-1761732000000" externalId="fixture-meeting-14" name="Fixture Widget Meeting" breakout="false"/>
+  <metadata bbb-origin="PILOS" isBreakout="false" meetingId="fixture-meeting-14" meetingName="Fixture Widget Meeting" recap-enabled="true" recap-sink="docs-main" recap-type="meeting-summary" recap-v="1"/>
+  <event timestamp="5000000" module="PARTICIPANT" eventname="ParticipantJoinEvent">
+    <timestampUTC>1761732000000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <externalUserId>u1</externalUserId>
+    <name>Ada Testperson</name>
+    <role>MODERATOR</role>
+    <date>2025-10-29T10:00:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5000300" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732000300</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>f4afe48751c62e37620c1d049acbb95a16d4c4dc-1761732000300</presentationName>
+    <originalFilename>default.pdf</originalFilename>
+    <date>2025-10-29T10:00:00.300Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5000301" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732000301</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>f4afe48751c62e37620c1d049acbb95a16d4c4dc-1761732000300</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:00.301Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5000302" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732000302</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>f4afe48751c62e37620c1d049acbb95a16d4c4dc-1761732000300</presentationName>
+    <id>f4afe48751c62e37620c1d049acbb95a16d4c4dc-1761732000300/1</id>
+    <slide>0</slide>
+    <date>2025-10-29T10:00:00.302Z</date>
+  </event>
+  <event timestamp="5001000" module="PARTICIPANT" eventname="ParticipantJoinEvent">
+    <timestampUTC>1761732001000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <externalUserId>u2</externalUserId>
+    <name>Ben Testperson</name>
+    <role>VIEWER</role>
+    <date>2025-10-29T10:00:01.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5002000" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732002000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>2769ac3225e7f1a516f640472ef2839a6689325d-1761732002000</presentationName>
+    <originalFilename>fixture-chart-deck.pptx</originalFilename>
+    <date>2025-10-29T10:00:02.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5002500" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732002500</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>bc6e11d67f11dba5376f0e2d3bfae087762ff8c4-1761732002500</presentationName>
+    <originalFilename>fixture-chart-deck-copy.pdf</originalFilename>
+    <date>2025-10-29T10:00:02.500Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5003000" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732003000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3fd0a17706e870d5cce7a92731d04afaf29ce2e0-1761732003000</presentationName>
+    <originalFilename>fixture-four-three.odp</originalFilename>
+    <date>2025-10-29T10:00:03.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5003500" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732003500</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>e2ead0d62e6dd234021338bda943df6a16a47260-1761732003500</presentationName>
+    <originalFilename>fixture-photo-upload.png</originalFilename>
+    <date>2025-10-29T10:00:03.500Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5004000" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732004000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>5f22c85787a24f8fbbbd52af5a483fb8b7e42400-1761732004000</presentationName>
+    <originalFilename>fixture-broken-deck.pdf</originalFilename>
+    <date>2025-10-29T10:00:04.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5004500" module="PRESENTATION" eventname="ConversionCompletedEvent">
+    <timestampUTC>1761732004500</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <originalFilename>fixture-long-deck.pdf</originalFilename>
+    <date>2025-10-29T10:00:04.500Z</date>
+  </event>
+  <event timestamp="5005000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732005000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>true</status>
+    <date>2025-10-29T10:00:05.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5005200" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732005200</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/e676a9dd4251878e23432dc7db4ad53b510dadc0-1761732000000/microphone-w_fixada0001-TR_fixA1-1761732005200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5005300" module="bbb-webrtc-sfu" eventname="AudioTrackPublishedEvent">
+    <timestampUTC>1761732005300</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/e676a9dd4251878e23432dc7db4ad53b510dadc0-1761732000000/microphone-w_fixben0002-TR_fixB1-1761732005300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5010000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732010000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>2769ac3225e7f1a516f640472ef2839a6689325d-1761732002000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:10.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5020000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732020000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>2769ac3225e7f1a516f640472ef2839a6689325d-1761732002000</presentationName>
+    <id>2769ac3225e7f1a516f640472ef2839a6689325d-1761732002000/2</id>
+    <slide>1</slide>
+    <date>2025-10-29T10:00:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5030000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732030000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>2769ac3225e7f1a516f640472ef2839a6689325d-1761732002000</presentationName>
+    <id>2769ac3225e7f1a516f640472ef2839a6689325d-1761732002000/3</id>
+    <slide>2</slide>
+    <date>2025-10-29T10:00:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5040000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732040000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>bc6e11d67f11dba5376f0e2d3bfae087762ff8c4-1761732002500</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:40.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5050000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732050000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>3fd0a17706e870d5cce7a92731d04afaf29ce2e0-1761732003000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:00:50.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5060000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732060000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/e676a9dd4251878e23432dc7db4ad53b510dadc0-1761732000000/microphone-w_fixada0001-TR_fixA1-1761732005200.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (child order, no <date> for SFU events) -->
+  <event timestamp="5060000" module="bbb-webrtc-sfu" eventname="AudioTrackUnpublishedEvent">
+    <timestampUTC>1761732060000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <filename>/var/lib/bbb-webrtc-recorder/audio/e676a9dd4251878e23432dc7db4ad53b510dadc0-1761732000000/microphone-w_fixben0002-TR_fixB1-1761732005300.webm</filename>
+    <source>microphone</source>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5060000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732060000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>e2ead0d62e6dd234021338bda943df6a16a47260-1761732003500</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:01:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5070000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732070000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>5f22c85787a24f8fbbbd52af5a483fb8b7e42400-1761732004000</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:01:10.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5080000" module="PRESENTATION" eventname="SharePresentationEvent">
+    <timestampUTC>1761732080000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <share>true</share>
+    <date>2025-10-29T10:01:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5085000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732085000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/2</id>
+    <slide>1</slide>
+    <date>2025-10-29T10:01:25.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5090000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732090000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/3</id>
+    <slide>2</slide>
+    <date>2025-10-29T10:01:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5095000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732095000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/4</id>
+    <slide>3</slide>
+    <date>2025-10-29T10:01:35.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5100000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732100000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/5</id>
+    <slide>4</slide>
+    <date>2025-10-29T10:01:40.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5105000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732105000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/6</id>
+    <slide>5</slide>
+    <date>2025-10-29T10:01:45.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5110000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732110000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/7</id>
+    <slide>6</slide>
+    <date>2025-10-29T10:01:50.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5115000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732115000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/8</id>
+    <slide>7</slide>
+    <date>2025-10-29T10:01:55.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5120000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732120000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/9</id>
+    <slide>8</slide>
+    <date>2025-10-29T10:02:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5125000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732125000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/10</id>
+    <slide>9</slide>
+    <date>2025-10-29T10:02:05.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5130000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732130000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/11</id>
+    <slide>10</slide>
+    <date>2025-10-29T10:02:10.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5135000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732135000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/12</id>
+    <slide>11</slide>
+    <date>2025-10-29T10:02:15.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5140000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732140000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/13</id>
+    <slide>12</slide>
+    <date>2025-10-29T10:02:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5145000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732145000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/14</id>
+    <slide>13</slide>
+    <date>2025-10-29T10:02:25.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5150000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732150000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/15</id>
+    <slide>14</slide>
+    <date>2025-10-29T10:02:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5155000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732155000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/16</id>
+    <slide>15</slide>
+    <date>2025-10-29T10:02:35.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5160000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732160000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/17</id>
+    <slide>16</slide>
+    <date>2025-10-29T10:02:40.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5165000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732165000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/18</id>
+    <slide>17</slide>
+    <date>2025-10-29T10:02:45.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5170000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732170000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/19</id>
+    <slide>18</slide>
+    <date>2025-10-29T10:02:50.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5175000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732175000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/20</id>
+    <slide>19</slide>
+    <date>2025-10-29T10:02:55.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5180000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732180000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/21</id>
+    <slide>20</slide>
+    <date>2025-10-29T10:03:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5185000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732185000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/22</id>
+    <slide>21</slide>
+    <date>2025-10-29T10:03:05.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5190000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732190000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/23</id>
+    <slide>22</slide>
+    <date>2025-10-29T10:03:10.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5195000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732195000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/24</id>
+    <slide>23</slide>
+    <date>2025-10-29T10:03:15.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5200000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732200000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/25</id>
+    <slide>24</slide>
+    <date>2025-10-29T10:03:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5205000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732205000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/26</id>
+    <slide>25</slide>
+    <date>2025-10-29T10:03:25.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5210000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732210000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/27</id>
+    <slide>26</slide>
+    <date>2025-10-29T10:03:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5215000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732215000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/28</id>
+    <slide>27</slide>
+    <date>2025-10-29T10:03:35.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5220000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732220000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/29</id>
+    <slide>28</slide>
+    <date>2025-10-29T10:03:40.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5225000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732225000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/30</id>
+    <slide>29</slide>
+    <date>2025-10-29T10:03:45.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5230000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732230000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/31</id>
+    <slide>30</slide>
+    <date>2025-10-29T10:03:50.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5235000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732235000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/32</id>
+    <slide>31</slide>
+    <date>2025-10-29T10:03:55.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5240000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732240000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/33</id>
+    <slide>32</slide>
+    <date>2025-10-29T10:04:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5245000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732245000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/34</id>
+    <slide>33</slide>
+    <date>2025-10-29T10:04:05.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5250000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732250000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/35</id>
+    <slide>34</slide>
+    <date>2025-10-29T10:04:10.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5255000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732255000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/36</id>
+    <slide>35</slide>
+    <date>2025-10-29T10:04:15.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5260000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732260000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/37</id>
+    <slide>36</slide>
+    <date>2025-10-29T10:04:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5265000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732265000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/38</id>
+    <slide>37</slide>
+    <date>2025-10-29T10:04:25.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5270000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732270000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/39</id>
+    <slide>38</slide>
+    <date>2025-10-29T10:04:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5275000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732275000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/40</id>
+    <slide>39</slide>
+    <date>2025-10-29T10:04:35.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5280000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732280000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/41</id>
+    <slide>40</slide>
+    <date>2025-10-29T10:04:40.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5285000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732285000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/42</id>
+    <slide>41</slide>
+    <date>2025-10-29T10:04:45.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5290000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732290000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/43</id>
+    <slide>42</slide>
+    <date>2025-10-29T10:04:50.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5295000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732295000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/44</id>
+    <slide>43</slide>
+    <date>2025-10-29T10:04:55.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5300000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732300000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/45</id>
+    <slide>44</slide>
+    <date>2025-10-29T10:05:00.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5305000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732305000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/46</id>
+    <slide>45</slide>
+    <date>2025-10-29T10:05:05.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5310000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732310000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/47</id>
+    <slide>46</slide>
+    <date>2025-10-29T10:05:10.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5315000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732315000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/48</id>
+    <slide>47</slide>
+    <date>2025-10-29T10:05:15.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5320000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732320000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/49</id>
+    <slide>48</slide>
+    <date>2025-10-29T10:05:20.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5325000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732325000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/50</id>
+    <slide>49</slide>
+    <date>2025-10-29T10:05:25.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5330000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732330000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/51</id>
+    <slide>50</slide>
+    <date>2025-10-29T10:05:30.000Z</date>
+  </event>
+  <!-- SYNTHETIC: shape not checked against a real recording (presentation event child order) -->
+  <event timestamp="5335000" module="PRESENTATION" eventname="GotoSlideEvent">
+    <timestampUTC>1761732335000</timestampUTC>
+    <podId>DEFAULT_PRESENTATION_POD</podId>
+    <presentationName>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500</presentationName>
+    <id>dd3b952b8fcb79c609c9eb1ab6936f860ba34bd1-1761732004500/52</id>
+    <slide>51</slide>
+    <date>2025-10-29T10:05:35.000Z</date>
+  </event>
+  <event timestamp="5400000" module="PARTICIPANT" eventname="RecordStatusEvent">
+    <timestampUTC>1761732400000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <status>false</status>
+    <date>2025-10-29T10:06:40.000Z</date>
+  </event>
+  <event timestamp="5405000" module="PARTICIPANT" eventname="ParticipantLeftEvent">
+    <timestampUTC>1761732405000</timestampUTC>
+    <userId>w_fixada0001</userId>
+    <date>2025-10-29T10:06:45.000Z</date>
+  </event>
+  <event timestamp="5405000" module="PARTICIPANT" eventname="ParticipantLeftEvent">
+    <timestampUTC>1761732405000</timestampUTC>
+    <userId>w_fixben0002</userId>
+    <date>2025-10-29T10:06:45.000Z</date>
+  </event>
+</recording>

@@ -10,6 +10,7 @@ It writes, deterministically:
   - testdata/render/{F-01,gap}/summary.md, F-01/summary.de.md  (templates.md §5)
   - testdata/render/{F-01,gap,mapping}/transcript.vtt          (templates.md §6)
   - testdata/render/llm/{summary.v1,chunk-notes.v1}/*.json      (templates.md §4, CT-TPL-01)
+  - testdata/render/llm/slide-description.v1/*.json             (templates.md §3.2, CT-TPL-19)
 and checks that F-01/transcript.vtt equals the hand-written golden in docs/reference/fixtures.md §7.1, that every
 transcript input validates against docs/reference/schemas/transcript.schema.json, and that every LLM reply fixture is
 valid or invalid exactly as its file name says, against reference schemas written from templates.md §4.
@@ -323,6 +324,8 @@ def reference_schema(head, head_max, caps):
 SCHEMAS = {
     "summary.v1": reference_schema("overview", 2000, (12, 50, 50, 30)),
     "chunk-notes.v1": reference_schema("chunk_summary", 1500, (6, 25, 25, 15)),  # "each array capped at half"
+    # templates.md §3.2: required strings text (at most 2 000) and visual (at most 1 000), both may be empty.
+    "slide-description.v1": obj({"text": text(2000, 0), "visual": text(1000, 0)}, ["text", "visual"]),
 }
 
 
@@ -397,6 +400,21 @@ def llm_fixtures():
     c["invalid.action-items-too-many"] = mut(base_chunk, lambda d: d.update(action_items=[{"task": "a"}] * 26))
     c["invalid.open-questions-too-many"] = mut(base_chunk, lambda d: d.update(open_questions=[{"text": "q"}] * 16))
     c["invalid.topic-extra-field"] = mut(base_chunk, lambda d: d["topics"][0].update(speaker="Ben Testperson"))
+
+    base_slide = {"text": "Fixture Chart Title\nQ1 40\nQ2 75",
+                  "visual": "A bar chart with two blue bars; the second bar is taller."}
+    d = out["slide-description.v1"] = {}
+    d["valid.base"] = base_slide
+    d["valid.empty"] = {"text": "", "visual": ""}
+    d["valid.limits"] = {"text": "t" * 2000, "visual": "v" * 1000}
+    d["invalid.not-an-object"] = [base_slide]
+    d["invalid.missing-text"] = mut(base_slide, lambda x: x.pop("text"))
+    d["invalid.missing-visual"] = mut(base_slide, lambda x: x.pop("visual"))
+    d["invalid.text-too-long"] = mut(base_slide, lambda x: x.update(text="t" * 2001))
+    d["invalid.visual-too-long"] = mut(base_slide, lambda x: x.update(visual="v" * 1001))
+    d["invalid.text-not-string"] = mut(base_slide, lambda x: x.update(text=["Fixture Chart Title"]))
+    d["invalid.extra-field"] = mut(base_slide, lambda x: x.update(people=["Ada Testperson"]))
+    d["invalid.summary-v1-reply"] = f01
     return out
 
 

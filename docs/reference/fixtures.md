@@ -33,21 +33,22 @@ fixtures carry `recap-v=1`, `recap-enabled=true`, `recap-type=meeting-summary`, 
 type `meeting-summary`, sink profile `docs-main` (`https://docs.recap.test`), providers `whisperx-lab`, `vllm-lab`
 (`providers.md` §4.1), `RECAP_DEFAULT_LANGUAGE=en`, `RECAP_DISPLAY_TZ=UTC`.
 
-| ID   | Name                  | Purpose                                                                          | Expected outcome                                                                                |
-| ---- | --------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| F-01 | `two-speakers-pause`  | happy path, all content types                                                    | spooled; golden manifest; acked; job `delivered` with mocked providers and sink                 |
-| F-02 | `legacy-freeswitch`   | non-LiveKit (ADR-001)                                                            | exporter `failed/unsupported_audio_bridge`; fed directly: job `failed/unsupported_audio_bridge` |
-| F-03 | `no-optin`            | no `recap-*` keys                                                                | no spool entry, `not_opted_in`                                                                  |
-| F-04 | `invalid-type`        | `recap-type=no-such-type`                                                        | acked; job `held/unknown_type`                                                                  |
-| F-05 | `optin-invalid-value` | `recap-enabled=yes`                                                              | no spool entry, `not_opted_in` (also F-11)                                                      |
-| F-06 | `invalid-metadata`    | `recap-sink` missing                                                             | job `held/invalid_metadata`                                                                     |
-| F-07 | `no-registration`     | F-01 raw dir, no registration                                                    | job `held/no_registration`                                                                      |
-| F-08 | `breakout`            | breakout room inheriting the opt-in                                              | no spool entry, `breakout_skipped`                                                              |
-| F-09 | `oversize`            | F-01 plus a sparse 3 GiB `presentation/` file made at test time                  | exporter `failed/limit_exceeded`                                                                |
-| F-10 | `livekit-no-mic`      | opted in, no published microphone (no `audio/` dir: git cannot store empty dirs) | exporter `failed/no_microphone_tracks`                                                          |
-| F-11 | `optin-false`         | `recap-enabled=false`                                                            | as F-05                                                                                         |
-| F-12 | `no-marks`            | opted in, `record=true`, no `RecordStatusEvent`                                  | hook WARN `no_marks`, no spool entry (`bbb-exporter.md` §3.3)                                   |
-| F-13 | `slides`              | F-01's periods and audio plus five decks with `textfiles/` (§3.2)                | `normalize` gives the golden `slides[]` (`templates.md` §3.1); job `delivered`                  |
+| ID   | Name                  | Purpose                                                                                  | Expected outcome                                                                                                  |
+| ---- | --------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| F-01 | `two-speakers-pause`  | happy path, all content types                                                            | spooled; golden manifest; acked; job `delivered` with mocked providers and sink                                   |
+| F-02 | `legacy-freeswitch`   | non-LiveKit (ADR-001)                                                                    | exporter `failed/unsupported_audio_bridge`; fed directly: job `failed/unsupported_audio_bridge`                   |
+| F-03 | `no-optin`            | no `recap-*` keys                                                                        | no spool entry, `not_opted_in`                                                                                    |
+| F-04 | `invalid-type`        | `recap-type=no-such-type`                                                                | acked; job `held/unknown_type`                                                                                    |
+| F-05 | `optin-invalid-value` | `recap-enabled=yes`                                                                      | no spool entry, `not_opted_in` (also F-11)                                                                        |
+| F-06 | `invalid-metadata`    | `recap-sink` missing                                                                     | job `held/invalid_metadata`                                                                                       |
+| F-07 | `no-registration`     | F-01 raw dir, no registration                                                            | job `held/no_registration`                                                                                        |
+| F-08 | `breakout`            | breakout room inheriting the opt-in                                                      | no spool entry, `breakout_skipped`                                                                                |
+| F-09 | `oversize`            | F-01 plus a sparse 3 GiB `presentation/` file made at test time                          | exporter `failed/limit_exceeded`                                                                                  |
+| F-10 | `livekit-no-mic`      | opted in, no published microphone (no `audio/` dir: git cannot store empty dirs)         | exporter `failed/no_microphone_tracks`                                                                            |
+| F-11 | `optin-false`         | `recap-enabled=false`                                                                    | as F-05                                                                                                           |
+| F-12 | `no-marks`            | opted in, `record=true`, no `RecordStatusEvent`                                          | hook WARN `no_marks`, no spool entry (`bbb-exporter.md` §3.3)                                                     |
+| F-13 | `slides`              | F-01's periods and audio plus five decks with `textfiles/` (§3.2)                        | `normalize` gives the golden `slides[]` (`templates.md` §3.1); job `delivered`                                    |
+| F-14 | `slide-images`        | one long period, F-01's period-1 audio, seven decks with PDFs and an image upload (§3.3) | `normalize` with images on gives the expected `slides[]`, images and sizes (`templates.md` §3.2); job `delivered` |
 
 ### 3.1 F-01 `two-speakers-pause`
 
@@ -118,6 +119,32 @@ removed deck were shared before it. Golden: `testdata/meetings/F-13/expected/sli
 generator from this table. F-13 has no package golden (`manifest.json`); its slide behaviour is tested at
 raw-directory level with `recap tool normalize`.
 
+### 3.3 F-14 `slide-images`
+
+F-01's participants and period-1 microphone files (byte-identical copies), one recording period 5 000–400 000, no
+chat, poll or notes, and seven decks in the default pod, all generated by `tools/fixturegen/fixturegen.py` (Python
+standard library only: the PDFs and the PNG are written byte by byte, so they are deterministic and contain only
+invented content). PDF pages are 960×540 pt (16:9) or 720×540 pt (4:3).
+
+| Offset         | Event                                                                                          | Expected with images on (`templates.md` §3.2)                             |
+| -------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 300            | default deck converted and shared                                                              | skipped                                                                   |
+| 10 000         | chart deck shared, page 1 (three text lines)                                                   | `d-1`/1, image 1280×720                                                   |
+| 20 000         | page 2: only a 320×180 chart image with a soft mask (opaque blue bars, transparent black rest) | `d-1`/2, empty text (BBB placeholder), image with white where transparent |
+| 30 000         | page 3: same content as page 1                                                                 | `d-1`/3, the same image as page 1                                         |
+| 40 000         | a byte-identical copy of the chart deck (own presentation ID) shared                           | `d-2`/1, the same image as `d-1`/1, no new render                         |
+| 50 000         | 4:3 deck shared, page 1 (page 2 never shown)                                                   | `d-3`/1, image 1280×960                                                   |
+| 60 000         | PNG upload (400×200 RGBA, left half transparent) shared                                        | `d-4`/1, empty text, image 400×200 (never scaled up)                      |
+| 70 000         | deck whose PDF does not parse shared                                                           | `d-5`/1, text kept, no image                                              |
+| 80 000–335 000 | 52-page deck, a new page every 5 s; page 52 until the end of the period                        | `d-6`/1–52: pages 1–44 get images (render attempts 7–50), 45–52 only text |
+
+With images off the image-only and upload slides give nothing, so the deck refs differ (`d-4` is the broken deck,
+`d-5` the long one). Expected: `testdata/meetings/F-14/expected/slide-images.json` (`images_on.slides` with image
+labels `i-<n>` for equal image bytes, `images_on.images` with each label's size, `images_off.slides`,
+`render_attempts`, and sample `pixels` with their colour), written by hand in the generator from this table. Rendered
+PNG bytes are not pinned: they depend on the renderer and Go versions (`templates.md` §3.2). F-14 has no package
+golden; it is tested at raw-directory level with `recap tool normalize`.
+
 ## 4. Synthetic audio
 
 - **Speech: eSpeak NG**: formant synthesis from rules, no recordings of people, offline, deterministic; two built-in
@@ -178,6 +205,8 @@ M-03…M-06 are also committed as `testdata/manifests/invalid/*.json`.
 | `testdata/render/F-01/…` (`summary.json` mock LLM reply, `summary.md`, `transcript.vtt`, `de` and gap variants) | CT-TPL-02, CT-TPL-08…10            |
 | `ingest/exchanges/*.json`                                                                                       | CT-EXP-04                          |
 | `meetings/F-13/expected/slides.json`                                                                            | CT-TPL-12                          |
+| `meetings/F-14/expected/slide-images.json`                                                                      | CT-TPL-16, CT-TPL-17, CT-TPL-18    |
+| `render/llm/slide-description.v1/*.json`                                                                        | CT-TPL-19                          |
 
 Notes: F-02 has no manifest (no microphone WebM); it is tested at raw-directory level only
 (`recap tool validate-package`). Golden manifests assume exporter version `0.0.0-fixture` and `created_at`

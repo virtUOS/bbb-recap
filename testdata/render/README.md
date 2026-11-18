@@ -28,7 +28,8 @@ The transcript inputs here are independent; they do not depend on `testdata/tran
   `python3 -B -P testdata/render/make_goldens.py` (`-P`, not `-I`: `jsonschema` is a user package here). Output is
   deterministic. The script also checks that `F-01/transcript.vtt` equals fixtures.md §7.1 byte for byte, that the
   transcripts validate against `docs/reference/schemas/transcript.schema.json`, and that every `llm/` file is valid or
-  invalid as its name says against reference schemas written from templates.md §4.
+  invalid as its name says against reference schemas written from templates.md §4 (and §3.2 for
+  `slide-description.v1`).
 - Every golden was also checked by hand against templates.md §5.4 and §6.
 
 ## Files
@@ -41,6 +42,7 @@ The transcript inputs here are independent; they do not depend on `testdata/tran
 | `gap/summary.md`, `gap/summary.de.md`, `gap/transcript.vtt` | gap notice, "None recorded." sections, no polls; gap NOTE before the first cue |
 | `mapping/transcript.vtt` | mapping cases above |
 | `llm/summary.v1/`, `llm/chunk-notes.v1/` | `valid.<case>.json` / `invalid.<case>.json` LLM replies |
+| `llm/slide-description.v1/` | `valid.<case>.json` / `invalid.<case>.json` vision replies (templates.md §3.2; reference schema in `make_goldens.py`) |
 
 ## Layout details
 
