@@ -65,14 +65,14 @@ On the recap host, as a user who may run docker:
 
 All files live in `/opt/recap`.
 
-| File                        | Content                                                                                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `compose.yaml`              | the four services; take it unchanged from the release                                                                                                  |
-| `.env`                      | every setting, one comment each; empty means the default                                                                                               |
-| `config/providers.yaml`     | ASR and LLM endpoints ([providers.md](../reference/providers.md) §4.1)                                                                                 |
-| `config/sinks.yaml`         | where summaries go: Docs or the front end ([sinks.md](../reference/sinks.md))                                                                          |
-| `config/meeting-types.yaml` | meeting type to output format; slides go to the LLM only for a type with `inputs: {slides: true}` ([templates.md](../reference/templates.md) §1, §3.1) |
-| `secrets/`                  | one file per secret, see below                                                                                                                         |
+| File                        | Content                                                                                                                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compose.yaml`              | the four services; take it unchanged from the release                                                                                                                                                                        |
+| `.env`                      | every setting, one comment each; empty means the default                                                                                                                                                                     |
+| `config/providers.yaml`     | ASR and LLM endpoints ([providers.md](../reference/providers.md) §4.1)                                                                                                                                                       |
+| `config/sinks.yaml`         | where summaries go: Docs or the front end ([sinks.md](../reference/sinks.md))                                                                                                                                                |
+| `config/meeting-types.yaml` | meeting type to output format; slides go to the LLM only for a type with `inputs: {slides: true}` ([templates.md](../reference/templates.md) §1, §3.1), slide images only with `slide_images: true` ([below](#slide-images)) |
+| `secrets/`                  | one file per secret, see below                                                                                                                                                                                               |
 
 | Secret file                                | Content                                     | Needed                            |
 | ------------------------------------------ | ------------------------------------------- | --------------------------------- |
@@ -132,6 +132,28 @@ servers: list each pair, e.g. `RECAP_FRONTEND_SERVERS=pilos-a:bbb-a,moodle-b:bbb
   `sinks.yaml` ([metadata-interface.md](../reference/metadata-interface.md)).
 - **Rotate a token:** write the new value to `<file>.next`, recreate `api`, switch the client over, then rename
   `<file>.next` to `<file>` and recreate `api` again.
+
+### Slide images
+
+Off by default. A meeting type with `inputs: { slides: true, slide_images: true }` sends a PNG image of each slide
+shown during the recording to a vision model, and its description replaces the slide's text in the summary input
+([templates.md](../reference/templates.md) §3.2). To switch it on:
+
+1. Name the vision profile in `config/providers.yaml`: `defaults.vision`, an `openai-chat` profile of a model that
+   accepts images (it may be the LLM profile itself), with `slide_images` in its declaration's `data_categories`
+   (`schema_version: "1.1.0"`).
+2. Set the inputs of the meeting type in `config/meeting-types.yaml` (`schema_version: "1.2.0"`).
+3. Give `worker` 512 MiB more memory if you set a limit (rendering holds up to about 300 MB per worker process,
+   [deployment.md](../reference/deployment.md) §4), then run `check-config` and recreate `api` and `worker`.
+4. **Consent text:** the slides now reach the AI provider as images, which can show more than their text (faces,
+   handwriting, screenshots with names or e-mail). Make sure the front end's consent and recording notice for this
+   meeting type says so, for example "The slides shown during the recording are sent **as images** to the AI service
+   that writes the summary." A notice that mentions only slide text does not cover images
+   ([privacy.md](../reference/privacy.md) §12).
+
+The limits (image size, render attempts, timeouts) are provisional until measured with real decks and models. A
+vision model that rejects images (for example a text-only model) shows up only as fallbacks to the slide text:
+watch `recap_slide_image_fallbacks_total`.
 
 ### Admin UI with Keycloak
 

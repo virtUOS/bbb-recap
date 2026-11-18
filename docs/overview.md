@@ -136,19 +136,20 @@ its claim expires and another worker picks the step up again. Every step can saf
 
 ```mermaid
 flowchart LR
-  V[validate] --> N[normalize] --> T[transcribe] --> A[assemble] --> S[summarize] --> R[render] --> DL[deliver] --> C[cleanup]
+  V[validate] --> N[normalize] --> T[transcribe] --> A[assemble] --> DS[describe] --> S[summarize] --> R[render] --> DL[deliver] --> C[cleanup]
 ```
 
-| Step         | What it does                                                                                                                                        |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `validate`   | Checks the package and its settings, finds the owner's registration, checks the front end may use this meeting type and target.                     |
-| `normalize`  | Turns BBB's event log into a clean meeting record: speakers, audio tracks, chat, polls, notes, slides.                                              |
-| `transcribe` | Sends each speaker's audio track to speech-to-text. A track that fails becomes a gap; the job fails only if all tracks fail.                        |
-| `assemble`   | Merges the per-speaker results into one transcript, ordered by time.                                                                                |
-| `summarize`  | Sends the transcript (in parts, if it is long) to the language model and gets a structured summary back.                                            |
-| `render`     | Fills the meeting type's template and writes `summary.md` (and a `transcript.vtt`, not delivered yet). All fixed text is in the meeting's language. |
-| `deliver`    | Creates the document in Docs for the owner, or stores the summary for the front end (`frontend` sink).                                              |
-| `cleanup`    | Deletes all meeting content of the job: files, registration, owner data.                                                                            |
+| Step         | What it does                                                                                                                                                                                          |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `validate`   | Checks the package and its settings, finds the owner's registration, checks the front end may use this meeting type and target.                                                                       |
+| `normalize`  | Turns BBB's event log into a clean meeting record: speakers, audio tracks, chat, polls, notes, slides. For a meeting type with slide images it also renders each shown slide as an image.             |
+| `transcribe` | Sends each speaker's audio track to speech-to-text. A track that fails becomes a gap; the job fails only if all tracks fail.                                                                          |
+| `assemble`   | Merges the per-speaker results into one transcript, ordered by time.                                                                                                                                  |
+| `describe`   | Only for a meeting type with slide images: sends each shown slide image to a vision model and keeps its description, which replaces the slide's text in the summary input. Otherwise it does nothing. |
+| `summarize`  | Sends the transcript (in parts, if it is long) to the language model and gets a structured summary back.                                                                                              |
+| `render`     | Fills the meeting type's template and writes `summary.md` (and a `transcript.vtt`, not delivered yet). All fixed text is in the meeting's language.                                                   |
+| `deliver`    | Creates the document in Docs for the owner, or stores the summary for the front end (`frontend` sink).                                                                                                |
+| `cleanup`    | Deletes all meeting content of the job: files, registration, owner data.                                                                                                                              |
 
 ### 5.1 Job states
 

@@ -1,6 +1,6 @@
 # Meeting type → output format (docs/reference/templates.md §1). The format
 # meeting-summary is built into the image; nothing to change.
-schema_version: "1.1.0"
+schema_version: "1.2.0"
 meeting_types:
   - name: meeting-summary
     format: meeting-summary
@@ -11,3 +11,10 @@ meeting_types:
   # - name: lecture
   #   format: meeting-summary
   #   inputs: { slides: true }
+  # Optional: a type that also sends an image of each shown slide to a vision
+  # model, whose description replaces the slide's text (templates.md §3.2).
+  # Needs slides: true, defaults.vision in providers.yaml and a consent text
+  # that names slide images (privacy.md §12). Default off.
+  # - name: lecture-images
+  #   format: meeting-summary
+  #   inputs: { slides: true, slide_images: true }
