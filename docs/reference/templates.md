@@ -218,9 +218,10 @@ file that is in the package (a blob store failure, including a hash mismatch) is
    on the decoder rejecting a bitstream whose size differs from the `VP8X` canvas
    ([`upstream-facts.md`](upstream-facts.md) "Providers"); the dependency is not used below a version with that check.
    The decode runs in Go, outside the renderer's limits: it has no time limit of its own (it is bounded by the pixel
-   limit) and may hold up to about 400 MB at the limit (a progressive JPEG keeps its coefficients next to the image;
-   estimate, not measured). An open renderer instance is closed before an upload is decoded, so the two never hold
-   memory at the same time. Below the limit it is decoded and, if its long edge is over 1 280 px, scaled down by the same
+   limit). Measured at the limit (a 5000 × 5000 PNG): about 575 MB peak RSS for the whole `normalize` run with
+   16 bits per channel, about 477 MB with 8 bits. An open renderer instance is closed before an upload is decoded,
+   and the decode's heap is returned to the operating system before the next renderer instance starts, so the two
+   never hold memory at the same time. Below the limit it is decoded and, if its long edge is over 1 280 px, scaled down by the same
    rule; it is never scaled up. An animated WebP gives no image (the decoder does not read animations); an animated PNG
    gives its default image.
 3. The result is composited on opaque white and written as PNG, 8 bits per channel, colour type 2 (RGB, no alpha),
@@ -228,10 +229,12 @@ file that is in the package (a blob store failure, including a hash mismatch) is
    pinned across renderer or Go versions.
 4. One renderer instance at a time per worker process, normally one per `normalize` run, closed at its end. The PDF
    is passed as bytes; the renderer sees no filesystem. Limits: 512 MiB renderer memory, 10 s for opening a document,
-   10 s per page. The renderer memory is reserved once and grown in place, so the process holds at most the cap plus
-   the renderer's own overhead: measured at a memory limit hit (a synthetic page of nested form XObjects) about
-   610 MB peak RSS for the whole `normalize` run (507 MiB above the process after compiling the renderer), and about
-   335 MB for F-14. Every limit hit (time or memory), a trap or any other failure inside the renderer discards the
+   10 s per page. On Linux (the container images) the renderer memory is reserved once and grown in place, so the
+   process holds at most the cap plus the renderer's own overhead and the source bytes; other systems use the
+   WebAssembly runtime's default allocator, and there the renderer's memory is not bounded this way. Measured peak
+   RSS of a whole `normalize` run on Linux: about 335 MB for F-14, about 590 MB at a memory limit hit (a synthetic
+   page of nested form XObjects, also after an upload at the pixel limit), about 660 MB at a limit hit with a source
+   PDF near the 30 000 000-byte limit. Every limit hit (time or memory), a trap or any other failure inside the renderer discards the
    instance (the WebAssembly runtime closes the module when its deadline passes; after a memory limit hit the
    instance is not trusted either). The file in which it happened is not opened again: that page and the file's
    remaining pages get no image without further attempts; the hit counts as the attempt of that page. The next file
