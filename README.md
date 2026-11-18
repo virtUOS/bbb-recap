@@ -52,8 +52,10 @@ A longer walk-through: [docs/overview.md](docs/overview.md).
 
 ## Quick start
 
-- Run the service with docker compose: [docs/operations/install-compose.md](docs/operations/install-compose.md).
-- Install the hook and exporter on a BBB server:
+- What to configure where, and in which order: [docs/operations/integration.md](docs/operations/integration.md).
+- Run the service with docker compose (`deploy/setup.sh`):
+  [docs/operations/install-compose.md](docs/operations/install-compose.md).
+- Install the hook and exporter on a BBB server (`deploy/exporter/setup.sh`):
   [docs/operations/install-exporter.md](docs/operations/install-exporter.md).
 - Optional: an "AI minutes" control in BBB that starts and pauses the recording:
   [docs/operations/install-plugin.md](docs/operations/install-plugin.md).
