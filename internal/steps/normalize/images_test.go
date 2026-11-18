@@ -1,6 +1,7 @@
 package normalize
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -54,5 +55,57 @@ func TestImagesF14(t *testing.T) {
 		if s.Image != "" || s.Text == "" {
 			t.Errorf("images off: slide %+v", s)
 		}
+	}
+}
+
+// countFS counts the opens of each file.
+type countFS struct {
+	fs.FS
+	opens map[string]int
+}
+
+func (c countFS) Open(name string) (fs.File, error) {
+	c.opens[name]++
+	return c.FS.Open(name)
+}
+
+// A page beyond the page count is no attempt and does not open the file
+// again once its page count is known, also when pages of two decks
+// alternate (templates.md §3.2 "Dedupe and cap").
+func TestImagesPageBeyondCount(t *testing.T) {
+	sel, err := manifest.Select(f14Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const chart = "2769ac3225e7f1a516f640472ef2839a6689325d-1761732002000" // 3 pages
+	const four = "3fd0a17706e870d5cce7a92731d04afaf29ce2e0-1761732003000"  // 2 pages
+	cfs := countFS{FS: os.DirFS(f14Dir), opens: map[string]int{}}
+	img := &Images{Store: func(string, []byte) error { return nil }}
+	im := newImager(cfs, sel.Files, img)
+	defer im.close()
+	for _, p := range []struct {
+		deck string
+		page int
+	}{{chart, 1}, {four, 1}, {chart, 7}, {four, 9}, {chart, 8}, {four, 10}, {chart, 9}} {
+		if _, err := im.image(p.deck, p.page); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if img.Attempts != 2 {
+		t.Errorf("%d render attempts, want 2 (pages beyond the count are none)", img.Attempts)
+	}
+	for _, d := range []string{chart, four} {
+		if n := cfs.opens["presentation/"+d+"/"+d+".pdf"]; n > 3 {
+			t.Errorf("deck %s opened %d times, want each open only while it is needed", d[:8], n)
+		}
+	}
+	// Once both counts are known, no page beyond them opens a file.
+	opens := cfs.opens["presentation/"+chart+"/"+chart+".pdf"] + cfs.opens["presentation/"+four+"/"+four+".pdf"]
+	for i := 20; i < 30; i++ {
+		_, _ = im.image(chart, i)
+		_, _ = im.image(four, i)
+	}
+	if after := cfs.opens["presentation/"+chart+"/"+chart+".pdf"] + cfs.opens["presentation/"+four+"/"+four+".pdf"]; after != opens {
+		t.Errorf("%d opens for pages beyond the known counts, want none", after-opens)
 	}
 }

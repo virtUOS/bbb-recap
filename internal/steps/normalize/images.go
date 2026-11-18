@@ -74,13 +74,15 @@ type imager struct {
 	r       *slideimage.Renderer
 	renders map[renderKey]rendered
 	failed  map[string]bool // source files not to be opened again
+	pages   map[string]int  // page count per source file, known after its first open
 	stored  map[string]bool
 	openSHA string // the PDF open in the renderer
 }
 
 func newImager(fsys fs.FS, files []manifest.File, opt *Images) *imager {
 	im := &imager{fsys: fsys, files: map[string]manifest.File{}, opt: opt, r: slideimage.New(),
-		renders: map[renderKey]rendered{}, failed: map[string]bool{}, stored: map[string]bool{}}
+		renders: map[renderKey]rendered{}, failed: map[string]bool{}, pages: map[string]int{},
+		stored: map[string]bool{}}
 	for _, f := range files {
 		if f.Role == manifest.RolePresentation {
 			im.files[f.Path] = f
@@ -159,24 +161,34 @@ func (im *imager) render(deck string, page int) (rendered, error) {
 
 // renderPDF renders one page of a PDF source. A file that does not open
 // counts as one attempt and is not opened again; so is a file in which a
-// limit was hit (that hit is the attempt of the page).
+// limit was hit (that hit is the attempt of the page). A page beyond the
+// page count is no attempt; the count is kept per file, so such a page
+// never opens the file again. A page for which PDFium reports an error is
+// an attempt and gets no image; the file stays open.
 func (im *imager) renderPDF(src manifest.File, page int) (rendered, error) {
+	if n, ok := im.pages[src.SHA256]; ok && page > n {
+		return rendered{reason: FallbackRenderFailed}, nil
+	}
 	if im.openSHA != src.SHA256 {
 		im.openSHA = ""
 		data, err := im.read(src.Path)
 		if err != nil {
 			return rendered{}, err
 		}
-		if _, err := im.r.OpenPDF(data); err != nil {
+		n, err := im.r.OpenPDF(data)
+		if err != nil {
 			im.opt.Attempts++
 			im.failed[src.SHA256] = true
 			return rendered{reason: FallbackRenderFailed}, nil
 		}
-		im.openSHA = src.SHA256
+		im.openSHA, im.pages[src.SHA256] = src.SHA256, n
 	}
 	img, err := im.r.RenderPage(page)
 	switch {
 	case errors.Is(err, slideimage.ErrNoPage):
+		return rendered{reason: FallbackRenderFailed}, nil
+	case errors.Is(err, slideimage.ErrPageFailed):
+		im.opt.Attempts++
 		return rendered{reason: FallbackRenderFailed}, nil
 	case err != nil:
 		im.opt.Attempts++
