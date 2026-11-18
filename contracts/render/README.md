@@ -103,20 +103,6 @@ and `summary.v1` requests (schema with `overview`) with `testdata/render/F-01/su
 The `TestSlide*` tests (templates.md §3.1, §3.2) were written before the implementation and are not changed to fit it.
 `TestSlideCallPlan/…/off-no-inputs` and `…/off-slides-false` guard that requests without slides stay unchanged.
 
-## Not implemented yet
-
-Written before the implementation of slide images (templates.md §3.2, ADR-017); they fail until it lands:
-`TestSlideImageRendering`, `TestSlideImageDedupe`, `TestSlideDescribeRequests`, `TestSlideDescriptionSchema`,
-`TestSlideImageMerge`, `TestSlideImageFallback`, `TestSlideImagesOff` and `TestSlideImagesConfig` (CT-TPL-16 to 23).
-Against the current tool: `normalize` and `render` exit 2 on the unknown flags `--slide-images` and `--images`, the
-meeting-types file is refused because `slide_images` is an unknown input, the providers file because `vision` is an
-unknown key, and `--check-schema` because the format has no `slide-description.v1`. The configuration subtests
-(`TestSlideImagesConfig/…/without-slides`, `…/without-defaults.vision`) fail too, because the tool stops at the
-unknown `--images` flag before it reads the files. Only `TestSlideImageRendering/CT-TPL-16/images-off` passes already:
-it guards that the text-only selection stays as it is. Format version 1.2.0 also changes the protected
-goldens and the version `TestFormatSelection` and `TestSlideCallPlan` expect, in a dedicated fixture change ahead of
-the implementation (templates.md §8).
-
 ## Manual check: goldens through y-provider `/convert` (optional, also in CI)
 
 Needs a local Docs y-provider at the pinned Docs version (`suitenumerique/docs @ 6c730f7`). Its request
