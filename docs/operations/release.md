@@ -80,7 +80,9 @@ of its own token). If `edge` should carry the update, run the `image` workflow b
 
 ## Cut a release
 
-With CI green on the commit, from a checkout with push rights:
+With CI green on the commit, from a checkout with push rights. First check that the example release in the Quick
+starts of [install-compose.md](install-compose.md) (`RECAP_VERSION=`) and [install-exporter.md](install-exporter.md)
+(`VERSION=`) is the new tag; if not, change both on `main` before tagging.
 
 ```sh
 VERSION=v0.2.0

@@ -29,9 +29,11 @@ As root on the BBB server (`sudo -i`). The recap admin gives you the service URL
    The script does steps 2 to 4 of the [manual installation](#manual-installation): the user, the directories, the
    config and the token, then it starts the daemon (expect `exporter ready: yes`) and installs the hook. On docker BBB
    it writes `docker-compose.override.yml` and recreates `recording-workers`; if that file exists already, it names
-   the three volumes to add by hand. It runs again safely and changes only what differs. Instead of typing the token:
-   `--token-file FILE`, or pipe it in. `bash setup.sh --help` lists every option. The script is in the releases
-   after v0.2.1; for older ones use the manual installation.
+   the three volumes to add by hand. It runs again safely and changes only what differs; when the settings, the token
+   or the hook changed, it recreates the daemon (and on docker BBB `recording-workers`), so a rerun with a new
+   `--version` is an upgrade. Instead of typing the token: `--token-file FILE`, or `--token-file -` to pipe it in.
+   `bash setup.sh --help` lists every option. The script is in the releases after v0.2.1; for older ones use the
+   manual installation.
 
 2. Test with a synthetic meeting that a front end registered for recap: record, stop, end. About a minute after BBB
    archived it, `cd /opt/recap-exporter && docker compose exec exporter /usr/local/bin/recap-exporter status` shows

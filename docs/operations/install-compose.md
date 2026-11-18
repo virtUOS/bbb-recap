@@ -1,10 +1,10 @@
 # Install recap with docker compose
 
 You get the recap service on one Linux host: `postgres`, a one-shot `migrate`, the `api` and the `worker`, all from
-`deploy/compose.yaml`. You need docker with the compose plugin (podman with podman-compose works the same), `git` and
-`openssl`, a DNS name with a TLS reverse proxy, a speech recognition (ASR) server, an OpenAI-compatible LLM endpoint,
-and La Suite Docs or a front end that fetches the summaries. BBB servers connect later with the exporter
-([install-exporter.md](install-exporter.md)).
+`deploy/compose.yaml`. You need docker with the compose plugin (podman with podman-compose works the same), `git`
+(`openssl` only for the manual setup), a DNS name with a TLS reverse proxy, a speech recognition (ASR) server, an
+OpenAI-compatible LLM endpoint, and La Suite Docs or a front end that fetches the summaries. BBB servers connect later
+with the exporter ([install-exporter.md](install-exporter.md)).
 
 Start with [integration.md](integration.md): the parts of an installation, which values connect them, where each is
 set, and the order of the steps.
@@ -91,15 +91,18 @@ All files live in `/opt/recap`.
 `RECAP_SETUP_*` variable that answers each question in advance (for Ansible or CI; with `--non-interactive` a missing
 required value is an error). It works with `docker compose` and `podman compose` (`RECAP_SETUP_COMPOSE` picks one).
 
-- It writes what the manual steps below write, from the files of the release next to it. Modes: the install
-  directory `0700`, `.env` `0600`, `compose.yaml`, `config/*.yaml` and the secret files `0644` in `0755`
-  directories, so that the containers (UID 10001) can read them.
-- It never overwrites an existing file. A second run changes nothing and asks only for what is missing; run it again
-  with a new BBB server or front-end ID to create that token, and it recreates `api` and `worker`.
-- `--force` rewrites `compose.yaml`, `.env` and `config/*.yaml` from the answers (the old file is kept as `.bak`),
-  never a secret.
+- It writes what the manual steps below write, from the files of the release next to it. Modes: `.env` `0600`,
+  `compose.yaml`, `config/*.yaml` and the secret files `0644` in `0755` directories, so that the containers (user
+  ID 10001) can read them. Only the install directory protects the secrets, so it must be `0700`; the script refuses
+  to run otherwise.
+- It never overwrites an existing file and never changes the mode of an existing directory. A second run changes
+  nothing and asks only for what is missing; an answer for a file it keeps is reported as ignored. Run it again with
+  a new BBB server or front-end ID to create that token; it then recreates `api` and `worker`.
+- `--force` rewrites `compose.yaml`, `.env` and `config/*.yaml` from the answers, so hand edits in them are lost;
+  each old file is kept as `<file>.bak.<time>`. It never touches a secret.
 - It prints no secret except the client tokens created in that run. Provider and Docs keys are read without echo, or
-  from `RECAP_SETUP_*_KEY_FILE`.
+  from `RECAP_SETUP_*_KEY_FILE`. With `--non-interactive` in Ansible or CI the tokens land in the job log: hide the
+  output (Ansible `no_log: true`) and hand the tokens on from `secrets/clients/` instead.
 - It configures one ASR and one LLM profile and the Docs and front-end sinks. Edit `config/*.yaml` for anything else
   (slides, webhook or Matrix sinks, other privacy declarations), then run `check-config` and recreate `api` and
   `worker` as in the table above.
@@ -245,8 +248,8 @@ docker compose up -d
 
 ## Troubleshooting
 
-`docker compose logs --tail 50 api worker` shows the reason; `check-config` (step 4) names configuration errors and
-warns about likely typos. Held and failed jobs are listed by the admin UI or the admin API, e.g.
+`docker compose logs --tail 50 api worker` shows the reason; `docker compose run --rm --no-deps api check-config`
+names configuration errors and warns about likely typos. Held and failed jobs are listed by the admin UI or the admin API, e.g.
 `curl -sS -H "Authorization: Bearer $(cat secrets/clients/admin.ops)" "https://recap.example.org/api/v1/admin/jobs?state=held"`.
 
 | Symptom                                                                                                   | Cause                                                                                                                                                                                      | Fix                                                                                                                                                                                                                                                |
