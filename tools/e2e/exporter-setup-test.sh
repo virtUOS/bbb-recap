@@ -100,11 +100,27 @@ EOF
 else
 	args=(--version "$VERSION" --service-url "$SERVICE_URL" --server-id "$BBB_SERVER_ID" --no-start)
 	[[ $mode == docker ]] && args+=(--bbb-dir "$BBB_DIR")
-	printf '%s' "$TOKEN" | bash /src/deploy/exporter/setup.sh "${args[@]}" >/out/$mode-run1.log
+	printf '%s' "$TOKEN" | bash /src/deploy/exporter/setup.sh "${args[@]}" --token-file - >/out/$mode-run1.log
 	list >/out/$mode-script.txt
 	list ' %T@' >/out/$mode-before.txt
 	bash /src/deploy/exporter/setup.sh "${args[@]}" </dev/null >/out/$mode-run2.log
 	list ' %T@' >/out/$mode-after.txt
+	# A rerun with another ID, token and hook writes the files in place: a
+	# single-file bind mount (docker BBB) keeps seeing them.
+	files=(/etc/recap-exporter/exporter.env /etc/recap-exporter/secrets/ingest-token "$HOOK")
+	inodes=$(stat -c '%n %i' "${files[@]}")
+	cp -r /src /tmp/src2
+	echo '# changed' >>/tmp/src2/hook/post_archive/recap_export.rb
+	args2=("${args[@]}" --src /tmp/src2)
+	args2[5]=bbb-2
+	printf 'new-dummy-token' | bash /src/deploy/exporter/setup.sh "${args2[@]}" --token-file - >/out/$mode-run3.log
+	{
+		[[ $(stat -c '%n %i' "${files[@]}") == "$inodes" ]] || echo "inode changed"
+		grep -qx RECAP_EXPORTER_BBB_SERVER_ID=bbb-2 /etc/recap-exporter/exporter.env || echo "ID not updated"
+		[[ $(cat /etc/recap-exporter/secrets/ingest-token) == new-dummy-token ]] || echo "token not updated"
+		[[ $(stat -c '%U %a' /etc/recap-exporter/secrets/ingest-token) == "recap-exporter 400" ]] || echo "token mode"
+		tail -1 "$HOOK" | grep -qx '# changed' || echo "hook not updated"
+	} >/out/$mode-inode.txt
 	# Without a token on the first run the script must refuse.
 	userdel recap-exporter
 	rm -rf /etc/recap-exporter /var/lib/recap-exporter /opt/recap-exporter
@@ -130,6 +146,8 @@ for mode in packaged docker; do
 	diff "$WORK/$mode-before.txt" "$WORK/$mode-after.txt" || fail "$mode: second run changed files"
 	grep -q 'Nothing to change' "$WORK/$mode-run2.log" || fail "$mode: second run did not say Nothing to change"
 	ok "$mode BBB: second run changes nothing"
+	[[ ! -s $WORK/$mode-inode.txt ]] || fail "$mode: rerun with changes: $(cat "$WORK/$mode-inode.txt")"
+	ok "$mode BBB: a rerun updates exporter.env, token and hook in place (same inode)"
 	grep -q 'no token' "$WORK/$mode-notoken.log" || fail "$mode: no clear error without a token"
 	ok "$mode BBB: refuses a first run without token"
 	if grep -q dummy-token "$WORK/$mode"-run*.log; then

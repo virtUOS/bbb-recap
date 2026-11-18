@@ -7,14 +7,16 @@
 #
 # Docker BBB: add --bbb-dir with the directory of BBB's docker-compose.yml.
 # The token (secrets/clients/bbb_server.<id> on the recap host) comes from
-# --token-file, from stdin when stdin is not a terminal, or is asked for
-# without echo. It is never an argument. Without a new token an existing one
-# is kept.
+# --token-file (- for stdin) or is asked for without echo in a terminal. It is
+# never an argument. Without a new token an existing one is kept.
 #
 # Safe to run again: it changes only what differs (a new release, URL, ID or
-# token) and keeps other lines of exporter.env and RAW_MOUNT in .env. compose.yaml
-# and the hook come from the release on GitHub, or from the checkout this script
-# is in (--src overrides both).
+# token) and keeps other lines of exporter.env and RAW_MOUNT in .env. Files
+# are rewritten in place (same inode), because docker BBB bind-mounts
+# exporter.env and the hook as single files. The daemon reads its settings and
+# token at start, so it is recreated when they changed; on docker BBB so is
+# recording-workers. compose.yaml and the hook come from the release on GitHub,
+# or from the checkout this script is in (--src overrides both).
 set -euo pipefail
 
 usage() {
@@ -26,7 +28,8 @@ Usage: bash setup.sh --version TAG --service-url URL --server-id ID [options]
   --server-id ID       this server's ID: bbb_server.<id> on the service
   --bbb-dir DIR        docker BBB: the directory of BBB's docker-compose.yml
   --hook-gid GID       group of the hook's user (default: packaged BBB bigbluebutton's group, docker BBB 998)
-  --token-file FILE    read the token from FILE instead of stdin
+  --token-file FILE    read the token from FILE, or from stdin with -; without it the
+                       token is asked for in a terminal (a first run needs one)
   --src DIR|URL        where compose.yaml and the hook come from (a checkout or a raw URL)
   --no-start           write the files only; do not start the exporter or recreate recording-workers
 EOF
@@ -95,34 +98,39 @@ fi
 
 token_path=/etc/recap-exporter/secrets/ingest-token
 token=
-if [[ -n $token_file ]]; then
-	token=$(cat -- "$token_file")
-elif [[ ! -t 0 ]]; then
+if [[ $token_file == - ]]; then
 	token=$(cat)
-elif [[ ! -s $token_path ]]; then
+elif [[ -n $token_file ]]; then
+	token=$(cat -- "$token_file")
+elif [[ ! -s $token_path && -t 0 ]]; then
 	read -r -s -p "Token of $server_id (secrets/clients/bbb_server.$server_id on the recap host, not shown): " token
 	echo
 fi
-[[ -n $token || -s $token_path ]] || die "no token: pipe it in, use --token-file, or run in a terminal"
+[[ -n $token || -s $token_path ]] ||
+	die "no token: use --token-file FILE (- for stdin), or run in a terminal to type it"
 
 changed=()
 
 # set_key FILE KEY VALUE: sets KEY=VALUE in FILE, replacing the line of KEY or
-# appending one; leaves the file alone when it already has that line.
+# appending one; leaves the file alone when it already has that line. Writes
+# in place, so a bind mount of the file sees the change.
 set_key() {
 	grep -qxF "$2=$3" "$1" && return
+	local tmp
+	tmp=$(mktemp)
 	if grep -q "^$2=" "$1"; then
-		local v
-		v=$(printf '%s' "$3" | sed 's/[\\&|]/\\&/g')
-		sed -i "s|^$2=.*|$2=$v|" "$1"
+		awk -v k="$2" -v v="$3" 'index($0, k "=") == 1 { print k "=" v; next } { print }' "$1" >"$tmp"
 	else
-		printf '%s=%s\n' "$2" "$3" >>"$1"
+		cat "$1" >"$tmp"
+		printf '%s=%s\n' "$2" "$3" >>"$tmp"
 	fi
-	changed+=("$1 ($2)")
+	cat "$tmp" >"$1"
+	rm -f "$tmp"
+	changed+=("$1")
 }
 
-# fetch PATH DEST MODE: installs PATH of the release (from $src) as DEST with
-# MODE, unless DEST has the same content already.
+# fetch PATH DEST MODE: writes PATH of the release (from $src) to DEST with
+# MODE, unless DEST has the same content already; in place, as set_key.
 fetch() {
 	local tmp
 	tmp=$(mktemp)
@@ -133,11 +141,22 @@ fetch() {
 	fi
 	if cmp -s "$tmp" "$2"; then
 		rm -f "$tmp"
-	else
-		install -m "$3" "$tmp" "$2"
-		rm -f "$tmp"
-		changed+=("$2")
+		return
 	fi
+	cat "$tmp" >"$2"
+	chmod "$3" "$2"
+	rm -f "$tmp"
+	changed+=("$2")
+}
+
+# was_changed PATTERN: true if a changed path matches PATTERN.
+was_changed() {
+	local c
+	for c in "${changed[@]}"; do
+		# shellcheck disable=SC2053 # PATTERN is a glob on purpose
+		[[ $c == $1 ]] && return 0
+	done
+	return 1
 }
 
 # 1. User, directories, settings and token (manual step 2).
@@ -160,6 +179,7 @@ else
 fi
 
 if [[ -n $token && (! -e $token_path || $(cat "$token_path") != "$token") ]]; then
+	# In place, as set_key; a new file is created with mode 0600 at most.
 	(
 		umask 077
 		printf '%s' "$token" >"$token_path"
@@ -220,7 +240,7 @@ fi
 
 if [[ ${#changed[@]} -gt 0 ]]; then
 	echo "Changed:"
-	printf '  %s\n' "${changed[@]}"
+	printf '  %s\n' "${changed[@]}" | sort -u
 else
 	echo "Nothing to change."
 fi
@@ -230,9 +250,21 @@ if [[ $start -eq 1 ]]; then
 	cd /opt/recap-exporter
 	docker compose pull --quiet
 	docker compose run --rm exporter check-config
-	docker compose up -d
+	# The daemon reads exporter.env and the token at start only.
+	if was_changed "$env_file" || was_changed "$token_path"; then
+		docker compose up -d --force-recreate exporter
+	else
+		docker compose up -d
+	fi
+	# Docker BBB: recording-workers runs the hook with the mounted files. On
+	# packaged BBB each post_archive script runs as its own process
+	# (upstream-facts.md), so the new hook needs no restart.
 	if [[ -n $bbb_dir && -z $override_note ]]; then
-		(cd "$bbb_dir" && docker compose up -d recording-workers)
+		if was_changed "$env_file" || was_changed /etc/recap-exporter/recap_export.rb || was_changed "$bbb_dir/*"; then
+			(cd "$bbb_dir" && docker compose up -d --force-recreate recording-workers)
+		else
+			(cd "$bbb_dir" && docker compose up -d recording-workers)
+		fi
 	fi
 	ready=no
 	for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -242,7 +274,9 @@ if [[ $start -eq 1 ]]; then
 		fi
 		sleep 3
 	done
-	echo "exporter ready: $ready (http://127.0.0.1:9466/readyz; logs: docker compose logs --tail 50 exporter)"
+	[[ $ready == yes ]] ||
+		die "exporter not ready after 30 s; see: cd /opt/recap-exporter && docker compose logs --tail 50 exporter"
+	echo "exporter ready: yes"
 fi
 
 if [[ -n $override_note ]]; then
