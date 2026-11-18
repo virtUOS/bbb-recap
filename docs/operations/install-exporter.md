@@ -6,9 +6,68 @@ each new recording for the daemon. You need BBB 4.0 or later (packaged or the do
 compose plugin, the service URL (`https://`) and this server's token: the content of
 `secrets/clients/bbb_server.<id>` on the service ([install-compose.md](install-compose.md)).
 
+Start with [integration.md](integration.md): the parts of an installation, which values connect them, where each is
+set, and the order of the steps.
+
 ## Quick start
 
-As root on the BBB server (`sudo -i`):
+As root on the BBB server (`sudo -i`). The recap admin gives you the service URL, this server's ID and its token
+(`deploy/setup.sh` on the recap host prints them; [integration.md](integration.md) shows how the values fit together).
+
+1. Download the setup script of the release and run it. It asks for the token without showing it.
+
+   ```sh
+   VERSION=v0.3.0                              # same release as the service
+   SERVICE_URL=https://recap.example.org
+   BBB_SERVER_ID=bbb-1
+   curl -fsSLO "https://raw.githubusercontent.com/virtUOS/bbb-recap/$VERSION/deploy/exporter/setup.sh"
+   bash setup.sh --version "$VERSION" --service-url "$SERVICE_URL" --server-id "$BBB_SERVER_ID"
+   ```
+
+   **Docker BBB:** add `--bbb-dir /srv/bbb`, the directory that holds BBB's `docker-compose.yml`.
+
+   The script does steps 2 to 4 of the [manual installation](#manual-installation): the user, the directories, the
+   config and the token, then it starts the daemon (expect `exporter ready: yes`) and installs the hook. On docker BBB
+   it writes `docker-compose.override.yml` and recreates `recording-workers`; if that file exists already, it names
+   the three volumes to add by hand. It runs again safely and changes only what differs: a changed setting or token
+   recreates the daemon, a new hook is used from the next recording on, so a rerun with a new `--version` is an
+   upgrade. Instead of typing the token: `--token-file FILE`, or `--token-file -` to pipe it in.
+   `bash setup.sh --help` lists every option. The script is in the releases after v0.2.1; for older ones use the
+   manual installation.
+
+2. Test with a synthetic meeting that a front end registered for recap: record, stop, end. About a minute after BBB
+   archived it, `cd /opt/recap-exporter && docker compose exec exporter /usr/local/bin/recap-exporter status` shows
+   the recording as `acked`.
+
+Optional: the BBB plugin adds an "AI minutes" control that starts and pauses the recording
+([install-plugin.md](install-plugin.md)).
+
+## Reference
+
+| Path on the host                           | Owner, mode                         | Content                                                                                        |
+| ------------------------------------------ | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `/opt/recap-exporter/compose.yaml`, `.env` | root                                | the container ([`.env.example`](../../deploy/exporter/.env.example))                           |
+| `/etc/recap-exporter/exporter.env`         | root, `0644`                        | settings of daemon and hook, no secrets ([`exporter.env`](../../deploy/exporter/exporter.env)) |
+| `/etc/recap-exporter/secrets/ingest-token` | `recap-exporter`, `0400`            | the token                                                                                      |
+| `/var/lib/recap-exporter/spool`            | `recap-exporter`:hook group, `2770` | written by the hook, read by the daemon                                                        |
+| `/var/lib/recap-exporter/state`            | `recap-exporter`, `0700`            | the daemon's state per recording                                                               |
+
+| BBB install type                       | Hook runs in                      | Hook user       | `raw/` on the host                          |
+| -------------------------------------- | --------------------------------- | --------------- | ------------------------------------------- |
+| packaged (Debian packages)             | BBB's resque worker on the host   | `bigbluebutton` | `/var/bigbluebutton/recording/raw`          |
+| docker (bigbluebutton PR #26186 setup) | the `recording-workers` container | UID/GID `998`   | `$BBB_DIR/data/bigbluebutton/recording/raw` |
+
+| Task              | Command (in `/opt/recap-exporter`)                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Status            | `docker compose exec exporter /usr/local/bin/recap-exporter status [RECORD_ID]`                                          |
+| Retry a recording | `docker compose stop exporter`, `docker compose run --rm exporter requeue "$RECORD_ID"`, `docker compose start exporter` |
+| Logs              | `docker compose logs --tail 50 exporter`                                                                                 |
+| Metrics, health   | `http://127.0.0.1:9466/metrics`, `/healthz`, `/readyz` (host only; for Prometheus see [below](#metrics-for-prometheus))  |
+| All settings      | [`exporter.env`](../../deploy/exporter/exporter.env), [deployment.md](../reference/deployment.md) §5.4                   |
+
+### Manual installation
+
+What `setup.sh` does, by hand, as root:
 
 1. Set the variables. Keep the block that matches your BBB install.
 
@@ -82,36 +141,6 @@ As root on the BBB server (`sudo -i`):
    cd "$BBB_DIR" && docker compose up -d recording-workers
    ```
 
-5. Test with a synthetic meeting that a front end registered for recap: record, stop, end. About a minute after BBB
-   archived it, `cd /opt/recap-exporter && docker compose exec exporter /usr/local/bin/recap-exporter status` shows
-   the recording as `acked`.
-
-Optional: the BBB plugin adds an "AI minutes" control that starts and pauses the recording
-([install-plugin.md](install-plugin.md)).
-
-## Reference
-
-| Path on the host                           | Owner, mode                         | Content                                                                                        |
-| ------------------------------------------ | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `/opt/recap-exporter/compose.yaml`, `.env` | root                                | the container ([`.env.example`](../../deploy/exporter/.env.example))                           |
-| `/etc/recap-exporter/exporter.env`         | root, `0644`                        | settings of daemon and hook, no secrets ([`exporter.env`](../../deploy/exporter/exporter.env)) |
-| `/etc/recap-exporter/secrets/ingest-token` | `recap-exporter`, `0400`            | the token                                                                                      |
-| `/var/lib/recap-exporter/spool`            | `recap-exporter`:hook group, `2770` | written by the hook, read by the daemon                                                        |
-| `/var/lib/recap-exporter/state`            | `recap-exporter`, `0700`            | the daemon's state per recording                                                               |
-
-| BBB install type                       | Hook runs in                      | Hook user       | `raw/` on the host                          |
-| -------------------------------------- | --------------------------------- | --------------- | ------------------------------------------- |
-| packaged (Debian packages)             | BBB's resque worker on the host   | `bigbluebutton` | `/var/bigbluebutton/recording/raw`          |
-| docker (bigbluebutton PR #26186 setup) | the `recording-workers` container | UID/GID `998`   | `$BBB_DIR/data/bigbluebutton/recording/raw` |
-
-| Task              | Command (in `/opt/recap-exporter`)                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Status            | `docker compose exec exporter /usr/local/bin/recap-exporter status [RECORD_ID]`                                          |
-| Retry a recording | `docker compose stop exporter`, `docker compose run --rm exporter requeue "$RECORD_ID"`, `docker compose start exporter` |
-| Logs              | `docker compose logs --tail 50 exporter`                                                                                 |
-| Metrics, health   | `http://127.0.0.1:9466/metrics`, `/healthz`, `/readyz` (host only; for Prometheus see [below](#metrics-for-prometheus))  |
-| All settings      | [`exporter.env`](../../deploy/exporter/exporter.env), [deployment.md](../reference/deployment.md) §5.4                   |
-
 ### Upgrade and rollback
 
 Upgrade the service first. Daemon and hook come from the same release:
@@ -125,8 +154,9 @@ curl -fsSL -o compose.yaml "$SRC/deploy/exporter/compose.yaml"
 docker compose pull && docker compose run --rm exporter check-config && docker compose up -d
 ```
 
-Then download the hook again as in step 4. To roll back, do the same with the previous version. Check that the hook
-is still there after each BBB package upgrade (not verified whether upgrades keep it).
+Then download the hook again as in step 4 of the [manual installation](#manual-installation). Or run `setup.sh` of
+the new release with the new `--version` instead: it does all of this. To roll back, do the same with the previous
+version. Check that the hook is still there after each BBB package upgrade (not verified whether upgrades keep it).
 
 ### BBB cluster or Scalelite
 

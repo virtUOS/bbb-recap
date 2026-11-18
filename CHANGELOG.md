@@ -12,6 +12,11 @@ All notable changes to this project are documented in this file. The format is b
   sink profiles it may use, and a WARN names each front-end ID in `RECAP_FRONTEND_SERVERS`, `RECAP_FRONTEND_TYPES` or
   `RECAP_FRONTEND_SINKS` without a `frontend.<id>` credential file, so a typo no longer goes unnoticed.
 - [install-compose.md](docs/operations/install-compose.md): a troubleshooting table for common installation problems.
+- `deploy/setup.sh` sets up the service in one command (questions or `RECAP_SETUP_*` variables, `--non-interactive`
+  for automation; writes `.env`, config and secrets, creates the client tokens, runs `check-config` and starts), and
+  `deploy/exporter/setup.sh` installs exporter and hook on a BBB server. Both are safe to run again.
+  [integration.md](docs/operations/integration.md) shows the parts of an installation, every value they share, where
+  it is set and which check reports a mismatch.
 
 ### Changed
 

@@ -12,6 +12,8 @@ state, is in [What the plugin shows](#what-the-plugin-shows).
 You need BBB 4.0 (plugin SDK `1.0.0-beta.3`) and a static HTTPS host. The plugin is built and unit-tested but not
 yet tested on a BBB server.
 
+Which values connect the plugin, BBB, the service and the front end: [integration.md](integration.md).
+
 `RecapPlugin.js` bundles the BBB plugin SDK (LGPL-3.0), React and browser-bunyan (MIT). The comment at the top of the
 file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sources.
 
@@ -59,7 +61,8 @@ file and [`plugin/NOTICE`](../../plugin/NOTICE) list versions, licenses and sour
 
    **Docker BBB** (bigbluebutton PR #26186 setup): bbb-web takes any key of its properties from the environment
    (PR #26186 @ `152e63c`, `docker/README.md`, "Environment variables"). Add the `web` service to the
-   `docker-compose.override.yml` that [install-exporter.md](install-exporter.md) step 4 created. This writes the whole
+   `docker-compose.override.yml` that the exporter's setup script or step 4 of its
+   [manual installation](install-exporter.md#manual-installation) created. This writes the whole
    file: the exporter's three `recording-workers` mounts and the plugin. If your file has more entries, add the `web`
    block by hand instead.
 
