@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // nestedFormsPDF builds a synthetic PDF of a few KB whose page draws a form
@@ -126,6 +127,11 @@ func resetPeak(t *testing.T) {
 	}
 }
 
+// uploadThenCompile bounds the peak growth of an upload at the pixel limit
+// followed by the first compile of the module: the larger of the two
+// (about 570 MiB for the progressive CMYK JPEG), not their sum.
+const uploadThenCompile = 600 << 20
+
 // minGrowth is the least growth of the peak RSS that shows the page reached
 // the memory cap, not the time limit (a slow runner).
 const minGrowth = 400 << 20
@@ -137,7 +143,9 @@ func checkLimitHit(t *testing.T, r *Renderer, base int64, what string) {
 	if _, err := r.OpenPDF(nestedFormsPDF(5, 30)); err != nil {
 		t.Fatalf("open: %v", err)
 	}
+	start := time.Now()
 	_, err := r.RenderPage(1)
+	took := time.Since(start)
 	peak := peakRSS(t)
 	grow := peak - base
 	t.Logf("%s: limit hit %v; peak RSS %d MiB, %d MiB above the start", what, errors.Is(err, ErrLimit), peak>>20,
@@ -148,8 +156,12 @@ func checkLimitHit(t *testing.T, r *Renderer, base int64, what string) {
 	if grow > MemoryLimit+memoryOverhead {
 		t.Errorf("peak RSS grew by %d MiB, want at most %d MiB", grow>>20, (MemoryLimit+memoryOverhead)>>20)
 	}
-	if grow < minGrowth {
-		skipOrFail(t, "peak RSS grew by %d MiB only: the page hit the time limit before the memory cap", grow>>20)
+	// The cap, not the time limit: the page stops well before PageTimeout
+	// (about 2 s here). The growth alone does not show it when uploads
+	// before the page already raised the peak.
+	if took >= PageTimeout/2 || grow < minGrowth {
+		skipOrFail(t, "the page took %v and the peak RSS grew by %d MiB only: it hit the time limit, not the memory cap",
+			took, grow>>20)
 	}
 }
 
@@ -229,6 +241,37 @@ func TestMemoryLimitAfterUploads(t *testing.T) {
 		}
 	}
 	checkLimitHit(t, r, base, "uploads, then nested forms")
+}
+
+// An upload as the first slide of a run, before the renderer's module is
+// compiled: the heap is returned before the compile too, so the compile
+// does not come on top of the decode's garbage (templates.md §3.2 item 2).
+func TestMemoryLimitUploadFirst(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the bound holds on Linux only (alloc_linux.go)")
+	}
+	if raceEnabled {
+		t.Skip("the race detector's shadow memory makes the peak RSS meaningless; the run without -race measures it")
+	}
+	upload := progressiveJPEG(5000, 5000)
+	r := New()
+	defer r.Close()
+	resetPeak(t)
+	base := peakRSS(t)
+	if _, err := r.DecodeUpload(upload); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	t.Logf("after the upload: peak RSS %d MiB above the start", (peakRSS(t)-base)>>20)
+	if _, err := r.OpenPDF(f14File(t, fourThree, "pdf")); err != nil { // compiles the module
+		t.Fatal(err)
+	}
+	grow := peakRSS(t) - base
+	t.Logf("after compiling: peak RSS %d MiB above the start", grow>>20)
+	if grow > uploadThenCompile {
+		t.Errorf("peak RSS grew by %d MiB after the upload and the compile, want at most %d MiB", grow>>20,
+			uploadThenCompile>>20)
+	}
+	checkLimitHit(t, r, base, "upload first, then nested forms")
 }
 
 // An error PDFium reports for one page costs only that page: the instance

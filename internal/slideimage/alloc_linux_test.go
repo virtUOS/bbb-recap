@@ -1,7 +1,10 @@
 package slideimage
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"syscall"
 	"testing"
 	"time"
@@ -99,6 +102,9 @@ func TestAbandonedMappingNotReused(t *testing.T) {
 func TestWithinAbandonsBlockedCall(t *testing.T) {
 	defer func(g time.Duration) { killGrace = g }(killGrace)
 	killGrace = 20 * time.Millisecond
+	var logs bytes.Buffer
+	defer SetLogger(logger)
+	SetLogger(slog.New(slog.NewJSONHandler(&logs, nil)))
 	r := New()
 	defer r.Close()
 	if _, err := r.OpenPDF(f14File(t, chartDeck, "pdf")); err != nil {
@@ -115,6 +121,14 @@ func TestWithinAbandonsBlockedCall(t *testing.T) {
 	})
 	if !errors.Is(err, ErrLimit) {
 		t.Fatalf("err = %v, want ErrLimit", err)
+	}
+	var rec struct {
+		Level    string `json:"level"`
+		Mappings int    `json:"mappings"`
+	}
+	lines := bytes.Split(bytes.TrimSpace(logs.Bytes()), []byte("\n"))
+	if len(lines) != 1 || json.Unmarshal(lines[0], &rec) != nil || rec.Level != "WARN" || rec.Mappings != 1 {
+		t.Errorf("log %q, want one WARN record with mappings=1", logs.String())
 	}
 	mappingsMu.Lock()
 	defer mappingsMu.Unlock()

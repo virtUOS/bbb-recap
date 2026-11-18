@@ -185,6 +185,10 @@ func (zeroReader) Read(p []byte) (int, error) {
 // runtime and the compiled module are made once per Renderer.
 func (r *Renderer) start() error {
 	if r.pool == nil {
+		// An upload decoded before the first PDF of a run leaves its
+		// garbage; return it before the compile adds its own (measured:
+		// about 665 MB peak without this, upload first).
+		debug.FreeOSMemory()
 		cfg := wazero.NewRuntimeConfig().
 			// The bundled PDFium module needs exception handling (go-pdfium
 			// webassembly.Config.RuntimeConfig).
