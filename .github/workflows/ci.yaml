@@ -35,8 +35,12 @@ jobs:
       - name: Install staticcheck
         run: go install honnef.co/go/tools/cmd/staticcheck@2026.2.2
       - run: make lint
-      # The setup scripts and their tests (shellcheck is preinstalled on the runner).
-      - run: shellcheck deploy/setup.sh deploy/exporter/setup.sh tools/e2e/setup-test.sh tools/e2e/exporter-setup-test.sh
+      # The setup scripts and their tests, with a pinned shellcheck (v0.11.0, the current
+      # release; image built 2025-08-04, https://github.com/koalaman/shellcheck/releases).
+      - name: shellcheck
+        run: >-
+          docker run --rm -v "$PWD:/mnt:ro" -w /mnt docker.io/koalaman/shellcheck:v0.11.0
+          deploy/setup.sh deploy/exporter/setup.sh tools/e2e/setup-test.sh tools/e2e/exporter-setup-test.sh
 
   fmt:
     runs-on: ubuntu-24.04
@@ -98,6 +102,7 @@ jobs:
       # docker compose runs it, so the image goes from podman to docker first.
       - name: Setup script
         run: |
+          set -o pipefail
           podman save localhost/recap:dev | docker load
           COMPOSE="docker compose" IMAGE=localhost/recap:dev tools/e2e/setup-test.sh
       # deploy/exporter/setup.sh against the manual steps, in Ubuntu containers.
