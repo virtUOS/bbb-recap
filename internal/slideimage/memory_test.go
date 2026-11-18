@@ -178,26 +178,38 @@ func TestMemoryLimit(t *testing.T) {
 	}
 }
 
-// An upload decoded at the pixel limit before a page that hits the memory
-// cap: the decode's heap is returned before the new instance starts, so the
-// same bound holds (templates.md §3.2 item 4).
-func TestMemoryLimitAfterUpload(t *testing.T) {
+// png16 is a 5000x5000 16-bit RGBA PNG (25 MP, the limit); seed makes
+// distinct files.
+func png16(t *testing.T, seed int) []byte {
+	t.Helper()
+	img := image.NewRGBA64(image.Rect(0, 0, 5000, 5000))
+	for i := 0; i < len(img.Pix); i += 8 {
+		img.Pix[i+0], img.Pix[i+4], img.Pix[i+6], img.Pix[i+7] = byte(i>>8+seed), byte(i>>16), 0xFF, 0xFF
+	}
+	var b bytes.Buffer
+	if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&b, img); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+
+// Uploads decoded at the pixel limit, one after the other, then a page that
+// hits the memory cap: each decode returns its heap before the next and
+// before a new instance, so the same bound holds (templates.md §3.2 items 2
+// and 4). The uploads are two distinct 16-bit PNGs and a progressive CMYK
+// JPEG, the heaviest decode.
+func TestMemoryLimitAfterUploads(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("the bound holds on Linux only (alloc_linux.go)")
 	}
 	if raceEnabled {
 		t.Skip("the race detector's shadow memory makes the peak RSS meaningless; the run without -race measures it")
 	}
-	// A 5000x5000 16-bit RGBA PNG (25 MP, the limit): the most decode memory.
-	img := image.NewRGBA64(image.Rect(0, 0, 5000, 5000))
-	for i := 0; i < len(img.Pix); i += 8 {
-		img.Pix[i+0], img.Pix[i+4], img.Pix[i+6], img.Pix[i+7] = byte(i>>8), byte(i>>16), 0xFF, 0xFF
-	}
-	var png16 bytes.Buffer
-	if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&png16, img); err != nil {
-		t.Fatal(err)
-	}
-	img = nil
+	uploads := []struct {
+		name string
+		data []byte
+	}{{"16-bit PNG", png16(t, 0)}, {"another 16-bit PNG", png16(t, 7)},
+		{"progressive CMYK JPEG", progressiveJPEG(5000, 5000)}}
 	r := New()
 	defer r.Close()
 	if _, err := r.OpenPDF(f14File(t, fourThree, "pdf")); err != nil { // compile the module first
@@ -205,11 +217,18 @@ func TestMemoryLimitAfterUpload(t *testing.T) {
 	}
 	resetPeak(t)
 	base := peakRSS(t)
-	if _, err := r.DecodeUpload(png16.Bytes()); err != nil {
-		t.Fatalf("upload: %v", err)
+	for _, u := range uploads {
+		if _, err := r.DecodeUpload(u.data); err != nil {
+			t.Fatalf("%s: %v", u.name, err)
+		}
+		grow := peakRSS(t) - base
+		t.Logf("after the %s: peak RSS %d MiB above the start", u.name, grow>>20)
+		if grow > MemoryLimit+memoryOverhead {
+			t.Errorf("%s: peak RSS grew by %d MiB, want at most %d MiB", u.name, grow>>20,
+				(MemoryLimit+memoryOverhead)>>20)
+		}
 	}
-	t.Logf("upload: peak RSS %d MiB, %d MiB above the start", peakRSS(t)>>20, (peakRSS(t)-base)>>20)
-	checkLimitHit(t, r, base, "upload, then nested forms")
+	checkLimitHit(t, r, base, "uploads, then nested forms")
 }
 
 // An error PDFium reports for one page costs only that page: the instance

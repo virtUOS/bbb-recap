@@ -74,10 +74,11 @@ const (
 	// §3.2; starting is not document work). A start that fails counts as a
 	// limit hit.
 	startTimeout = 60 * time.Second
-	// killGrace is how long a call may take to return after its module was
-	// closed; after it the call is abandoned.
-	killGrace = 5 * time.Second
 )
+
+// killGrace is how long a call may take to return after its module was
+// closed; after it the call is abandoned. A variable for tests.
+var killGrace = 5 * time.Second
 
 // wasmPage is the WebAssembly page size.
 const wasmPage = 64 << 10
@@ -441,10 +442,16 @@ func (r *Renderer) DecodeUpload(data []byte) (*image.RGBA, error) {
 	}
 	r.lock()
 	r.closeInstance()
+	// Start from a released heap (the garbage of an earlier decode), and
+	// release the decoder's own garbage (a progressive JPEG keeps all its
+	// coefficients) before the flattened copy is made: without both, two
+	// uploads in a row or one progressive JPEG peaked at 0.9-1.0 GB.
+	debug.FreeOSMemory()
 	src, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrDecode, err)
 	}
+	debug.FreeOSMemory()
 	b := src.Bounds()
 	flat := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
 	draw.Draw(flat, flat.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)

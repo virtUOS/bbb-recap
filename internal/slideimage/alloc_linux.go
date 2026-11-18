@@ -26,7 +26,10 @@ import (
 //   - while a killed call has not returned (Renderer.within), mappings freed
 //     by that kill are held back; if the call returns within killGrace they
 //     join the pool, else they are never reused (the abandoned call may
-//     still write into them).
+//     still write into them). Such a mapping keeps its address space and
+//     whatever the abandoned call writes until the process ends; a warning
+//     with the count is logged each time. Not observed in tests: every
+//     killed call returned at once.
 //
 // If mmap fails (for example with strict overcommit), the memory falls back
 // to a Go slice grown by copying, as wazero's default does, and a warning is
@@ -82,13 +85,19 @@ func holdFrees() {
 // killed call returned, else they are never reused.
 func releaseFrees(returned bool) {
 	mappingsMu.Lock()
-	defer mappingsMu.Unlock()
+	n, total := len(held), 0
 	if returned {
 		mappings = append(mappings, held...)
 	} else {
-		abandoned += len(held)
+		abandoned += n
+		total = abandoned
 	}
 	held, holding = nil, false
+	mappingsMu.Unlock()
+	if !returned && n > 0 {
+		warn("slide renderer: a killed call did not stop; its memory is held until the worker restarts",
+			"mappings", n, "mappings_total", total)
+	}
 }
 
 // growMemory is the fallback when mmap fails: a Go slice grown by copying.

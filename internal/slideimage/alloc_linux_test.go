@@ -1,6 +1,7 @@
 package slideimage
 
 import (
+	"errors"
 	"syscall"
 	"testing"
 	"time"
@@ -90,5 +91,58 @@ func TestAbandonedMappingNotReused(t *testing.T) {
 	mappingsMu.Unlock()
 	if !found {
 		t.Error("the mapping of a call that returned is not in the pool")
+	}
+}
+
+// A call that does not return within killGrace after its kill: within
+// gives ErrLimit, and the memory freed by the kill is never reused.
+func TestWithinAbandonsBlockedCall(t *testing.T) {
+	defer func(g time.Duration) { killGrace = g }(killGrace)
+	killGrace = 20 * time.Millisecond
+	r := New()
+	defer r.Close()
+	if _, err := r.OpenPDF(f14File(t, chartDeck, "pdf")); err != nil {
+		t.Fatal(err)
+	}
+	mappingsMu.Lock()
+	before, pool := abandoned, len(mappings)
+	mappingsMu.Unlock()
+	block := make(chan struct{})
+	defer close(block)
+	_, err := within(r, 5*time.Millisecond, func() (int, error) {
+		<-block // a call that does not stop when its module is closed
+		return 0, nil
+	})
+	if !errors.Is(err, ErrLimit) {
+		t.Fatalf("err = %v, want ErrLimit", err)
+	}
+	mappingsMu.Lock()
+	defer mappingsMu.Unlock()
+	if abandoned != before+1 || len(mappings) != pool || holding || len(held) != 0 {
+		t.Errorf("abandoned %d (was %d), pool %d (was %d), holding %v, held %d; want one more abandoned, "+
+			"the pool unchanged", abandoned, before, len(mappings), pool, holding, len(held))
+	}
+}
+
+// The fallback when mmap fails grows a Go slice by copying: contents are
+// kept across growth, nothing above max, still usable after a refused growth.
+func TestGrowMemory(t *testing.T) {
+	m := &growMemory{buf: make([]byte, 0, 10), max: 100}
+	b := m.Reallocate(8)
+	if len(b) != 8 {
+		t.Fatalf("len %d, want 8", len(b))
+	}
+	b[7] = 9
+	if b = m.Reallocate(50); len(b) != 50 || b[7] != 9 || cap(b) > 100 {
+		t.Fatalf("after growth: len %d, cap %d, byte %d", len(b), cap(b), b[7])
+	}
+	if b = m.Reallocate(100); len(b) != 100 || b[7] != 9 {
+		t.Fatalf("at max: len %d, byte %d", len(b), b[7])
+	}
+	if m.Reallocate(101) != nil {
+		t.Fatal("a growth above max was granted")
+	}
+	if b = m.Reallocate(100); len(b) != 100 || b[7] != 9 {
+		t.Fatal("not usable after a refused growth")
 	}
 }
