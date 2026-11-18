@@ -157,15 +157,20 @@ secret_missing() {
 [[ -d $dir ]] || mkdir -m 0700 "$dir" 2>/dev/null ||
 	die "cannot create $dir; create it first: sudo install -d -m 0700 -o \"\$(id -u)\" -g \"\$(id -g)\" $dir"
 [[ -w $dir ]] || die "$dir is not writable for $(id -un)"
+# The real path: later steps cd into it, and a symlink has its own mode.
+dir=$(cd "$dir" && pwd -P)
 # The secrets inside are readable for every user (the containers need that),
 # so only the install dir protects them.
-[[ $(stat -c %a "$dir") == 700 ]] ||
-	die "$dir has mode $(stat -c %a "$dir"); it must be 0700, because the secrets in it are world-readable:" \
-		"chmod 0700 $dir"
+mode=$(stat -c %a "$dir")
+if [[ $mode != 700 ]]; then
+	[[ ${#mode} -eq 4 ]] && die "$dir has mode $mode; it must be 0700 without setgid or sticky bit: chmod 00700 $dir"
+	die "$dir has mode $mode; it must be 0700, because the secrets in it are world-readable: chmod 0700 $dir"
+fi
 fresh=1
 [[ -e $dir/.env ]] && fresh=0
 # The *.new files below are temporary.
-trap 'rm -f "$dir/.env.new" "$dir/config/providers.yaml.new" "$dir/config/sinks.yaml.new"' EXIT
+tmp_files=("$dir/.env.new" "$dir/config/providers.yaml.new" "$dir/config/sinks.yaml.new")
+trap 'rm -f "${tmp_files[@]}"' EXIT
 
 # ignored FILE VAR...: warns about each VAR that is set although FILE is kept.
 ignored() {
@@ -279,8 +284,8 @@ created=()
 put() {
 	local path=$dir/$1 tmp
 	tmp=$(mktemp "$path.XXXXXX")
-	cat >"$tmp"
-	chmod "$2" "$tmp"
+	tmp_files+=("$tmp")
+	{ cat >"$tmp" && chmod "$2" "$tmp"; } || die "cannot write $path"
 	if [[ -e $path ]]; then
 		if cmp -s "$tmp" "$path"; then
 			rm -f "$tmp"
@@ -341,11 +346,11 @@ if new config/providers.yaml; then
 		-e "s|^\( *operator:\) \"REPLACE: .*\"|\1 \"$(sed_value "$RECAP_SETUP_OPERATOR")\"|" \
 		"$src/config/providers.yaml" >"$dir/config/providers.yaml.new"
 	# transkribierBAR keeps a transcription until the adapter's cleanup, and an
-	# upload whose transcription never started until its own expiry, 72 h by
-	# default (docs/reference/providers.md §2a.4, Known limitations).
+	# upload or transcription the adapter lost track of until its own expiry,
+	# 72 h by default (docs/reference/providers.md §2a.4, Known limitations).
 	if [[ $RECAP_SETUP_ASR_DIALECT == transkribierbar ]]; then
-		retention="Until the cleanup of each job deletes the transcription; an upload whose transcription"
-		retention+=" never started until transkribierBAR deletes it (DEFAULT_EXPIRY_HOURS, default 72 h)"
+		retention="Until the cleanup of each job deletes the transcription; an upload or transcription the adapter"
+		retention+=" lost track of until transkribierBAR deletes it (DEFAULT_EXPIRY_HOURS, default 72 h)"
 		sed -i -e "s|^\( *retention:\) \"No persistence (RESULT_STORE__ENABLED=false)\"\$|\1 \"$retention\"|" \
 			-e 's|^\( *deletion:\) none # adapter_cleanup.*|\1 adapter_cleanup|' "$dir/config/providers.yaml.new"
 	fi
@@ -435,6 +440,9 @@ if [[ $start -eq 1 ]]; then
 		"${compose[@]}" up -d --force-recreate api worker
 	fi
 	"${compose[@]}" ps
+elif [[ ${#created[@]} -gt 0 && $fresh -eq 0 ]]; then
+	echo "Not started (--no-start). api and worker read the changes at start; to apply them:"
+	echo "  cd $dir && ${compose[*]} up -d --force-recreate api worker"
 fi
 
 # --- Next steps

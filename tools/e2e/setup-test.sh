@@ -162,7 +162,8 @@ grep -q "bbb_server.bbb-3 *$(cat "$dir/secrets/clients/bbb_server.bbb-3")" "$WOR
 [[ $(grep -c '^  bbb_server\.\|^  frontend\.' "$WORK/run2b.out") == 1 ]] || fail "new ID: other tokens shown"
 grep -q 'RECAP_SETUP_HOST is ignored' "$WORK/run2b.out" || fail "new ID: ignored RECAP_SETUP_HOST not reported"
 grep -q 'server-id bbb-3' "$WORK/run2b.out" || fail "new ID: no exporter command for bbb-3"
-ok "rerun with a new ID: only that token created and shown, ignored answer reported"
+grep -q 'up -d --force-recreate api worker' "$WORK/run2b.out" || fail "new ID with --no-start: no hint to recreate"
+ok "rerun with a new ID: only that token created and shown, ignored answer reported, recreate hint"
 
 # 5. --force rewrites config (with .bak) but keeps every secret.
 secrets_before=$(state "$dir/secrets")
@@ -172,6 +173,23 @@ grep -q 'model: other-model' "$dir/config/providers.yaml" || fail "--force: prov
 grep -q 'model: example-model' "$dir"/config/providers.yaml.bak.* || fail "--force: no providers.yaml.bak.<time>"
 [[ $(state "$dir/secrets") == "$secrets_before" ]] || fail "--force changed secrets"
 ok "--force: config rewritten with .bak, secrets unchanged"
+
+# 5b. A relative --dir shows the new tokens; a symlink to it is followed (its
+# own mode does not count); a setgid dir is refused with the chmod that clears it.
+(cd "$WORK" && dummy_env RECAP_SETUP_OIDC_ISSUER= "$ROOT/deploy/setup.sh" --dir rel --non-interactive --no-start) \
+	>"$WORK/rel.out" 2>&1 || fail "relative --dir: $(cat "$WORK/rel.out")"
+grep -q "bbb_server.bbb-1 *$(cat "$WORK/rel/secrets/clients/bbb_server.bbb-1")" "$WORK/rel.out" ||
+	fail "relative --dir: token not shown"
+ln -s rel "$WORK/link"
+env RECAP_SETUP_COMPOSE="$COMPOSE -p $PROJECT" "$ROOT/deploy/setup.sh" --dir "$WORK/link" --non-interactive --no-start \
+	>"$WORK/link.out" 2>&1 || fail "symlinked --dir: $(cat "$WORK/link.out")"
+grep -q 'Nothing to change' "$WORK/link.out" || fail "symlinked --dir: no 'Nothing to change'"
+mkdir -m 2700 "$WORK/sgid"
+if dummy_env "$ROOT/deploy/setup.sh" --dir "$WORK/sgid" --non-interactive --no-start >"$WORK/sgid.out" 2>&1; then
+	fail "setgid dir: exit 0"
+fi
+grep -q "chmod 00700 $WORK/sgid" "$WORK/sgid.out" || fail "setgid dir: no chmod 00700 hint: $(cat "$WORK/sgid.out")"
+ok "relative --dir shows the tokens, a symlinked --dir works, a setgid dir is refused with chmod 00700"
 
 # 6. Front end only, with transkribierBAR: no docs profile (and no docs.key,
 # although a key is given), the declaration of providers.md §2a.4, check-config passes.
