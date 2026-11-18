@@ -74,6 +74,17 @@ grep -q 'missing value: .*RECAP_SETUP_LLM_MODEL' "$WORK/missing.out" ||
 [[ -z $(ls -A "$dir") ]] || fail "missing value: files written"
 ok "missing required value: exit non-zero, names RECAP_SETUP_LLM_MODEL, writes nothing"
 
+# 1b. An install dir that others can enter is refused (the secrets in it are world-readable).
+dir=$WORK/open
+mkdir -m 0755 "$dir"
+if dummy_env "$ROOT/deploy/setup.sh" --dir "$dir" --non-interactive --no-start >"$WORK/open.out" 2>&1; then
+	fail "install dir 0755: exit 0"
+fi
+grep -q "must be 0700.*chmod 0700 $dir" "$WORK/open.out" ||
+	fail "install dir 0755: no clear message: $(cat "$WORK/open.out")"
+[[ -z $(ls -A "$dir") ]] || fail "install dir 0755: files written"
+ok "install dir not 0700: exit non-zero with the chmod to fix it, writes nothing"
+
 # 2. First run: the files pass check-config.
 dir=$WORK/docs
 dummy_env "$ROOT/deploy/setup.sh" --dir "$dir" --non-interactive --no-start >"$WORK/run1.out" 2>&1 ||
@@ -126,18 +137,47 @@ if grep -q "$(cat "$dir/secrets/clients/bbb_server.bbb-1")" "$WORK/run2.out"; th
 fi
 ok "second run: no file changed (paths, modes, mtimes, checksums), no token shown"
 
+# 4a. A directory an admin tightened keeps its mode. With 0750 the containers
+# (UID 10001, not in the group) cannot read secrets/ here, so check-config
+# fails and the exit status is not checked; the point is the mode.
+chmod 0750 "$dir/secrets"
+env RECAP_SETUP_COMPOSE="$COMPOSE -p $PROJECT" \
+	"$ROOT/deploy/setup.sh" --dir "$dir" --non-interactive --no-start >"$WORK/run2a.out" 2>&1 || true
+grep -q 'Nothing to change' "$WORK/run2a.out" || fail "0750 secrets: no 'Nothing to change'"
+[[ $(stat -c %a "$dir/secrets") == 750 ]] || fail "0750 secrets: mode changed to $(stat -c %a "$dir/secrets")"
+chmod 0755 "$dir/secrets"
+ok "a rerun keeps a 0750 secrets dir at 0750"
+
+# 4b. A rerun with a new BBB server ID creates and shows only that token; an
+# answer for the kept .env is reported as ignored.
+before=$(cd "$dir" && find . | sort)
+env RECAP_SETUP_COMPOSE="$COMPOSE -p $PROJECT" RECAP_SETUP_BBB_SERVERS=bbb-3 RECAP_SETUP_HOST=other.example.org \
+	"$ROOT/deploy/setup.sh" --dir "$dir" --non-interactive --no-start >"$WORK/run2b.out" 2>&1 ||
+	fail "new ID: $(cat "$WORK/run2b.out")"
+added=$(diff <(echo "$before") <(cd "$dir" && find . | sort) | grep '^>' || true)
+[[ $added == "> ./secrets/clients/bbb_server.bbb-3" ]] ||
+	fail "new ID: want exactly secrets/clients/bbb_server.bbb-3 added"
+grep -q "bbb_server.bbb-3 *$(cat "$dir/secrets/clients/bbb_server.bbb-3")" "$WORK/run2b.out" ||
+	fail "new ID: token not shown"
+[[ $(grep -c '^  bbb_server\.\|^  frontend\.' "$WORK/run2b.out") == 1 ]] || fail "new ID: other tokens shown"
+grep -q 'RECAP_SETUP_HOST is ignored' "$WORK/run2b.out" || fail "new ID: ignored RECAP_SETUP_HOST not reported"
+grep -q 'server-id bbb-3' "$WORK/run2b.out" || fail "new ID: no exporter command for bbb-3"
+ok "rerun with a new ID: only that token created and shown, ignored answer reported"
+
 # 5. --force rewrites config (with .bak) but keeps every secret.
 secrets_before=$(state "$dir/secrets")
 dummy_env RECAP_SETUP_LLM_MODEL=other-model "$ROOT/deploy/setup.sh" --dir "$dir" --non-interactive --no-start --force \
 	>"$WORK/run3.out" 2>&1 || fail "--force: $(cat "$WORK/run3.out")"
 grep -q 'model: other-model' "$dir/config/providers.yaml" || fail "--force: providers.yaml not rewritten"
-grep -q 'model: example-model' "$dir/config/providers.yaml.bak" || fail "--force: no providers.yaml.bak"
+grep -q 'model: example-model' "$dir"/config/providers.yaml.bak.* || fail "--force: no providers.yaml.bak.<time>"
 [[ $(state "$dir/secrets") == "$secrets_before" ]] || fail "--force changed secrets"
 ok "--force: config rewritten with .bak, secrets unchanged"
 
-# 6. Front end only: no docs profile, check-config passes.
+# 6. Front end only, with transkribierBAR: no docs profile (and no docs.key,
+# although a key is given), the declaration of providers.md §2a.4, check-config passes.
 dir=$WORK/frontend
-dummy_env RECAP_SETUP_SINK=frontend RECAP_SETUP_DOCS_URL= RECAP_SETUP_DOCS_KEY= RECAP_SETUP_OIDC_ISSUER= \
+dummy_env RECAP_SETUP_SINK=frontend RECAP_SETUP_DOCS_URL= RECAP_SETUP_OIDC_ISSUER= \
+	RECAP_SETUP_ASR_DIALECT=transkribierbar \
 	"$ROOT/deploy/setup.sh" --dir "$dir" --non-interactive --no-start >"$WORK/run4.out" 2>&1 ||
 	fail "front end only: $(cat "$WORK/run4.out")"
 grep -q 'configuration is valid' "$WORK/run4.out" || fail "front end only: check-config did not pass"
@@ -146,4 +186,12 @@ if grep -q 'type: docs' "$dir/config/sinks.yaml"; then
 fi
 [[ ! -e $dir/secrets/sinks/docs.key && ! -e $dir/secrets/session-key ]] ||
 	fail "front end only: docs key or session key written"
-ok "front end only: no docs profile, check-config passes"
+ok "front end only: no docs profile, no docs.key, check-config passes"
+grep -q '^    dialect: transkribierbar$' "$dir/config/providers.yaml" || fail "transkribierbar: dialect"
+grep -q '^      deletion: adapter_cleanup$' "$dir/config/providers.yaml" || fail "transkribierbar: deletion"
+grep -q '^      retention: "Until the cleanup .*default 72 h)"$' "$dir/config/providers.yaml" ||
+	fail "transkribierbar: retention"
+if grep -v '^ *#' "$dir/config/providers.yaml" | grep -q RESULT_STORE; then
+	fail "transkribierbar: whisperx retention left"
+fi
+ok "transkribierbar: declaration with adapter_cleanup and the 72 h expiry"

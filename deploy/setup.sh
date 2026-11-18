@@ -9,8 +9,9 @@
 # Each question can be answered in advance with the environment variable shown
 # in brackets (for Ansible or CI). With --non-interactive a missing required
 # value is an error. Existing files are kept: a second run changes nothing.
-# --force rewrites the config files (compose.yaml, .env, config/*.yaml; the
-# old file is kept as <file>.bak), never a secret. Secrets are never printed,
+# --force rewrites the config files (compose.yaml, .env, config/*.yaml) from
+# the answers, which discards hand edits in them; each old file is kept as
+# <file>.bak.<time>. It never touches a secret. Secrets are never printed,
 # except the client tokens created in this run, once, at the end.
 set -euo pipefail
 
@@ -21,7 +22,8 @@ Usage: deploy/setup.sh [--dir DIR] [--non-interactive] [--no-start] [--force]
   --dir DIR          install directory (RECAP_SETUP_DIR, default /opt/recap)
   --non-interactive  ask nothing; fail on a missing required value
   --no-start         write the files and run check-config, do not start
-  --force            rewrite the config files; the old ones are kept as .bak
+  --force            rewrite compose.yaml, .env and config/*.yaml from the answers (hand edits
+                     in them are lost; each old file is kept as <file>.bak.<time>)
 
 Answers from the environment (questions not needed for an existing file are skipped):
   RECAP_SETUP_VERSION       release tag, e.g. v0.3.0 (default: the tag of this checkout)
@@ -155,6 +157,24 @@ secret_missing() {
 [[ -d $dir ]] || mkdir -m 0700 "$dir" 2>/dev/null ||
 	die "cannot create $dir; create it first: sudo install -d -m 0700 -o \"\$(id -u)\" -g \"\$(id -g)\" $dir"
 [[ -w $dir ]] || die "$dir is not writable for $(id -un)"
+# The secrets inside are readable for every user (the containers need that),
+# so only the install dir protects them.
+[[ $(stat -c %a "$dir") == 700 ]] ||
+	die "$dir has mode $(stat -c %a "$dir"); it must be 0700, because the secrets in it are world-readable:" \
+		"chmod 0700 $dir"
+fresh=1
+[[ -e $dir/.env ]] && fresh=0
+# The *.new files below are temporary.
+trap 'rm -f "$dir/.env.new" "$dir/config/providers.yaml.new" "$dir/config/sinks.yaml.new"' EXIT
+
+# ignored FILE VAR...: warns about each VAR that is set although FILE is kept.
+ignored() {
+	local file=$1 var
+	shift
+	for var; do
+		[[ -z ${!var-} ]] || echo "setup.sh: $file exists, $var is ignored (--force rewrites $file)" >&2
+	done
+}
 
 # Release and image: from the tag of this checkout unless given.
 if new .env; then
@@ -181,7 +201,9 @@ if new .env; then
 		fi
 	fi
 else
+	ignored .env RECAP_SETUP_VERSION RECAP_SETUP_IMAGE RECAP_SETUP_HOST RECAP_SETUP_OIDC_ISSUER RECAP_SETUP_OIDC_CLIENT_ID
 	# For the next steps below: the values of the existing .env.
+	RECAP_SETUP_VERSION=
 	RECAP_SETUP_IMAGE=$(sed -n 's/^RECAP_IMAGE=//p' "$dir/.env")
 	base_url=$(sed -n 's/^RECAP_PUBLIC_BASE_URL=//p' "$dir/.env")
 	RECAP_SETUP_HOST=${base_url#https://}
@@ -190,8 +212,11 @@ fi
 
 if new config/providers.yaml || new config/sinks.yaml; then
 	ask RECAP_SETUP_OPERATOR "Who runs the ASR server, the LLM endpoint and Docs (for the privacy declarations)"
-	[[ $RECAP_SETUP_OPERATOR != *[\"\\]* ]] || die "operator: no \" or \\ please"
+	[[ $RECAP_SETUP_OPERATOR != *[\"\\$'\n']* ]] || die "operator: no \", \\ or line break please"
 fi
+new config/providers.yaml || ignored config/providers.yaml RECAP_SETUP_ASR_DIALECT RECAP_SETUP_ASR_URL \
+	RECAP_SETUP_ASR_MODEL RECAP_SETUP_LLM_URL RECAP_SETUP_LLM_MODEL RECAP_SETUP_LLM_CONTEXT
+new config/sinks.yaml || ignored config/sinks.yaml RECAP_SETUP_SINK RECAP_SETUP_DOCS_URL
 if new config/providers.yaml; then
 	ask RECAP_SETUP_ASR_DIALECT "ASR dialect: whisperx-family or transkribierbar" whisperx-family
 	check "$RECAP_SETUP_ASR_DIALECT" '^(whisperx-family|transkribierbar)$' "ASR dialect"
@@ -261,7 +286,7 @@ put() {
 			rm -f "$tmp"
 			return
 		fi
-		cp -p "$path" "$path.bak"
+		cp -p "$path" "$path.bak.$(date +%Y%m%d-%H%M%S)"
 	fi
 	mv "$tmp" "$path"
 	created+=("$1")
@@ -284,7 +309,10 @@ sed_value() {
 
 # The containers run as UID 10001 and read config and secrets through the
 # "other" bits; the install dir itself stays 0700 (install-compose.md).
-install -d -m 0755 "$dir/config" "$dir/secrets" "$dir/secrets/clients" "$dir/secrets/providers" "$dir/secrets/sinks"
+# Only missing directories: an admin may have tightened existing ones.
+for d in config secrets secrets/clients secrets/providers secrets/sinks; do
+	[[ -d $dir/$d ]] || install -d -m 0755 "$dir/$d"
+done
 
 if new compose.yaml; then
 	put compose.yaml 0644 <"$src/compose.yaml"
@@ -312,6 +340,15 @@ if new config/providers.yaml; then
 		-e "s|^\( *context_tokens:\) 32768 .*|\1 $RECAP_SETUP_LLM_CONTEXT|" \
 		-e "s|^\( *operator:\) \"REPLACE: .*\"|\1 \"$(sed_value "$RECAP_SETUP_OPERATOR")\"|" \
 		"$src/config/providers.yaml" >"$dir/config/providers.yaml.new"
+	# transkribierBAR keeps a transcription until the adapter's cleanup, and an
+	# upload whose transcription never started until its own expiry, 72 h by
+	# default (docs/reference/providers.md §2a.4, Known limitations).
+	if [[ $RECAP_SETUP_ASR_DIALECT == transkribierbar ]]; then
+		retention="Until the cleanup of each job deletes the transcription; an upload whose transcription"
+		retention+=" never started until transkribierBAR deletes it (DEFAULT_EXPIRY_HOURS, default 72 h)"
+		sed -i -e "s|^\( *retention:\) \"No persistence (RESULT_STORE__ENABLED=false)\"\$|\1 \"$retention\"|" \
+			-e 's|^\( *deletion:\) none # adapter_cleanup.*|\1 adapter_cleanup|' "$dir/config/providers.yaml.new"
+	fi
 	# "none": a server without key; the profile then has no credentials_file.
 	for k in asr llm; do
 		var=RECAP_SETUP_${k^^}_KEY
@@ -358,11 +395,15 @@ for id in "${frontends[@]}"; do
 done
 [[ ${RECAP_SETUP_ASR_KEY:-none} == none ]] || put_secret providers/asr.key "$RECAP_SETUP_ASR_KEY"
 [[ ${RECAP_SETUP_LLM_KEY:-none} == none ]] || put_secret providers/llm.key "$RECAP_SETUP_LLM_KEY"
-[[ -z ${RECAP_SETUP_DOCS_KEY-} ]] || put_secret sinks/docs.key "$RECAP_SETUP_DOCS_KEY"
+if [[ -n ${RECAP_SETUP_DOCS_KEY-} ]] && grep -q '^ *type: docs$' "$dir/config/sinks.yaml"; then
+	put_secret sinks/docs.key "$RECAP_SETUP_DOCS_KEY"
+fi
 if [[ -n $RECAP_SETUP_OIDC_ISSUER ]]; then
 	[[ -z ${RECAP_SETUP_OIDC_CLIENT_SECRET-} ]] || put_secret oidc-client-secret "$RECAP_SETUP_OIDC_CLIENT_SECRET"
 	put_secret session-key "$(token)"
 fi
+# The keys are on disk now; compose and the containers do not need them.
+unset RECAP_SETUP_ASR_KEY RECAP_SETUP_LLM_KEY RECAP_SETUP_DOCS_KEY RECAP_SETUP_OIDC_CLIENT_SECRET
 
 if [[ ${#created[@]} -gt 0 ]]; then
 	echo "Written in $dir:"
@@ -390,7 +431,7 @@ if [[ $start -eq 1 ]]; then
 	"${compose[@]}" up -d
 	# api and worker read config and secrets at start: after a change to an
 	# existing installation (e.g. a new token) they must be recreated.
-	if [[ ${#created[@]} -gt 0 && " ${created[*]} " != *" .env "* ]]; then
+	if [[ ${#created[@]} -gt 0 && $fresh -eq 0 ]]; then
 		"${compose[@]}" up -d --force-recreate api worker
 	fi
 	"${compose[@]}" ps
@@ -398,14 +439,18 @@ fi
 
 # --- Next steps
 
-service_url=https://$RECAP_SETUP_HOST
+service_url=https://${RECAP_SETUP_HOST:-<this host>}
+# The release for the exporter: given, or the tag of a release image.
 version=${RECAP_SETUP_VERSION:-${RECAP_SETUP_IMAGE##*:}}
+[[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || version='<release>'
+port=$(sed -n 's/^RECAP_HTTP_PORT=//p' .env)
+port=${port:-8080}
 sink_names=$(sed -n 's/^  - name: //p' config/sinks.yaml | paste -sd, -)
 cat <<EOF
 
 Next steps (docs/operations/integration.md has the whole picture):
 
-1. Reverse proxy: TLS for $service_url to 127.0.0.1:8080 (deploy/Caddyfile.example).
+1. Reverse proxy: TLS for $service_url to 127.0.0.1:$port (deploy/Caddyfile.example).
    Check: curl -sS -o /dev/null -w '%{http_code}\n' $service_url/   # expect 404
 
 2. On each BBB server, as root (docs/operations/install-exporter.md); the script asks for the server's token.
