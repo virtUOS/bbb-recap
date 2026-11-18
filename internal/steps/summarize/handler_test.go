@@ -273,14 +273,19 @@ func TestHandlerSlides(t *testing.T) {
 		jobID, dout); err != nil {
 		t.Fatal(err)
 	}
-	e := newEnv(t, 32768, 4096)
-	d := handlerDeps(e, pool, store)
-	d.SlideTypes = map[string]bool{"meeting-summary": true}
-	if r := Handler(d)(ctx, queue.Run{JobID: jobID, Step: Step, Attempt: 1}); r.Outcome != queue.OK {
-		t.Fatalf("with descriptions: result %+v", r)
-	}
-	calls := e.fake.all()
-	if len(calls) != 1 || !strings.Contains(calls[0].user, desc) || strings.Contains(calls[0].user, slideMark) {
-		t.Errorf("with descriptions: the description does not replace the slide text")
+	// Only while the type switches slide images on: off, the slide text.
+	for _, images := range []bool{true, false} {
+		e := newEnv(t, 32768, 4096)
+		d := handlerDeps(e, pool, store)
+		d.SlideTypes = map[string]bool{"meeting-summary": true}
+		d.SlideImageTypes = map[string]bool{"meeting-summary": images}
+		if r := Handler(d)(ctx, queue.Run{JobID: jobID, Step: Step, Attempt: 1}); r.Outcome != queue.OK {
+			t.Fatalf("with descriptions, images %v: result %+v", images, r)
+		}
+		calls := e.fake.all()
+		if len(calls) != 1 || strings.Contains(calls[0].user, desc) != images ||
+			strings.Contains(calls[0].user, slideMark) == images {
+			t.Errorf("images %v: description sent %v, want %v", images, !images, images)
+		}
 	}
 }

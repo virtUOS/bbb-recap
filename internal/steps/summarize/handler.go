@@ -47,8 +47,10 @@ type Deps struct {
 	FormatsDir   string
 	MeetingTypes map[string]string
 	// SlideTypes are the meeting types that switch the slides input on
-	// (inputs.slides: true, templates.md §1, §3.1).
+	// (inputs.slides: true, templates.md §1, §3.1); SlideImageTypes those
+	// that switch slide images on (inputs.slide_images: true, §3.2).
 	SlideTypes      map[string]bool
+	SlideImageTypes map[string]bool
 	DefaultLanguage string // RECAP_DEFAULT_LANGUAGE
 }
 
@@ -206,9 +208,11 @@ func (d Deps) load(ctx context.Context, jobID string) (*format.Format, Input, er
 	// Slides only for a type that switches them on and a format that declares them (templates.md §3.1).
 	if d.SlideTypes[*meetingType] && f.HasInput(format.InputSlides) {
 		in.Slides = m.Slides
-		// Descriptions of slide images (templates.md §3.2): a job without a
+		// Descriptions of slide images (templates.md §3.2), only while the
+		// type and the format still switch them on; a job without a
 		// descriptions file keeps the slide text path.
-		if dout != nil && dout.DescriptionsSHA256 != "" {
+		images := d.SlideImageTypes[*meetingType] && f.HasInput(format.InputSlideImages)
+		if images && dout != nil && dout.DescriptionsSHA256 != "" {
 			var file struct {
 				Descriptions map[string]string `json:"descriptions"`
 			}
