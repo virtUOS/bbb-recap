@@ -219,11 +219,12 @@ file that is in the package (a blob store failure, including a hash mismatch) is
    ([`upstream-facts.md`](upstream-facts.md) "Providers"); the dependency is not used below a version with that check.
    The decode runs in Go, outside the renderer's limits: it has no time limit of its own (it is bounded by the pixel
    limit). Measured peak RSS of the whole `normalize` run at the limit (5000 × 5000 pixels): about 565 MB for a PNG
-   with 16 bits per channel, about 467 MB with 8 bits, about 652 MB for a progressive CMYK JPEG (the decoder keeps
-   all its coefficients), about 445 MB for a baseline or progressive YCbCr JPEG. An open renderer instance is closed
-   before an upload is decoded, and the Go heap is returned to the operating system before each decode, after it
-   and before the next renderer instance starts, so two decodes, or a decode and a renderer, never hold memory at
-   the same time. Below the limit it is decoded and, if its long edge is over 1 280 px, scaled down by the same
+   with 16 bits per channel, about 467 MB with 8 bits, about 652 MB for a progressive CMYK JPEG (four components,
+   and the decoder keeps every coefficient), about 445 MB for a baseline or progressive YCbCr JPEG; less when the
+   upload is the first slide of the run. An open renderer instance is closed before an upload is decoded, and the Go
+   heap is returned to the operating system before each decode, between decoding and flattening, before the
+   renderer is first compiled and before the next renderer instance starts, so two decodes, or a decode and a
+   renderer, never hold memory at the same time. Below the limit it is decoded and, if its long edge is over 1 280 px, scaled down by the same
    rule; it is never scaled up. An animated WebP gives no image (the decoder does not read animations); an animated PNG
    gives its default image.
 3. The result is composited on opaque white and written as PNG, 8 bits per channel, colour type 2 (RGB, no alpha),
