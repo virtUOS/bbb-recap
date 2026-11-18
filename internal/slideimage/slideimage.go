@@ -16,17 +16,24 @@
 //   - the result is composited on opaque white and written as PNG, 8 bits
 //     per channel, colour type 2, without ancillary chunks (EncodePNG);
 //   - one renderer at a time per process: a Renderer holds a process-wide
-//     lock from its first use to Close. The PDF is passed as bytes and the
-//     WebAssembly module sees no filesystem. Its linear memory is capped at
-//     MemoryLimit, opening a document at OpenTimeout and rendering a page at
-//     PageTimeout. A limit hit (or any other failure inside the module)
-//     discards the instance (ErrLimit); the next document gets a new one.
+//     lock from its first use to Close. Waiting for the lock cannot be
+//     cancelled: a second normalize run with images in the same worker waits
+//     for the first one (its lease is kept by the heartbeat meanwhile). The
+//     PDF is passed as bytes and the WebAssembly module sees no filesystem.
+//     Its linear memory is capped at MemoryLimit and reserved once, grown in
+//     place (alloc_linux.go), so the process holds at most the cap plus the
+//     renderer's own overhead; opening a document is capped at OpenTimeout
+//     and rendering a page at PageTimeout. A limit hit, a trap or any other
+//     failure inside the module discards the instance (ErrLimit); the next
+//     document gets a new one. An error PDFium reports for one page
+//     (ErrPageFailed) costs only that page.
 //
 // Nothing here logs; callers log codes and sizes only.
 package slideimage
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -77,11 +84,14 @@ const wasmPage = 64 << 10
 // beyond the page count. ErrTooLarge: an upload over MaxPixels. ErrDecode:
 // an upload that does not decode.
 var (
-	ErrOpen     = errors.New("slideimage: document does not open")
-	ErrLimit    = errors.New("slideimage: renderer limit hit")
-	ErrNoPage   = errors.New("slideimage: page beyond the page count")
-	ErrTooLarge = errors.New("slideimage: image over the pixel limit")
-	ErrDecode   = errors.New("slideimage: image does not decode")
+	ErrOpen   = errors.New("slideimage: document does not open")
+	ErrLimit  = errors.New("slideimage: renderer limit hit")
+	ErrNoPage = errors.New("slideimage: page beyond the page count")
+	// ErrPageFailed: PDFium reported an error for one page; only that page
+	// gets no image, the instance and the document stay.
+	ErrPageFailed = errors.New("slideimage: page does not render")
+	ErrTooLarge   = errors.New("slideimage: image over the pixel limit")
+	ErrDecode     = errors.New("slideimage: image does not decode")
 )
 
 // processLock makes one Renderer at a time per process (§3.2 item 4).
@@ -165,6 +175,7 @@ func (r *Renderer) start() error {
 			WithMemoryLimitPages(MemoryLimit / wasmPage).
 			WithCloseOnContextDone(true)
 		pool, err := webassembly.Init(webassembly.Config{
+			Context:       withAllocator(context.Background()),
 			MinIdle:       0,
 			MaxIdle:       1,
 			MaxTotal:      1,
@@ -191,40 +202,57 @@ func (r *Renderer) start() error {
 	return nil
 }
 
-// within runs f with a time limit. On a timeout or a panic the instance is
-// discarded and ErrLimit returned.
-func (r *Renderer) within(limit time.Duration, f func() error) error {
-	done := make(chan error, 1)
+// result is what a call inside within returns.
+type result[T any] struct {
+	v   T
+	err error
+}
+
+// within runs f on r with a time limit. On a timeout, a panic or an error
+// wrapping ErrLimit the instance is discarded and ErrLimit returned. The
+// result comes back through a channel, so a call abandoned after a kill
+// never writes into the caller's variables.
+func within[T any](r *Renderer, limit time.Duration, f func() (T, error)) (T, error) {
+	done := make(chan result[T], 1)
 	go func() {
 		defer func() {
 			if p := recover(); p != nil {
-				done <- fmt.Errorf("%w: panic in the renderer", ErrLimit)
+				var zero T
+				done <- result[T]{zero, fmt.Errorf("%w: panic in the renderer", ErrLimit)}
 			}
 		}()
-		done <- f()
+		v, err := f()
+		done <- result[T]{v, err}
 	}()
 	t := time.NewTimer(limit)
 	defer t.Stop()
+	var zero T
 	select {
-	case err := <-done:
-		if errors.Is(err, ErrLimit) {
+	case res := <-done:
+		if errors.Is(res.err, ErrLimit) {
 			r.kill()
+			return zero, res.err
 		}
-		return err
+		return res.v, res.err
 	case <-t.C:
 		r.kill()
 		select {
-		case err := <-done:
-			_ = err // the call returned after its module was closed
+		case <-done: // the call returned after its module was closed
 		case <-time.After(killGrace):
 		}
-		return fmt.Errorf("%w: time limit", ErrLimit)
+		return zero, fmt.Errorf("%w: time limit", ErrLimit)
 	}
+}
+
+// opened is the result of an open.
+type opened struct {
+	doc   references.FPDF_DOCUMENT
+	pages int
 }
 
 // OpenPDF opens a PDF from its bytes and returns its page count; an open
 // document is closed first. ErrOpen when it does not parse, ErrLimit when a
-// limit was hit.
+// limit was hit or the module failed.
 func (r *Renderer) OpenPDF(data []byte) (int, error) {
 	r.lock()
 	if r.inst != nil && r.doc != nil {
@@ -237,35 +265,33 @@ func (r *Renderer) OpenPDF(data []byte) (int, error) {
 		}
 	}
 	inst := r.inst
-	var doc references.FPDF_DOCUMENT
-	var pages int
-	err := r.within(OpenTimeout, func() error {
+	o, err := within(r, OpenTimeout, func() (opened, error) {
 		res, err := inst.OpenDocument(&requests.OpenDocument{File: &data})
 		if err != nil {
 			if isPDFError(err) {
-				return fmt.Errorf("%w: %v", ErrOpen, err)
+				return opened{}, fmt.Errorf("%w: %v", ErrOpen, err)
 			}
-			return fmt.Errorf("%w: open: %v", ErrLimit, err)
+			return opened{}, fmt.Errorf("%w: open: %v", ErrLimit, err)
 		}
-		doc = res.Document
-		n, err := inst.FPDF_GetPageCount(&requests.FPDF_GetPageCount{Document: doc})
+		n, err := inst.FPDF_GetPageCount(&requests.FPDF_GetPageCount{Document: res.Document})
 		if err != nil {
-			return fmt.Errorf("%w: page count: %v", ErrLimit, err)
+			return opened{}, fmt.Errorf("%w: page count: %v", ErrLimit, err)
 		}
-		pages = n.PageCount
-		return nil
+		return opened{res.Document, n.PageCount}, nil
 	})
 	if err != nil {
 		return 0, err
 	}
-	r.doc, r.pages = &doc, pages
-	return pages, nil
+	r.doc, r.pages = &o.doc, o.pages
+	return o.pages, nil
 }
 
-// isPDFError reports the PDFium load errors: the document itself is bad.
+// isPDFError reports PDFium's own error codes for a bad document or page.
+// PDFium's "unknown error" is not one of them: a failure it reports that
+// way (an allocation, say) leaves the instance untrusted.
 func isPDFError(err error) bool {
-	for _, e := range []error{pdfiumerrors.ErrUnknown, pdfiumerrors.ErrFile, pdfiumerrors.ErrFormat,
-		pdfiumerrors.ErrPassword, pdfiumerrors.ErrSecurity} {
+	for _, e := range []error{pdfiumerrors.ErrFile, pdfiumerrors.ErrFormat, pdfiumerrors.ErrPassword,
+		pdfiumerrors.ErrSecurity, pdfiumerrors.ErrPage} {
 		if errors.Is(err, e) {
 			return true
 		}
@@ -275,8 +301,9 @@ func isPDFError(err error) bool {
 
 // RenderPage renders page (1-based) of the open document as displayed, its
 // long edge at LongEdge pixels, on opaque white. ErrNoPage beyond the page
-// count; ErrLimit on a limit hit or any failure inside the module (the
-// instance is then discarded and the document closed).
+// count. ErrPageFailed when PDFium reports an error for this page: the
+// instance and the document stay. ErrLimit on a limit hit, a trap or any
+// other failure inside the module: the instance is discarded.
 func (r *Renderer) RenderPage(page int) (*image.RGBA, error) {
 	if r.inst == nil || r.doc == nil {
 		return nil, fmt.Errorf("%w: no open document", ErrLimit)
@@ -285,17 +312,20 @@ func (r *Renderer) RenderPage(page int) (*image.RGBA, error) {
 		return nil, ErrNoPage
 	}
 	inst, doc := r.inst, *r.doc
-	var img *image.RGBA
-	err := r.within(PageTimeout, func() error {
-		var err error
-		img, err = renderPage(inst, doc, page-1)
-		if err != nil {
-			return fmt.Errorf("%w: render: %v", ErrLimit, err)
+	return within(r, PageTimeout, func() (*image.RGBA, error) {
+		img, err := renderPage(inst, doc, page-1)
+		switch {
+		case errors.Is(err, errPage) || isPDFError(err):
+			return nil, fmt.Errorf("%w: %v", ErrPageFailed, err)
+		case err != nil:
+			return nil, fmt.Errorf("%w: render: %v", ErrLimit, err)
 		}
-		return nil
+		return img, nil
 	})
-	return img, err
 }
+
+// errPage is a page that PDFium loads but that has no usable size.
+var errPage = errors.New("page without size")
 
 func renderPage(inst pdfium.Pdfium, doc references.FPDF_DOCUMENT, index int) (*image.RGBA, error) {
 	p, err := inst.FPDF_LoadPage(&requests.FPDF_LoadPage{Document: doc, Index: index})
@@ -316,7 +346,7 @@ func renderPage(inst pdfium.Pdfium, doc references.FPDF_DOCUMENT, index int) (*i
 	}
 	width, height, ok := FitLongEdge(float64(w.PageWidth), float64(h.PageHeight))
 	if !ok {
-		return nil, errors.New("page without size")
+		return nil, errPage
 	}
 	bm, err := inst.FPDFBitmap_Create(&requests.FPDFBitmap_Create{Width: width, Height: height, Alpha: 0})
 	if err != nil {

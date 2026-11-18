@@ -6,6 +6,7 @@ import (
 	"errors"
 	"hash/crc32"
 	"image"
+	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -218,17 +219,30 @@ func TestFitLongEdge(t *testing.T) {
 	}
 }
 
-// A call over its time limit gives ErrLimit and discards the instance; the
-// next document starts a new one (templates.md §3.2 item 4).
+// A render loop in the guest that runs over its time limit is stopped:
+// ErrLimit at about the limit, the instance discarded, the next document
+// gets a new one (templates.md §3.2 item 4).
 func TestTimeLimit(t *testing.T) {
 	r := New()
 	defer r.Close()
 	if _, err := r.OpenPDF(f14File(t, chartDeck, "pdf")); err != nil {
 		t.Fatal(err)
 	}
-	err := r.within(10*time.Millisecond, func() error { time.Sleep(200 * time.Millisecond); return nil })
+	inst, doc := r.inst, *r.doc
+	start := time.Now()
+	_, err := within(r, 50*time.Millisecond, func() (int, error) {
+		for i := 0; ; i++ { // real page renders until the kill stops the guest
+			if _, err := renderPage(inst, doc, i%3); err != nil {
+				return i, err
+			}
+		}
+	})
+	took := time.Since(start)
 	if !errors.Is(err, ErrLimit) || r.inst != nil || r.doc != nil {
 		t.Fatalf("err = %v, instance %v; want ErrLimit and no instance", err, r.inst)
+	}
+	if took > killGrace {
+		t.Errorf("the kill took %v, want the guest stopped at once", took)
 	}
 	if _, err := r.RenderPage(1); !errors.Is(err, ErrLimit) {
 		t.Errorf("render after a limit hit: %v, want ErrLimit (no open document)", err)
@@ -238,5 +252,36 @@ func TestTimeLimit(t *testing.T) {
 	}
 	if _, err := r.RenderPage(1); err != nil {
 		t.Errorf("render with a new instance: %v", err)
+	}
+}
+
+// The pixel limit is checked from the header for JPEG and WebP as well
+// (templates.md §3.2 item 2): only the header is read, so the data behind
+// it does not matter.
+func TestDecodeUploadLimitOtherFormats(t *testing.T) {
+	r := New()
+	defer r.Close()
+	// JPEG: the SOF0 segment of a 1x1 JPEG says 5000x5001.
+	var j bytes.Buffer
+	if err := jpeg.Encode(&j, image.NewGray(image.Rect(0, 0, 1, 1)), nil); err != nil {
+		t.Fatal(err)
+	}
+	jb := j.Bytes()
+	sof := bytes.Index(jb, []byte{0xFF, 0xC0})
+	if sof < 0 {
+		t.Fatal("no SOF0 marker")
+	}
+	binary.BigEndian.PutUint16(jb[sof+5:], 5001) // height
+	binary.BigEndian.PutUint16(jb[sof+7:], 5000) // width
+	if _, err := r.DecodeUpload(jb); !errors.Is(err, ErrTooLarge) {
+		t.Errorf("JPEG 5000x5001: %v, want ErrTooLarge", err)
+	}
+	// WebP: an extended header (VP8X) with a 5000x5001 canvas.
+	vp8x := []byte("VP8X\x0a\x00\x00\x00\x00\x00\x00\x00")
+	vp8x = append(vp8x, 0x87, 0x13, 0x00, 0x88, 0x13, 0x00) // width-1 = 4999, height-1 = 5000
+	w := append([]byte("RIFF\x00\x00\x00\x00WEBP"), vp8x...)
+	binary.LittleEndian.PutUint32(w[4:], uint32(len(w)-8))
+	if _, err := r.DecodeUpload(w); !errors.Is(err, ErrTooLarge) {
+		t.Errorf("WebP 5000x5001: %v, want ErrTooLarge", err)
 	}
 }
