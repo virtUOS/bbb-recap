@@ -240,7 +240,8 @@ draft 2020-12 schema owned by the format, `templates.md`), `max_output_tokens` (
 `extra_body`. transkribierBAR, Meet and bbb-record-ai-summary all use this shape. `base_url` includes `/v1` (Meet's
 default is `https://api.openai.com/v1`). `extra_body` covers model quirks without code, e.g. vLLM
 `chat_template_kwargs: {enable_thinking: false}` to turn off reasoning output (transkribierBAR
-`backend/app/services/llm/openai.py:35-53 @ f3f38f3`).
+`backend/app/services/llm/openai.py:35-53 @ f3f38f3`). A reasoning model may count its thinking against `max_tokens`: with
+thinking on, a call can end with `finish_reason = "length"` before any answer, which is `output_truncated` (§3.4).
 
 ### 3.3 Structured output (profile field `structured_output`)
 

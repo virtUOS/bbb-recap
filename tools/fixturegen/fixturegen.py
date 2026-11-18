@@ -12,6 +12,7 @@ and bit-exact encoder flags), so running it twice gives byte-identical files.
 
 Run: python3 -I tools/fixturegen/fixturegen.py   (or `make fixtures`)
 """
+import base64
 import datetime
 import hashlib
 import json
@@ -940,6 +941,10 @@ def secrets():
     }
     for path, label in files.items():
         write("testdata/secrets/" + path, "FIXTURE-NOT-A-SECRET-%s-%s\n" % (label, hex32(label)))
+    # Webhook signing secret in Standard Webhooks form: whsec_ + base64 (sinks.md §4b).
+    webhook = "FIXTURE-NOT-A-SECRET-webhook-%s" % hex32("webhook")
+    write("testdata/secrets/webhook-signing.key", "whsec_%s\n" % base64.b64encode(webhook.encode()).decode())
+    write("testdata/secrets/matrix-bot.token", "FIXTURE-NOT-A-SECRET-matrix-%s\n" % hex32("matrix"))
 
 
 def check_versions():

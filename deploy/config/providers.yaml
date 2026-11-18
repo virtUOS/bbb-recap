@@ -34,6 +34,10 @@ profiles:
     context_tokens: 32768 # REPLACE: the model's context length
     max_output_tokens: 4096
     structured_output: json_object # json_schema, json_object or prompt
+    # A reasoning model (e.g. Qwen on vLLM) may spend max_output_tokens on
+    # thinking, and the summary then fails with output_truncated. Turn
+    # thinking off (providers.md §3.2):
+    # extra_body: { chat_template_kwargs: { enable_thinking: false } }
     max_inflight: 4
     declaration:
       data_categories: [transcript, chat, summary]

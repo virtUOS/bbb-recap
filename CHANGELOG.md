@@ -6,12 +6,27 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- `api` and `check-config`: one INFO line `front end access` per front end shows the BBB servers, meeting types and
+  sink profiles it may use, and a WARN names each front-end ID in `RECAP_FRONTEND_SERVERS`, `RECAP_FRONTEND_TYPES` or
+  `RECAP_FRONTEND_SINKS` without a `frontend.<id>` credential file, so a typo no longer goes unnoticed.
+- [install-compose.md](docs/operations/install-compose.md): a troubleshooting table for common installation problems.
+
 ### Changed
 
+- `check-config` also reads the client credentials (api role), so a token held by two files fails the check; the
+  error now says to remove the file of the old ID.
+- LLM profile example: how to turn off thinking for reasoning models, which otherwise may end in `output_truncated`.
 - BBB plugin: the "AI summary" button is now an "AI minutes" control ("KI-Protokoll"): a pill like BBB's recording
   pill with off, running and paused states and the active time, start and pause popovers, a status chip with an info
   popover for everyone else, and toasts on each change. In recap meetings it hides BBB's own recording pill and its two "being
   recorded" toasts ([install-plugin.md](docs/operations/install-plugin.md)).
+
+### Fixed
+
+- `make fixtures` now generates `testdata/secrets/webhook-signing.key` and `matrix-bot.token` instead of deleting them
+  (their fixture values changed).
 
 ## [0.2.1] - 2026-11-17
 

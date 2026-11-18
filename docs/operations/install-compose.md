@@ -56,7 +56,8 @@ On the recap host, as a user who may run docker:
 
 5. Put your TLS reverse proxy in front of `127.0.0.1:8080` ([`Caddyfile.example`](../../deploy/Caddyfile.example)
    shows Caddy). Check from outside: `curl -sS -o /dev/null -w '%{http_code}\n' https://recap.example.org/` prints
-   `404` (the api answers; there is no page at `/`).
+   `404` (the api answers; there is no page at `/`, the admin UI is at `/admin/`). `502` means the proxy cannot reach
+   the api.
 
 6. Connect a BBB server and a front end (see [below](#bbb-servers-and-front-ends)).
 
@@ -64,14 +65,14 @@ On the recap host, as a user who may run docker:
 
 All files live in `/opt/recap`.
 
-| File                        | Content                                                                                         |
-| --------------------------- | ----------------------------------------------------------------------------------------------- |
-| `compose.yaml`              | the four services; take it unchanged from the release                                           |
-| `.env`                      | every setting, one comment each; empty means the default                                        |
-| `config/providers.yaml`     | ASR and LLM endpoints ([providers.md](../reference/providers.md) §4.1)                          |
-| `config/sinks.yaml`         | where summaries go: Docs or the front end ([sinks.md](../reference/sinks.md))                   |
-| `config/meeting-types.yaml` | meeting type to output format; nothing to change ([templates.md](../reference/templates.md) §1) |
-| `secrets/`                  | one file per secret, see below                                                                  |
+| File                        | Content                                                                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `compose.yaml`              | the four services; take it unchanged from the release                                                                                                  |
+| `.env`                      | every setting, one comment each; empty means the default                                                                                               |
+| `config/providers.yaml`     | ASR and LLM endpoints ([providers.md](../reference/providers.md) §4.1)                                                                                 |
+| `config/sinks.yaml`         | where summaries go: Docs or the front end ([sinks.md](../reference/sinks.md))                                                                          |
+| `config/meeting-types.yaml` | meeting type to output format; slides go to the LLM only for a type with `inputs: {slides: true}` ([templates.md](../reference/templates.md) §1, §3.1) |
+| `secrets/`                  | one file per secret, see below                                                                                                                         |
 
 | Secret file                                | Content                                     | Needed                            |
 | ------------------------------------------ | ------------------------------------------- | --------------------------------- |
@@ -182,3 +183,20 @@ docker compose up -d
   The bundled `postgres` still starts but holds no data.
 - S3 instead of the `blobdata` volume: set `RECAP_BLOB_BACKEND=s3`, `RECAP_S3_ENDPOINT` and `RECAP_S3_BUCKET`, put the
   keys into `secrets/s3-access-key-id` and `secrets/s3-secret-access-key`. Create the bucket once, with versioning off.
+
+## Troubleshooting
+
+`docker compose logs --tail 50 api worker` shows the reason; `check-config` (step 4) names configuration errors and
+warns about likely typos. Held and failed jobs are listed by the admin UI or the admin API, e.g.
+`curl -sS -H "Authorization: Bearer $(cat secrets/clients/admin.ops)" "https://recap.example.org/api/v1/admin/jobs?state=held"`.
+
+| Symptom                                                                                                   | Cause                                                                                                                                                                                      | Fix                                                                                                                                                                                                                                                |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api` does not start: `client secrets: bbb_server.a and bbb_server.b hold the same token`                 | two credential files hold one token, typically after a client ID was renamed by copying its file                                                                                           | two clients cannot share a token: remove the file of the old ID and recreate `api`                                                                                                                                                                 |
+| `check-config` or the `api` log warns `front end has no credential file; check the ID for a typo`         | an ID in `RECAP_FRONTEND_SERVERS`, `RECAP_FRONTEND_TYPES` or `RECAP_FRONTEND_SINKS` has no `clients/frontend.<id>`; without `RECAP_FRONTEND_SERVERS` the real front end stays unrestricted | correct the ID in `.env`; the INFO line `front end access` shows what each front end may claim and request                                                                                                                                         |
+| Jobs held with `no_registration`; the front end logs failed registrations (e.g. HTTP 405 or an HTML page) | the front end's service URL points to another host or path, so a different web server answers its `PUT /api/v1/registrations/…`                                                            | set the front end's service URL to the recap base URL (`https://recap.example.org`, no path). A late registration releases the held job. PILOS: the failed registration is in its failed jobs table                                                |
+| Summary fails with `output_truncated`                                                                     | the LLM hit `max_output_tokens` (`finish_reason` `length`); a reasoning model may spend all of it on thinking                                                                              | turn thinking off in the LLM profile, e.g. `extra_body: {chat_template_kwargs: {enable_thinking: false}}` for Qwen on vLLM, or raise `max_output_tokens` ([providers.md](../reference/providers.md) §3.2); recreate `worker`, then `retry` the job |
+| The summary ignores the slides                                                                            | the meeting type does not switch slides on                                                                                                                                                 | add `inputs: {slides: true}` to the type in `config/meeting-types.yaml`, list `slides` in the LLM declaration's `data_categories`, recreate `api` and `worker`                                                                                     |
+| A job that an admin retried after `failed` is delivered, but the front end never shows the summary        | the front end stopped polling when it saw `failed`                                                                                                                                         | make the front end fetch the result again. PILOS: dispatch its summary poll job for that meeting again                                                                                                                                             |
+| `https://recap.example.org/` answers `404`                                                                | expected: there is no page at `/`                                                                                                                                                          | the admin UI is at `/admin/` (with `RECAP_OIDC_ISSUER` set)                                                                                                                                                                                        |
+| `https://recap.example.org/…` answers `502`                                                               | the reverse proxy cannot reach the api                                                                                                                                                     | check `docker compose ps` (api healthy) and that the proxy forwards to `127.0.0.1:8080`                                                                                                                                                            |

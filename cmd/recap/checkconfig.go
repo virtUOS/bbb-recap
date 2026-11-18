@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/virtUOS/bbb-recap/internal/config"
+	"github.com/virtUOS/bbb-recap/internal/httpapi"
 	"github.com/virtUOS/bbb-recap/internal/logging"
 )
 
@@ -19,7 +21,9 @@ func runCheckConfig(args []string, stdout, stderr io.Writer) int {
 }
 
 // checkConfig runs the start-up configuration check for one role or, by
-// default, both (deployment.md §5). Errors go to stderr; exit 2 on any.
+// default, both (deployment.md §5). For the api role it also reads the client
+// credentials and logs what each front end may claim and request. Errors go
+// to stderr; exit 2 on any.
 func checkConfig(args, environ []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("recap check-config", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -48,12 +52,19 @@ func checkConfig(args, environ []string, stdout, stderr io.Writer) int {
 	}
 
 	cfg, err := config.Load(environ, roles...)
+	var creds *httpapi.Credentials
+	if err == nil && slices.Contains(roles, config.RoleAPI) {
+		creds, err = httpapi.LoadCredentials(cfg.ClientSecretsDir)
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "recap check-config: invalid configuration:\n%v\n", err)
 		return exitUsage
 	}
 	log := logging.New(stderr, cfg.LogLevel)
 	cfg.LogBoot(log)
+	if creds != nil {
+		cfg.LogFrontendAccess(log, creds.IDs(httpapi.KindFrontend))
+	}
 	config.LogSinkWarnings(log, cfg.Sinks)
 	if cfg.Providers != nil { // worker role only
 		cfg.Providers.LogWarnings(log)
