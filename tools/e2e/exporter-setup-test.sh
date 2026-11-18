@@ -121,6 +121,12 @@ else
 		[[ $(stat -c '%U %a' /etc/recap-exporter/secrets/ingest-token) == "recap-exporter 400" ]] || echo "token mode"
 		tail -1 "$HOOK" | grep -qx '# changed' || echo "hook not updated"
 	} >/out/$mode-inode.txt
+	# An empty --token-file is an error, not "keep the old token".
+	: >/tmp/empty
+	if bash /src/deploy/exporter/setup.sh "${args[@]}" --token-file /tmp/empty >/out/$mode-empty.log 2>&1; then
+		echo "exit 0 with an empty --token-file" >>/out/$mode-empty.log
+		exit 1
+	fi
 	# Without a token on the first run the script must refuse.
 	userdel recap-exporter
 	rm -rf /etc/recap-exporter /var/lib/recap-exporter /opt/recap-exporter
@@ -148,6 +154,8 @@ for mode in packaged docker; do
 	ok "$mode BBB: second run changes nothing"
 	[[ ! -s $WORK/$mode-inode.txt ]] || fail "$mode: rerun with changes: $(cat "$WORK/$mode-inode.txt")"
 	ok "$mode BBB: a rerun updates exporter.env, token and hook in place (same inode)"
+	grep -q 'no token in it' "$WORK/$mode-empty.log" || fail "$mode: empty --token-file: $(cat "$WORK/$mode-empty.log")"
+	ok "$mode BBB: refuses an empty --token-file"
 	grep -q 'no token' "$WORK/$mode-notoken.log" || fail "$mode: no clear error without a token"
 	ok "$mode BBB: refuses a first run without token"
 	if grep -q dummy-token "$WORK/$mode"-run*.log; then

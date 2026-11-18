@@ -13,9 +13,10 @@
 # Safe to run again: it changes only what differs (a new release, URL, ID or
 # token) and keeps other lines of exporter.env and RAW_MOUNT in .env. Files
 # are rewritten in place (same inode), because docker BBB bind-mounts
-# exporter.env and the hook as single files. The daemon reads its settings and
-# token at start, so it is recreated when they changed; on docker BBB so is
-# recording-workers. compose.yaml and the hook come from the release on GitHub,
+# exporter.env and the hook as single files; the hook reads both on every run.
+# The daemon reads its settings and token at start, so it is recreated when
+# they changed. The in-place writes are not atomic (truncate, then write).
+# compose.yaml and the hook come from the release on GitHub,
 # or from the checkout this script is in (--src overrides both).
 set -euo pipefail
 
@@ -28,10 +29,10 @@ Usage: bash setup.sh --version TAG --service-url URL --server-id ID [options]
   --server-id ID       this server's ID: bbb_server.<id> on the service
   --bbb-dir DIR        docker BBB: the directory of BBB's docker-compose.yml
   --hook-gid GID       group of the hook's user (default: packaged BBB bigbluebutton's group, docker BBB 998)
-  --token-file FILE    read the token from FILE, or from stdin with -; without it the
-                       token is asked for in a terminal (a first run needs one)
+  --token-file FILE    read the token from FILE, or from a pipe with -; without it an
+                       existing token is kept, and a first run asks for it in a terminal
   --src DIR|URL        where compose.yaml and the hook come from (a checkout or a raw URL)
-  --no-start           write the files only; do not start the exporter or recreate recording-workers
+  --no-start           write the files only; do not start the exporter or recording-workers
 EOF
 }
 
@@ -99,6 +100,7 @@ fi
 token_path=/etc/recap-exporter/secrets/ingest-token
 token=
 if [[ $token_file == - ]]; then
+	[[ ! -t 0 ]] || die "--token-file -: pipe the token in; to type it, leave out --token-file on a first run"
 	token=$(cat)
 elif [[ -n $token_file ]]; then
 	token=$(cat -- "$token_file")
@@ -106,6 +108,7 @@ elif [[ ! -s $token_path && -t 0 ]]; then
 	read -r -s -p "Token of $server_id (secrets/clients/bbb_server.$server_id on the recap host, not shown): " token
 	echo
 fi
+[[ -z $token_file || -n $token ]] || die "--token-file $token_file: no token in it"
 [[ -n $token || -s $token_path ]] ||
 	die "no token: use --token-file FILE (- for stdin), or run in a terminal to type it"
 
@@ -256,15 +259,12 @@ if [[ $start -eq 1 ]]; then
 	else
 		docker compose up -d
 	fi
-	# Docker BBB: recording-workers runs the hook with the mounted files. On
-	# packaged BBB each post_archive script runs as its own process
-	# (upstream-facts.md), so the new hook needs no restart.
+	# The hook is started as its own process for each recording and reads the
+	# (in place written) hook and exporter.env then (upstream-facts.md), so
+	# BBB's recording workers need no restart. Docker BBB: compose recreates
+	# recording-workers only for a new override file.
 	if [[ -n $bbb_dir && -z $override_note ]]; then
-		if was_changed "$env_file" || was_changed /etc/recap-exporter/recap_export.rb || was_changed "$bbb_dir/*"; then
-			(cd "$bbb_dir" && docker compose up -d --force-recreate recording-workers)
-		else
-			(cd "$bbb_dir" && docker compose up -d recording-workers)
-		fi
+		(cd "$bbb_dir" && docker compose up -d recording-workers)
 	fi
 	ready=no
 	for _ in 1 2 3 4 5 6 7 8 9 10; do
